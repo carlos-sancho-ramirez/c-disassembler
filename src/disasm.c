@@ -22,14 +22,14 @@ const char HEX_CHAR[16] = {
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
-static print_literal_hex_byte(void (*print)(const char *), int value) {
+static void print_literal_hex_byte(void (*print)(const char *), int value) {
 	char number[] = "0x00";
 	number[3] = HEX_CHAR[value & 0x0F];
 	number[2] = HEX_CHAR[(value >> 4) & 0x0F];
 	print(number);
 }
 
-static print_literal_hex_word(void (*print)(const char *), int value) {
+static void print_literal_hex_word(void (*print)(const char *), int value) {
 	char number[] = "0x0000";
 	number[5] = HEX_CHAR[value & 0x000F];
 	number[4] = HEX_CHAR[(value >> 4) & 0x000F];
@@ -39,33 +39,79 @@ static print_literal_hex_word(void (*print)(const char *), int value) {
 }
 
 static int dump_instruction(struct Reader *reader, void (*print)(const char *), void (*print_error)(const char *)) {
-    const int value0 = read_next_byte(reader);
-	if (value0 == 0x48) {
-		print("dec ax\n");
+    const char *segment = NULL;
+	while (1) {
+		const int value0 = read_next_byte(reader);
+		if (value0 == 0x26) {
+			segment = "es:";
+		}
+		else if (value0 == 0x31) {
+			const int value1 = read_next_byte(reader);
+			if (value1 == 0xC0) {
+				print("xor ax,ax\n");
+				return 0;
+			}
+			else {
+				print_error("Unknown opcode ");
+				print_literal_hex_byte(print_error, value0);
+				print_error(" ");
+				print_literal_hex_byte(print_error, value1);
+				print_error("\n");
+				return 1;
+			}
+		}
+		else if (value0 == 0x48) {
+			print("dec ax\n");
+			return 0;
+		}
+		else if (value0 == 0x8E) {
+			const int value1 = read_next_byte(reader);
+			if (value1 == 0xC0) {
+				print("mov es,ax\n");
+				return 0;
+			}
+			else {
+				print_error("Unknown opcode ");
+				print_literal_hex_byte(print_error, value0);
+				print_error(" ");
+				print_literal_hex_byte(print_error, value1);
+				print_error("\n");
+				return 1;
+			}
+		}
+		else if (value0 == 0xA1) {
+			print("mov ax,[");
+			if (segment) {
+				print(segment);
+			}
+			print_literal_hex_word(print, read_next_word(reader));
+			print("]\n");
+		}
+		else if (value0 == 0xB4) {
+			print("mov ah,");
+			print_literal_hex_byte(print, read_next_byte(reader));
+			print("\n");
+			return 0;
+		}
+		else if (value0 == 0xBA) {
+			print("mov dx,");
+			print_literal_hex_word(print, read_next_word(reader));
+			print("\n");
+			return 0;
+		}
+		else if (value0 == 0xCD) {
+			print("int ");
+			print_literal_hex_byte(print, read_next_byte(reader));
+			print("\n");
+			return 0;
+		}
+		else {
+			print_error("Unknown opcode ");
+			print_literal_hex_byte(print_error, value0);
+			print_error("\n");
+			return 1;
+		}
 	}
-	else if (value0 == 0xB4) {
-		print("mov ah, ");
-		print_literal_hex_byte(print, read_next_byte(reader));
-		print("\n");
-	}
-	else if (value0 == 0xBA) {
-		print("mov dx, ");
-		print_literal_hex_word(print, read_next_word(reader));
-		print("\n");
-	}
-	else if (value0 == 0xCD) {
-		print("int ");
-		print_literal_hex_byte(print, read_next_byte(reader));
-		print("\n");
-	}
-	else {
-		print_error("Unknown opcode ");
-		print_literal_hex_byte(print_error, value0);
-		print_error("\n");
-		return 1;
-	}
-
-	return 0;
 }
 
 static int dump(struct Reader *reader, void (*print)(const char *), void (*print_error)(const char *)) {
