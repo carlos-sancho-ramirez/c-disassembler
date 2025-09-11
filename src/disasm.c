@@ -205,24 +205,51 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 				return 0;
 			}
 		}
-		else if (value0 == 0xA1) {
-			print("mov ax,[");
-			if (segment) {
-				print(segment);
-				print(":");
+		else if ((value0 & 0xFC) == 0xA0) {
+			print("mov ");
+			const char **registers;
+			if (value0 & 1) {
+				registers = WORD_REGISTERS;
 			}
-			print_literal_hex_word(print, read_next_word(reader));
-			print("]\n");
-		}
-		else if (value0 == 0xB4) {
-			print("mov ah,");
-			print_literal_hex_byte(print, read_next_byte(reader));
+			else {
+				registers = BYTE_REGISTERS;
+			}
+
+			if ((value0 & 0xFE) == 0xA0) {
+				print(registers[0]);
+				print(",[");
+				if (segment) {
+					print(segment);
+					print(":");
+				}
+				print_literal_hex_word(print, read_next_word(reader));
+				print("]");
+			}
+			else if ((value0 & 0xFE) == 0xA2) {
+				print("[");
+				if (segment) {
+					print(segment);
+					print(":");
+				}
+				print_literal_hex_word(print, read_next_word(reader));
+				print("],");
+				print(registers[0]);
+			}
 			print("\n");
 			return 0;
 		}
-		else if (value0 == 0xBA) {
-			print("mov dx,");
-			print_literal_hex_word(print, read_next_word(reader));
+		else if ((value0 & 0xF0) == 0xB0) {
+			print("mov ");
+			if (value0 & 0x08) {
+				print(WORD_REGISTERS[value0 & 0x07]);
+				print(",");
+				print_literal_hex_word(print, read_next_word(reader));
+			}
+			else {
+				print(BYTE_REGISTERS[value0 & 0x07]);
+				print(",");
+				print_literal_hex_byte(print, read_next_byte(reader));
+			}
 			print("\n");
 			return 0;
 		}
