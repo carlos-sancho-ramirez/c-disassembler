@@ -84,6 +84,38 @@ const char *SEGMENT_REGISTERS[] = {
 	"es", "cs", "ss", "ds"
 };
 
+static void dump_address(
+		struct Reader *reader,
+		void (*print)(const char *),
+		int value1,
+		const char *segment,
+		const char **registers) {
+	if ((value1 & 0xC0) != 0xC0) {
+		print("[");
+		if (segment) {
+			print(segment);
+			print(":");
+		}
+
+		if ((value1 & 0xC7) == 0x06) {
+			print(read_next_word(reader));
+		}
+		else {
+			print(ADDRESS_REGISTERS[value1 & 0x07]);
+			if ((value1 & 0xC0) == 0x40) {
+				print_differential_hex_byte(reader, read_next_byte(reader));
+			}
+			else if ((value1 & 0xC0) == 0x40) {
+				print_differential_hex_word(reader, read_next_byte(reader));
+			}
+		}
+		print("]");
+	}
+	else {
+		print(registers[value1 & 0x07]);
+	}
+}
+
 static int dump_instruction(struct Reader *reader, void (*print)(const char *), void (*print_error)(const char *)) {
     const char *segment = NULL;
 	while (1) {
@@ -102,61 +134,14 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 
 				const int value1 = read_next_byte(reader);
 				if ((value0 & 0x06) == 0x00) {
-					if ((value1 & 0xC0) != 0xC0) {
-						print("[");
-						if (segment) {
-							print(segment);
-							print(":");
-						}
-
-						if ((value1 & 0xC7) == 0x06) {
-							print(read_next_word(reader));
-						}
-						else {
-							print(ADDRESS_REGISTERS[value1 & 0x07]);
-							if ((value1 & 0xC0) == 0x40) {
-								print_differential_hex_byte(reader, read_next_byte(reader));
-							}
-							else if ((value1 & 0xC0) == 0x40) {
-								print_differential_hex_word(reader, read_next_byte(reader));
-							}
-						}
-						print("],");
-					}
-					else {
-						print(registers[value1 & 0x07]);
-						print(",");
-					}
+					dump_address(reader, print, value1, segment, registers);
+					print(",");
 					print(registers[(value1 >> 3) & 0x07]);
 				}
 				else if ((value0 & 0x06) == 0x02) {
 					print(registers[(value1 >> 3) & 0x07]);
 					print(",");
-
-					if ((value1 & 0xC0) != 0xC0) {
-						print("[");
-						if (segment) {
-							print(segment);
-							print(":");
-						}
-
-						if ((value1 & 0xC7) == 0x06) {
-							print(read_next_word(reader));
-						}
-						else {
-							print(ADDRESS_REGISTERS[value1 & 0x07]);
-							if ((value1 & 0xC0) == 0x40) {
-								print_differential_hex_byte(print, read_next_byte(reader));
-							}
-							else if ((value1 & 0xC0) == 0x40) {
-								print_differential_hex_word(print, read_next_byte(reader));
-							}
-						}
-						print("]");
-					}
-					else {
-						print(registers[value1 & 0x07]);
-					}
+					dump_address(reader, print, value1, segment, registers);
 				}
 				print("\n");
 				return 0;
@@ -203,17 +188,21 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 		}
 		else if (value0 == 0x8E) {
 			const int value1 = read_next_byte(reader);
-			if (value1 == 0xC0) {
-				print("mov es,ax\n");
-				return 0;
-			}
-			else {
+			if (value1 & 0x20) {
 				print_error("Unknown opcode ");
 				print_literal_hex_byte(print_error, value0);
 				print_error(" ");
 				print_literal_hex_byte(print_error, value1);
 				print_error("\n");
 				return 1;
+			}
+			else {
+				print("mov ");
+				print(SEGMENT_REGISTERS[(value1 >> 3) & 0x03]);
+				print(",");
+				dump_address(reader, print, value1, segment, WORD_REGISTERS);
+				print("\n");
+				return 0;
 			}
 		}
 		else if (value0 == 0xA1) {
