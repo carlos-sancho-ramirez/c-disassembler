@@ -186,7 +186,7 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("\n");
 			return 0;
 		}
-		else if (value0 == 0x8E) {
+		else if ((value0 & 0xFD) == 0x8C) {
 			const int value1 = read_next_byte(reader);
 			if (value1 & 0x20) {
 				print_error("Unknown opcode ");
@@ -198,9 +198,16 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			}
 			else {
 				print("mov ");
-				print(SEGMENT_REGISTERS[(value1 >> 3) & 0x03]);
-				print(",");
-				dump_address(reader, print, value1, segment, WORD_REGISTERS);
+				if (value0 & 0x02) {
+					print(SEGMENT_REGISTERS[(value1 >> 3) & 0x03]);
+					print(",");
+					dump_address(reader, print, value1, segment, WORD_REGISTERS);
+				}
+				else {
+					dump_address(reader, print, value1, segment, WORD_REGISTERS);
+					print(",");
+					print(SEGMENT_REGISTERS[(value1 >> 3) & 0x03]);
+				}
 				print("\n");
 				return 0;
 			}
