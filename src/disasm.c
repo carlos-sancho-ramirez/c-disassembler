@@ -259,6 +259,30 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("\n");
 			return 0;
 		}
+		else if (value0 == 0xF8) {
+			print("clc\n");
+			return 0;
+		}
+		else if (value0 == 0xF9) {
+			print("stc\n");
+			return 0;
+		}
+		else if (value0 == 0xFA) {
+			print("cli\n");
+			return 0;
+		}
+		else if (value0 == 0xFB) {
+			print("sti\n");
+			return 0;
+		}
+		else if (value0 == 0xFC) {
+			print("cld\n");
+			return 0;
+		}
+		else if (value0 == 0xFD) {
+			print("std\n");
+			return 0;
+		}
 		else {
 			print_error("Unknown opcode ");
 			print_literal_hex_byte(print_error, value0);
