@@ -1,13 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-#define BUFFER_SIZE (1 << 14)
+#include <stdint.h>
 
 struct Reader {
 	const char *buffer;
-	int buffer_size;
-	int buffer_index;
+	unsigned int buffer_size;
+	unsigned int buffer_index;
 };
 
 static int read_next_byte(struct Reader *reader) {
@@ -98,7 +97,7 @@ static void dump_address(
 		}
 
 		if ((value1 & 0xC7) == 0x06) {
-			print(read_next_word(reader));
+			print_literal_hex_word(print, read_next_word(reader));
 		}
 		else {
 			print(ADDRESS_REGISTERS[value1 & 0x07]);
@@ -309,7 +308,7 @@ static int dump(struct Reader *reader, void (*print)(const char *), void (*print
 }
 
 static void print_help(const char *executedFile) {
-	printf("Syntax: %s <options>\nPossible options:\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n", executedFile);
+	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n", executedFile);
 }
 
 static void dump_print(const char *str) {
@@ -320,12 +319,139 @@ static void print_error(const char *str) {
 	fprintf(stderr, str);
 }
 
+struct dos_header {
+	uint16_t magic; // Must be "MZ"
+	uint16_t bytes_in_last_page;
+	uint16_t pages_count;
+	uint16_t relocations_count;
+	uint16_t header_paragraphs;
+	uint16_t required_paragraphs;
+	uint16_t desired_paragraphs;
+	uint16_t initial_stack_segment;
+	uint16_t initial_stack_pointer;
+	uint16_t checksum;
+	uint16_t initial_ip;
+	uint16_t initial_cs;
+	uint16_t relocation_table_offset;
+};
+
+static int prepare_reader(struct Reader *reader, const char *filename, const char *format) {
+	if (strcmp(format, "bin") && strcmp(format, "dos")) {
+		fprintf(stderr, "Undefined format '%s'. It must be 'bin' or 'dos'\n", format);
+		return 1;
+	}
+
+	FILE *file = fopen(filename, "r");
+	if (!file) {
+		fprintf(stderr, "Unable to open file\n");
+		return 1;
+	}
+
+	if (!strcmp(format, "dos")) {
+		struct dos_header header;
+		// This is assuming that the processor running this is also little endian
+		if (fread(&header, 1, sizeof(header), file) < sizeof(header)) {
+			fprintf(stderr, "Unexpected end of file\n");
+			fclose(file);
+			return 1;
+		}
+
+		if (header.magic != 0x5A4D ||
+				header.bytes_in_last_page >= 0x200 ||
+				header.required_paragraphs > header.desired_paragraphs) {
+			fprintf(stderr, "Invalid dos file\n");
+			fclose(file);
+			return 1;
+		}
+
+		const unsigned int header_size = header.header_paragraphs * 16;
+		unsigned int file_size;
+		if (header.bytes_in_last_page) {
+			file_size = (header.pages_count - 1) * 512 + header.bytes_in_last_page;
+		}
+		else {
+			file_size = header.pages_count * 512;
+		}
+
+		reader->buffer_size = file_size - header_size;
+
+		printf("Allocating %d bytes of memory\n", reader->buffer_size);
+		reader->buffer = malloc(reader->buffer_size);
+		if (!reader->buffer) {
+			fprintf(stderr, "Unable to allocate memory\n");
+			fclose(file);
+			return 1;
+		}
+
+		if (fseek(file, header_size, SEEK_SET)) {
+			fprintf(stderr, "Unable to seek file after header\n");
+			free(reader->buffer);
+			fclose(file);
+			return 1;
+		}
+
+		if (fread(reader->buffer, 1, reader->buffer_size, file) != reader->buffer_size) {
+			fprintf(stderr, "Unable to read code and data from file\n");
+			free(reader->buffer);
+			fclose(file);
+			return 1;
+		}
+
+		reader->buffer_index = header.initial_cs * 16 + header.initial_ip;
+	}
+	else {
+		if (fseek(file, 0, SEEK_END)) {
+			fprintf(stderr, "Unable to seek file to its end.\n");
+			fclose(file);
+			return 1;
+		}
+
+		reader->buffer_size = ftell(file);
+		if (fseek(file, 0, SEEK_SET)) {
+			fprintf(stderr, "Unable to seek file to its beginning.\n");
+			fclose(file);
+			return 1;
+		}
+
+		printf("Allocating %d bytes of memory", reader->buffer_size);
+		reader->buffer = malloc(reader->buffer_size);
+		if (!reader->buffer) {
+			fprintf(stderr, "Unable to allocate memory\n");
+			fclose(file);
+			return 1;
+		}
+
+		if (fread(reader->buffer, 1, reader->buffer_size, file) != reader->buffer_size) {
+			fprintf(stderr, "Unable to read code and data from file\n");
+			free(reader->buffer);
+			fclose(file);
+			return 1;
+		}
+
+		reader->buffer_index = 0;
+	}
+	fclose(file);
+	return 0;
+}
+
 int main(int argc, const char *argv[]) {
 	printf("Disassmebler\n");
 
 	const char *filename = NULL;
+	const char *format = NULL;
+
 	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+		if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--format")) {
+			if (++i < argc) {
+				format = argv[i];
+			}
+			else {
+				fprintf(stderr, "Missing format after %s argument\n", argv[i - 1]);
+				print_help(argv[0]);
+				return 1;
+			}
+		}
+		else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			print_help(argv[0]);
 			return 0;
 		}
@@ -334,7 +460,7 @@ int main(int argc, const char *argv[]) {
 				filename = argv[i];
 			}
 			else {
-				fprintf(stderr, "Missing file name after -i argument\n");
+				fprintf(stderr, "Missing file name after %s argument\n", argv[i - 1]);
 				print_help(argv[0]);
 				return 1;
 			}
@@ -352,31 +478,19 @@ int main(int argc, const char *argv[]) {
 		return 1;
 	}
 
-	FILE *file = fopen(filename, "r");
-	if (!file) {
-		fprintf(stderr, "Unable to open file\n");
+	if (!format) {
+		fprintf(stderr, "Argument -f or --format is required\n");
+		print_help(argv[0]);
 		return 1;
 	}
 
 	struct Reader reader;
-	reader.buffer = malloc(BUFFER_SIZE);
-	if (!reader.buffer) {
-		fprintf(stderr, "Unable to allocate memory\n");
-		fclose(file);
-		return 1;
+	int error_code;
+	if (error_code = prepare_reader(&reader, filename, format)) {
+		return error_code;
 	}
-
-	reader.buffer_size = fread(reader.buffer, 1, BUFFER_SIZE, file);
-	if (!reader.buffer_size) {
-		fprintf(stderr, "Unable to read file\n");
-		free(reader.buffer);
-		fclose(file);
-		return 1;
-	}
-	reader.buffer_index = 0;
 
 	int result = dump(&reader, dump_print, print_error);
 	free(reader.buffer);
-	fclose(file);
 	return result;
 }
