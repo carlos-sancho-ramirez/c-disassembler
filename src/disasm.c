@@ -115,6 +115,26 @@ static void dump_address(
 	}
 }
 
+static void dump_address_register_combination(
+		struct Reader *reader,
+		void (*print)(const char *),
+		int value0,
+		int value1,
+		const char **registers,
+		const char *segment,
+		const char **addr_replacement_registers) {
+	if (value0 & 0x02) {
+		print(registers[(value1 >> 3) & 0x07]);
+		print(",");
+		dump_address(reader, print, value1, segment, addr_replacement_registers);
+	}
+	else {
+		dump_address(reader, print, value1, segment, addr_replacement_registers);
+		print(",");
+		print(registers[(value1 >> 3) & 0x07]);
+	}
+}
+
 static int dump_instruction(struct Reader *reader, void (*print)(const char *), void (*print_error)(const char *)) {
     const char *segment = NULL;
 	while (1) {
@@ -132,16 +152,7 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 				}
 
 				const int value1 = read_next_byte(reader);
-				if ((value0 & 0x06) == 0x00) {
-					dump_address(reader, print, value1, segment, registers);
-					print(",");
-					print(registers[(value1 >> 3) & 0x07]);
-				}
-				else if ((value0 & 0x06) == 0x02) {
-					print(registers[(value1 >> 3) & 0x07]);
-					print(",");
-					dump_address(reader, print, value1, segment, registers);
-				}
+				dump_address_register_combination(reader, print, value0, value1, registers, segment, registers);
 				print("\n");
 				return 0;
 			}
@@ -185,6 +196,21 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("\n");
 			return 0;
 		}
+		else if ((value0 & 0xFC) == 0x88) {
+			const char **registers;
+			if (value0 & 1) {
+				registers = WORD_REGISTERS;
+			}
+			else {
+				registers = BYTE_REGISTERS;
+			}
+
+			const int value1 = read_next_byte(reader);
+			print("mov ");
+			dump_address_register_combination(reader, print, value0, value1, registers, segment, registers);
+			print("\n");
+			return 0;
+		}
 		else if ((value0 & 0xFD) == 0x8C) {
 			const int value1 = read_next_byte(reader);
 			if (value1 & 0x20) {
@@ -197,16 +223,7 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			}
 			else {
 				print("mov ");
-				if (value0 & 0x02) {
-					print(SEGMENT_REGISTERS[(value1 >> 3) & 0x03]);
-					print(",");
-					dump_address(reader, print, value1, segment, WORD_REGISTERS);
-				}
-				else {
-					dump_address(reader, print, value1, segment, WORD_REGISTERS);
-					print(",");
-					print(SEGMENT_REGISTERS[(value1 >> 3) & 0x03]);
-				}
+				dump_address_register_combination(reader, print, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
 				print("\n");
 				return 0;
 			}
