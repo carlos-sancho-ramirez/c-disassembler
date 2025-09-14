@@ -105,7 +105,7 @@ static void dump_address(
 				print_differential_hex_byte(reader, read_next_byte(reader));
 			}
 			else if ((value1 & 0xC0) == 0x40) {
-				print_differential_hex_word(reader, read_next_byte(reader));
+				print_differential_hex_word(reader, read_next_word(reader));
 			}
 		}
 		print("]");
@@ -354,13 +354,48 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 	}
 }
 
-static int dump(struct Reader *reader, void (*print)(const char *), void (*print_error)(const char *)) {
-	int result;
-	while (reader->buffer_index < reader->buffer_size) {
-		if (result = dump_instruction(reader, print, print_error)) {
-			return result;
+static int dump_block(
+		struct Reader *reader,
+		void (*print)(const char *),
+		void (*print_error)(const char *),
+		const char *block_end_map) {
+	
+	print("\naddr");
+	print_literal_hex_word(print, reader->buffer_index);
+	print(":\n");
+
+	int error_code;
+	do {
+		if (error_code = dump_instruction(reader, print, print_error)) {
+			return error_code;
 		}
 	}
+	while (!is_current_marked(reader, block_end_map));
+
+	return 0;
+}
+
+static int dump(
+		struct Reader *reader,
+		void (*print)(const char *),
+		void (*print_error)(const char *),
+		const char *block_start_map,
+		const char *block_end_map) {
+	const int block_start_map_size = (reader->buffer_size + 7) >> 3;
+	int error_code;
+	for (int i = 0; i < block_start_map_size; i++) {
+		const int block_map_value = block_start_map[i];
+		for (int j = 0; j < 8; j++) {
+			if (block_map_value & (1 << j)) {
+				reader->buffer_index = i * 8 + j;
+				if (error_code = dump_block(reader, print, print_error, block_end_map)) {
+					return error_code;
+				}
+			}
+		}
+	}
+
+	return 0;
 }
 
 static void print_help(const char *executedFile) {
@@ -490,6 +525,197 @@ static int prepare_reader(struct Reader *reader, const char *filename, const cha
 	return 0;
 }
 
+static void read_block_instruction_address(
+		struct Reader *reader,
+		int value1) {
+	if ((value1 & 0xC7) == 0x06 || (value1 & 0xC0) == 0x80) {
+		read_next_word(reader);
+	}
+	else if ((value1 & 0xC0) == 0x40) {
+		read_next_byte(reader);
+	}
+}
+
+int is_current_marked(struct Reader *reader, char *block_map) {
+	return block_map[reader->buffer_index >> 3] & (1 << (reader->buffer_index & 0x07));
+}
+
+static void mark_block_map(struct Reader *reader, char *block_map) {
+	block_map[reader->buffer_index >> 3] |= 1 << (reader->buffer_index & 0x07);
+}
+
+static int read_block_instruction(
+		struct Reader *reader,
+		void (*print_error)(const char *),
+		char *block_start_map,
+		char *block_end_map) {
+	const int value0 = read_next_byte(reader);
+	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
+		if ((value0 & 0x04) == 0x00) {
+			const int value1 = read_next_byte(reader);
+			read_block_instruction_address(reader, value1);
+			return 0;
+		}
+		else if ((value0 & 0x07) == 0x04) {
+			read_next_byte(reader);
+			return 0;
+		}
+		else if ((value0 & 0x07) == 0x05) {
+			read_next_word(reader);
+			return 0;
+		}
+	}
+	else if ((value0 & 0xE6) == 0x06 && value0 != 0x0F) {
+		return 0;
+	}
+	else if ((value0 & 0xE7) == 0x26) {
+		return read_block_instruction(reader, print_error, block_start_map, block_end_map);
+	}
+	else if ((value0 & 0xF0) == 0x40) {
+		return 0;
+	}
+	else if ((value0 & 0xF0) == 0x50) {
+		return 0;
+	}
+	else if ((value0 & 0xFC) == 0x88) {
+		const int value1 = read_next_byte(reader);
+		read_block_instruction_address(reader, value1);
+		return 0;
+	}
+	else if ((value0 & 0xFD) == 0x8C) {
+		const int value1 = read_next_byte(reader);
+		if (value1 & 0x20) {
+			print_error("Unknown opcode ");
+			print_literal_hex_byte(print_error, value0);
+			print_error(" ");
+			print_literal_hex_byte(print_error, value1);
+			print_error("\n");
+			return 1;
+		}
+		else {
+			read_block_instruction_address(reader, value1);
+			return 0;
+		}
+	}
+	else if ((value0 & 0xFC) == 0xA0) {
+		if ((value0 & 0xFE) == 0xA0) {
+			read_next_word(reader);
+		}
+		else if ((value0 & 0xFE) == 0xA2) {
+			read_next_word(reader);
+		}
+		return 0;
+	}
+	else if ((value0 & 0xFC) == 0xA4) {
+		return 0;
+	}
+	else if ((value0 & 0xF0) == 0xB0) {
+		if (value0 & 0x08) {
+			read_next_word(reader);
+		}
+		else {
+			read_next_byte(reader);
+		}
+		return 0;
+	}
+	else if (value0 == 0xCB) {
+		mark_block_map(reader, block_end_map);
+		return 0;
+	}
+	else if (value0 == 0xCD) {
+		const int interruption_number = read_next_byte(reader);
+		if (interruption_number == 0x20) {
+			mark_block_map(reader, block_end_map);
+		}
+		return 0;
+	}
+	else if (value0 == 0xF2) {
+		return 0;
+	}
+	else if (value0 == 0xF3) {
+		return 0;
+	}
+	else if (value0 == 0xF8) {
+		return 0;
+	}
+	else if (value0 == 0xF9) {
+		return 0;
+	}
+	else if (value0 == 0xFA) {
+		return 0;
+	}
+	else if (value0 == 0xFB) {
+		return 0;
+	}
+	else if (value0 == 0xFC) {
+		return 0;
+	}
+	else if (value0 == 0xFD) {
+		return 0;
+	}
+	else {
+		print_error("Unknown opcode ");
+		print_literal_hex_byte(print_error, value0);
+		print_error("\n");
+		return 1;
+	}
+}
+
+int read_block(
+		struct Reader *reader,
+		void (*print_error)(const char *),
+		char *block_start_map,
+		char *block_end_map) {
+	int error_code;
+	do {
+		if (error_code = read_block_instruction(reader, print_error, block_start_map, block_end_map)) {
+			return error_code;
+		}
+	} while (!is_current_marked(reader, block_end_map));
+
+	return 0;
+}
+
+int prepare_block_maps(
+		struct Reader *reader,
+		void (*print_error)(const char *),
+		char *block_start_map,
+		char *block_end_map) {
+	const int block_start_map_size = (reader->buffer_size + 7) >> 3;
+	const char *checked_block_map = calloc(block_start_map_size, 1);
+	if (!checked_block_map) {
+		print_error("Unable to allocate memory for checked block maps\n");
+		return 1;
+	}
+
+	mark_block_map(reader, block_start_map);
+	int error_code;
+	int next_block_ready;
+	do {
+		mark_block_map(reader, checked_block_map);
+		if (error_code = read_block(reader, print_error, block_start_map, block_end_map)) {
+			free(checked_block_map);
+			return error_code;
+		}
+
+		next_block_ready = 0;
+		for (int i = 0; i < block_start_map_size; i++) {
+			if (block_start_map[i] != checked_block_map[i]) {
+				for (int j = 0; j < 8; j++) {
+					const int flag = 1 << j;
+					if ((block_start_map[i] & flag) != (checked_block_map[i] & flag)) {
+						reader->buffer_index = i * 8 + j;
+						next_block_ready = 1;
+					}
+				}
+			}
+		}
+	} while (next_block_ready);
+
+	free(checked_block_map);
+	return 0;
+}
+
 int main(int argc, const char *argv[]) {
 	printf("Disassmebler\n");
 
@@ -546,7 +772,24 @@ int main(int argc, const char *argv[]) {
 		return error_code;
 	}
 
-	int result = dump(&reader, dump_print, print_error);
+	const int block_start_map_size = (reader.buffer_size + 7) >> 3;
+	const int block_end_map_size = (reader.buffer_size >> 3) + 1;
+	char *block_start_map = calloc(block_start_map_size + block_end_map_size, 1);
+	if (!block_start_map) {
+		fprintf(stderr, "Unable to allocate memory for block maps\n");
+		free(reader.buffer);
+		return 1;
+	}
+
+	char *block_end_map = block_start_map + block_start_map_size;
+	if (error_code = prepare_block_maps(&reader, print_error, block_start_map, block_end_map)) {
+		free(block_start_map);
+		free(reader.buffer);
+		return error_code;
+	}
+
+	int result = dump(&reader, dump_print, print_error, block_start_map, block_end_map);
+	free(block_start_map);
 	free(reader.buffer);
 	return result;
 }
