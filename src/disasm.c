@@ -303,6 +303,10 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("\n");
 			return 0;
 		}
+		else if (value0 == 0xCB) {
+			print("retf\n");
+			return 0;
+		}
 		else if (value0 == 0xCD) {
 			print("int ");
 			print_literal_hex_byte(print, read_next_byte(reader));
