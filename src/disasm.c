@@ -196,6 +196,17 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("\n");
 			return 0;
 		}
+		else if ((value0 & 0xF0) == 0x50) {
+			if (value0 & 0x08) {
+				print("pop ");
+			}
+			else {
+				print("push ");
+			}
+			print(WORD_REGISTERS[value0 & 0x07]);
+			print("\n");
+			return 0;
+		}
 		else if ((value0 & 0xFC) == 0x88) {
 			const char **registers;
 			if (value0 & 1) {
