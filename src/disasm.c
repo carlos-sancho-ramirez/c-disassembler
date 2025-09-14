@@ -261,6 +261,22 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("\n");
 			return 0;
 		}
+		else if (value0 == 0xA4) {
+			print("movsb\n");
+			return 0;
+		}
+		else if (value0 == 0xA5) {
+			print("movsw\n");
+			return 0;
+		}
+		else if (value0 == 0xA6) {
+			print("cmpsb\n");
+			return 0;
+		}
+		else if (value0 == 0xA7) {
+			print("cmpsw\n");
+			return 0;
+		}
 		else if ((value0 & 0xF0) == 0xB0) {
 			print("mov ");
 			if (value0 & 0x08) {
@@ -280,6 +296,14 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 			print("int ");
 			print_literal_hex_byte(print, read_next_byte(reader));
 			print("\n");
+			return 0;
+		}
+		else if (value0 == 0xF2) {
+			print("repne\n");
+			return 0;
+		}
+		else if (value0 == 0xF3) {
+			print("repe\n");
 			return 0;
 		}
 		else if (value0 == 0xF8) {
