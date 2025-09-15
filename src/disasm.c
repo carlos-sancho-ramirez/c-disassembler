@@ -9,6 +9,25 @@ struct Reader {
 	unsigned int buffer_index;
 };
 
+struct SegmentReadResult {
+	const char *buffer;
+	unsigned int size;
+	int relative_cs;
+	unsigned int ip;
+};
+
+struct CodeBlock {
+	unsigned int relative_cs;
+	unsigned int ip;
+	const char *start;
+	const char *end;
+};
+
+struct GlobalVariable {
+	unsigned int *position;
+	unsigned int byte_size;
+};
+
 static int read_next_byte(struct Reader *reader) {
 	return reader->buffer[(reader->buffer_index)++] & 0xFF;
 }
@@ -355,43 +374,45 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 }
 
 static int dump_block(
-		struct Reader *reader,
+		const struct CodeBlock *block,
 		void (*print)(const char *),
-		void (*print_error)(const char *),
-		const char *block_end_map) {
-	
+		void (*print_error)(const char *)) {
+	struct Reader reader;
+	reader.buffer = block->start;
+	reader.buffer_index = 0;
+	reader.buffer_size = block->end - block->start;
+
 	print("\naddr");
-	print_literal_hex_word(print, reader->buffer_index);
+	print_literal_hex_word(print, block->relative_cs);
+	print("_");
+	print_literal_hex_word(print, block->ip);
 	print(":\n");
 
 	int error_code;
 	do {
-		if (error_code = dump_instruction(reader, print, print_error)) {
+		if (error_code = dump_instruction(&reader, print, print_error)) {
 			return error_code;
 		}
 	}
-	while (!is_current_marked(reader, block_end_map));
+	while (block->start + reader.buffer_index != block->end);
 
 	return 0;
 }
 
 static int dump(
-		struct Reader *reader,
+		const struct CodeBlock **sorted_blocks,
+		unsigned int code_block_count,
+		const struct GlobalVariable **global_variables,
+		unsigned int global_variable_count,
 		void (*print)(const char *),
-		void (*print_error)(const char *),
-		const char *block_start_map,
-		const char *block_end_map) {
-	const int block_start_map_size = (reader->buffer_size + 7) >> 3;
+		void (*print_error)(const char *)) {
+	struct Reader reader;
 	int error_code;
-	for (int i = 0; i < block_start_map_size; i++) {
-		const int block_map_value = block_start_map[i];
-		for (int j = 0; j < 8; j++) {
-			if (block_map_value & (1 << j)) {
-				reader->buffer_index = i * 8 + j;
-				if (error_code = dump_block(reader, print, print_error, block_end_map)) {
-					return error_code;
-				}
-			}
+
+	// TODO: Global variables not printed yet
+	for (int code_block_index = 0; code_block_index < code_block_count; code_block_index++) {
+		if (error_code = dump_block(sorted_blocks[code_block_index], print, print_error)) {
+			return error_code;
 		}
 	}
 
@@ -426,7 +447,7 @@ struct dos_header {
 	uint16_t relocation_table_offset;
 };
 
-static int prepare_reader(struct Reader *reader, const char *filename, const char *format) {
+static int read_file(struct SegmentReadResult *result, const char *filename, const char *format) {
 	if (strcmp(format, "bin") && strcmp(format, "dos")) {
 		fprintf(stderr, "Undefined format '%s'. It must be 'bin' or 'dos'\n", format);
 		return 1;
@@ -464,11 +485,11 @@ static int prepare_reader(struct Reader *reader, const char *filename, const cha
 			file_size = header.pages_count * 512;
 		}
 
-		reader->buffer_size = file_size - header_size;
+		result->size = file_size - header_size;
 
-		printf("Allocating %d bytes of memory\n", reader->buffer_size);
-		reader->buffer = malloc(reader->buffer_size);
-		if (!reader->buffer) {
+		printf("Allocating %d bytes of memory\n", result->size);
+		result->buffer = malloc(result->size);
+		if (!result->buffer) {
 			fprintf(stderr, "Unable to allocate memory\n");
 			fclose(file);
 			return 1;
@@ -476,19 +497,20 @@ static int prepare_reader(struct Reader *reader, const char *filename, const cha
 
 		if (fseek(file, header_size, SEEK_SET)) {
 			fprintf(stderr, "Unable to seek file after header\n");
-			free(reader->buffer);
+			free(result->buffer);
 			fclose(file);
 			return 1;
 		}
 
-		if (fread(reader->buffer, 1, reader->buffer_size, file) != reader->buffer_size) {
+		if (fread(result->buffer, 1, result->size, file) != result->size) {
 			fprintf(stderr, "Unable to read code and data from file\n");
-			free(reader->buffer);
+			free(result->buffer);
 			fclose(file);
 			return 1;
 		}
 
-		reader->buffer_index = header.initial_cs * 16 + header.initial_ip;
+		result->relative_cs = header.initial_cs;
+		result->ip = header.initial_ip;
 	}
 	else {
 		if (fseek(file, 0, SEEK_END)) {
@@ -497,29 +519,30 @@ static int prepare_reader(struct Reader *reader, const char *filename, const cha
 			return 1;
 		}
 
-		reader->buffer_size = ftell(file);
+		result->size = ftell(file);
 		if (fseek(file, 0, SEEK_SET)) {
 			fprintf(stderr, "Unable to seek file to its beginning.\n");
 			fclose(file);
 			return 1;
 		}
 
-		printf("Allocating %d bytes of memory", reader->buffer_size);
-		reader->buffer = malloc(reader->buffer_size);
-		if (!reader->buffer) {
+		printf("Allocating %d bytes of memory", result->size);
+		result->buffer = malloc(result->size);
+		if (!result->buffer) {
 			fprintf(stderr, "Unable to allocate memory\n");
 			fclose(file);
 			return 1;
 		}
 
-		if (fread(reader->buffer, 1, reader->buffer_size, file) != reader->buffer_size) {
+		if (fread(result->buffer, 1, result->size, file) != result->size) {
 			fprintf(stderr, "Unable to read code and data from file\n");
-			free(reader->buffer);
+			free(result->buffer);
 			fclose(file);
 			return 1;
 		}
 
-		reader->buffer_index = 0;
+		result->ip = 0x100;
+		result->relative_cs = -0x10;
 	}
 	fclose(file);
 	return 0;
@@ -536,19 +559,18 @@ static void read_block_instruction_address(
 	}
 }
 
-int is_current_marked(struct Reader *reader, char *block_map) {
-	return block_map[reader->buffer_index >> 3] & (1 << (reader->buffer_index & 0x07));
-}
-
-static void mark_block_map(struct Reader *reader, char *block_map) {
-	block_map[reader->buffer_index >> 3] |= 1 << (reader->buffer_index & 0x07);
-}
-
 static int read_block_instruction(
 		struct Reader *reader,
 		void (*print_error)(const char *),
-		char *block_start_map,
-		char *block_end_map) {
+		struct CodeBlock *block,
+		struct CodeBlock *code_blocks,
+		struct CodeBlock **sorted_blocks,
+		unsigned int code_block_allocation_count,
+		unsigned int *code_block_count,
+		struct GlobalVariable *global_variables,
+		struct GlobalVariable **sorted_variables,
+		unsigned int global_variables_allocation_count,
+		unsigned int *global_variable_count) {
 	const int value0 = read_next_byte(reader);
 	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
 		if ((value0 & 0x04) == 0x00) {
@@ -569,7 +591,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, print_error, block_start_map, block_end_map);
+		return read_block_instruction(reader, print_error, block, code_blocks, sorted_blocks, code_block_allocation_count, code_block_count, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -619,13 +641,13 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if (value0 == 0xCB) {
-		mark_block_map(reader, block_end_map);
+		block->end = block->start + reader->buffer_index;
 		return 0;
 	}
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
 		if (interruption_number == 0x20) {
-			mark_block_map(reader, block_end_map);
+			block->end = block->start + reader->buffer_index;
 		}
 		return 0;
 	}
@@ -662,57 +684,55 @@ static int read_block_instruction(
 }
 
 int read_block(
-		struct Reader *reader,
 		void (*print_error)(const char *),
-		char *block_start_map,
-		char *block_end_map) {
+		struct CodeBlock *block,
+		struct CodeBlock *code_blocks,
+		struct CodeBlock **sorted_blocks,
+		unsigned int code_block_allocation_count,
+		unsigned int *code_block_count,
+		struct GlobalVariable *global_variables,
+		struct GlobalVariable **sorted_variables,
+		unsigned int global_variables_allocation_count,
+		unsigned int *global_variable_count) {
+	struct Reader reader;
+	reader.buffer = block->start;
+	reader.buffer_index = 0;
 	int error_code;
 	do {
-		if (error_code = read_block_instruction(reader, print_error, block_start_map, block_end_map)) {
+		if (error_code = read_block_instruction(&reader, print_error, block, code_blocks, sorted_blocks, code_block_allocation_count, code_block_count, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count)) {
 			return error_code;
 		}
-	} while (!is_current_marked(reader, block_end_map));
+	} while (block->end != (block->start + reader.buffer_index));
 
 	return 0;
 }
 
-int prepare_block_maps(
-		struct Reader *reader,
+int find_code_blocks_and_variables(
+		struct SegmentReadResult *read_result,
 		void (*print_error)(const char *),
-		char *block_start_map,
-		char *block_end_map) {
-	const int block_start_map_size = (reader->buffer_size + 7) >> 3;
-	const char *checked_block_map = calloc(block_start_map_size, 1);
-	if (!checked_block_map) {
-		print_error("Unable to allocate memory for checked block maps\n");
-		return 1;
-	}
+		struct CodeBlock *code_blocks,
+		struct CodeBlock **sorted_blocks,
+		unsigned int code_block_allocation_count,
+		unsigned int *code_block_count,
+		struct GlobalVariable *global_variables,
+		struct GlobalVariable **sorted_variables,
+		unsigned int global_variables_allocation_count,
+		unsigned int *global_variable_count) {
+	code_blocks[0].ip = read_result->ip;
+	code_blocks[0].relative_cs = read_result->relative_cs;
+	code_blocks[0].start = read_result->buffer + (read_result->relative_cs * 16 + read_result->ip);
+	code_blocks[0].end = code_blocks[0].start;
+	sorted_blocks[0] = code_blocks;
 
-	mark_block_map(reader, block_start_map);
 	int error_code;
-	int next_block_ready;
-	do {
-		mark_block_map(reader, checked_block_map);
-		if (error_code = read_block(reader, print_error, block_start_map, block_end_map)) {
-			free(checked_block_map);
+	*code_block_count = 1;
+	*global_variable_count = 0;
+	for (int block_index = 0; block_index < *code_block_count; block_index++) {
+		if (error_code = read_block(print_error, code_blocks + block_index, code_blocks, sorted_blocks, code_block_allocation_count, &code_block_count, global_variables, sorted_variables, global_variables_allocation_count, &global_variable_count)) {
 			return error_code;
 		}
+	}
 
-		next_block_ready = 0;
-		for (int i = 0; i < block_start_map_size; i++) {
-			if (block_start_map[i] != checked_block_map[i]) {
-				for (int j = 0; j < 8; j++) {
-					const int flag = 1 << j;
-					if ((block_start_map[i] & flag) != (checked_block_map[i] & flag)) {
-						reader->buffer_index = i * 8 + j;
-						next_block_ready = 1;
-					}
-				}
-			}
-		}
-	} while (next_block_ready);
-
-	free(checked_block_map);
 	return 0;
 }
 
@@ -766,30 +786,63 @@ int main(int argc, const char *argv[]) {
 		return 1;
 	}
 
-	struct Reader reader;
+	struct SegmentReadResult read_result;
 	int error_code;
-	if (error_code = prepare_reader(&reader, filename, format)) {
+	if (error_code = read_file(&read_result, filename, format)) {
 		return error_code;
 	}
 
-	const int block_start_map_size = (reader.buffer_size + 7) >> 3;
-	const int block_end_map_size = (reader.buffer_size >> 3) + 1;
-	char *block_start_map = calloc(block_start_map_size + block_end_map_size, 1);
-	if (!block_start_map) {
-		fprintf(stderr, "Unable to allocate memory for block maps\n");
-		free(reader.buffer);
-		return 1;
+	unsigned int code_block_allocation_count = read_result.size >> 4;
+	struct CodeBlock *code_blocks = malloc(code_block_allocation_count * sizeof(struct CodeBlock));
+	if (!code_blocks) {
+		fprintf(stderr, "Unable to allocate memory for code blocks\n");
+		error_code = 1;
+		goto end0;
 	}
 
-	char *block_end_map = block_start_map + block_start_map_size;
-	if (error_code = prepare_block_maps(&reader, print_error, block_start_map, block_end_map)) {
-		free(block_start_map);
-		free(reader.buffer);
-		return error_code;
+	struct CodeBlock **sorted_blocks = malloc(code_block_allocation_count * sizeof(struct CodeBlock *));
+	if (!code_blocks) {
+		fprintf(stderr, "Unable to allocate memory for code block indexes\n");
+		error_code = 1;
+		goto end1;
 	}
 
-	int result = dump(&reader, dump_print, print_error, block_start_map, block_end_map);
-	free(block_start_map);
-	free(reader.buffer);
-	return result;
+	unsigned int global_variables_allocation_count = read_result.size >> 3;
+	struct GlobalVariable *global_variables = malloc(global_variables_allocation_count * sizeof(struct GlobalVariable));
+	if (!global_variables) {
+		fprintf(stderr, "Unable to allocate memory for global variables\n");
+		error_code = 1;
+		goto end2;
+	}
+
+	struct GlobalVariable **sorted_variables = malloc(global_variables_allocation_count * sizeof(struct GlobalVariable *));
+	if (!sorted_variables) {
+		fprintf(stderr, "Unable to allocate memory for global variable indexes\n");
+		error_code = 1;
+		goto end3;
+	}
+
+	unsigned int code_block_count;
+	unsigned int global_variable_count;
+	if (error_code = find_code_blocks_and_variables(&read_result, print_error, code_blocks, sorted_blocks, code_block_allocation_count, &code_block_count, global_variables, sorted_variables, global_variables_allocation_count, &global_variable_count)) {
+		goto end;
+	}
+
+	error_code = dump(sorted_blocks, code_block_count, sorted_variables, global_variable_count, dump_print, print_error);
+
+	end:
+	free(sorted_variables);
+
+	end3:
+	free(global_variables);
+
+	end2:
+	free(sorted_blocks);
+
+	end1:
+	free(code_blocks);
+
+	end0:
+	free(read_result.buffer);
+	return error_code;
 }
