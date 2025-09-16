@@ -10,7 +10,7 @@ struct Reader {
 };
 
 struct SegmentReadResult {
-	const char *buffer;
+	char *buffer;
 	unsigned int size;
 	int relative_cs;
 	unsigned int ip;
@@ -102,6 +102,11 @@ const char *SEGMENT_REGISTERS[] = {
 	"es", "cs", "ss", "ds"
 };
 
+const char *JUMP_INSTRUCTIONS[] = {
+	"jo", "jno", "jb", "jae", "jz", "jnz", "jbe", "ja",
+	"js", "jns", "jpe", "jpo", "jl", "jge", "jle", "jg"
+};
+
 static void dump_address(
 		struct Reader *reader,
 		void (*print)(const char *),
@@ -121,10 +126,10 @@ static void dump_address(
 		else {
 			print(ADDRESS_REGISTERS[value1 & 0x07]);
 			if ((value1 & 0xC0) == 0x40) {
-				print_differential_hex_byte(reader, read_next_byte(reader));
+				print_differential_hex_byte(print, read_next_byte(reader));
 			}
 			else if ((value1 & 0xC0) == 0x40) {
-				print_differential_hex_word(reader, read_next_word(reader));
+				print_differential_hex_word(print, read_next_word(reader));
 			}
 		}
 		print("]");
@@ -154,7 +159,18 @@ static void dump_address_register_combination(
 	}
 }
 
-static int dump_instruction(struct Reader *reader, void (*print)(const char *), void (*print_error)(const char *)) {
+static void print_address_label(void (*print)(const char *), int ip, int cs) {
+	print("\naddr");
+	print_literal_hex_word(print, cs);
+	print("_");
+	print_literal_hex_word(print, ip);
+}
+
+static int dump_instruction(
+		struct Reader *reader,
+		const struct CodeBlock *block,
+		void (*print)(const char *),
+		void (*print_error)(const char *)) {
     const char *segment = NULL;
 	while (1) {
 		const int value0 = read_next_byte(reader);
@@ -182,7 +198,8 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 				print("\n");
 				return 0;
 			}
-			else if ((value0 & 0x07) == 0x05) {
+			else {
+				// Assuming (value0 & 0x07) == 0x05
 				print(WORD_REGISTERS[0]);
 				print(",");
 				print_literal_hex_word(print, read_next_word(reader));
@@ -223,6 +240,14 @@ static int dump_instruction(struct Reader *reader, void (*print)(const char *), 
 				print("push ");
 			}
 			print(WORD_REGISTERS[value0 & 0x07]);
+			print("\n");
+			return 0;
+		}
+		else if ((value0 & 0xF0) == 0x70) {
+			const int value1 = read_next_byte(reader);
+			print(JUMP_INSTRUCTIONS[value0 & 0x0F]);
+			print(" ");
+			print_address_label(print, block->ip + reader->buffer_index, block->relative_cs);
 			print("\n");
 			return 0;
 		}
@@ -382,15 +407,12 @@ static int dump_block(
 	reader.buffer_index = 0;
 	reader.buffer_size = block->end - block->start;
 
-	print("\naddr");
-	print_literal_hex_word(print, block->relative_cs);
-	print("_");
-	print_literal_hex_word(print, block->ip);
+	print_address_label(print, block->ip, block->relative_cs);
 	print(":\n");
 
 	int error_code;
 	do {
-		if (error_code = dump_instruction(&reader, print, print_error)) {
+		if ((error_code = dump_instruction(&reader, block, print, print_error))) {
 			return error_code;
 		}
 	}
@@ -400,9 +422,9 @@ static int dump_block(
 }
 
 static int dump(
-		const struct CodeBlock **sorted_blocks,
+		struct CodeBlock **sorted_blocks,
 		unsigned int code_block_count,
-		const struct GlobalVariable **global_variables,
+		struct GlobalVariable **global_variables,
 		unsigned int global_variable_count,
 		void (*print)(const char *),
 		void (*print_error)(const char *)) {
@@ -411,7 +433,7 @@ static int dump(
 
 	// TODO: Global variables not printed yet
 	for (int code_block_index = 0; code_block_index < code_block_count; code_block_index++) {
-		if (error_code = dump_block(sorted_blocks[code_block_index], print, print_error)) {
+		if ((error_code = dump_block(sorted_blocks[code_block_index], print, print_error))) {
 			return error_code;
 		}
 	}
@@ -424,11 +446,11 @@ static void print_help(const char *executedFile) {
 }
 
 static void dump_print(const char *str) {
-	printf(str);
+	printf("%s", str);
 }
 
 static void print_error(const char *str) {
-	fprintf(stderr, str);
+	fprintf(stderr, "%s", str);
 }
 
 struct dos_header {
@@ -548,6 +570,114 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 	return 0;
 }
 
+struct CodeBlockList {
+	unsigned int page_array_granularity;
+	unsigned int blocks_per_page;
+	struct CodeBlock **page_array;
+	struct CodeBlock **sorted_blocks;
+	unsigned int block_count;
+};
+
+static void initialize_code_block_list(struct CodeBlockList *list) {
+	list->page_array_granularity = 8;
+	list->blocks_per_page = 64;
+	list->block_count = 0;
+	list->page_array = NULL;
+	list->sorted_blocks = NULL;
+}
+
+static int index_of_code_block_with_start(const struct CodeBlockList *list, const char *start) {
+	int first = 0;
+	int last = list->block_count;
+	while (last > first) {
+		int index = (first + last) / 2;
+		const char *this_start = list->sorted_blocks[index]->start;
+		if (this_start < start) {
+			first = index + 1;
+		}
+		else if (this_start > start) {
+			last = index;
+		}
+		else {
+			return index;
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Returns a proper pointer to store a new block.
+ * The returned pointer should be filled and call insert_sorted_code_block method in order to sort it properly.
+ * This method may require allocating a new page of memory.
+ * This method will return NULL in case of failure.
+ */
+static struct CodeBlock *prepare_new_code_block(struct CodeBlockList *list) {
+	if ((list->block_count % list->blocks_per_page) == 0) {
+		if ((list->block_count % (list->blocks_per_page * list->page_array_granularity)) == 0) {
+			const int new_page_array_length = (list->block_count / (list->blocks_per_page * list->page_array_granularity)) + list->page_array_granularity;
+			list->page_array = realloc(list->page_array, new_page_array_length * sizeof(struct CodeBlock *));
+			if (!(list->page_array)) {
+				return NULL;
+			}
+
+			list->sorted_blocks = realloc(list->sorted_blocks, new_page_array_length * list->blocks_per_page * sizeof(struct CodeBlock *));
+			if (!(list->sorted_blocks)) {
+				return NULL;
+			}
+		}
+
+		struct CodeBlock *new_page = malloc(list->blocks_per_page * sizeof(struct CodeBlock));
+		if (!new_page) {
+			return NULL;
+		}
+
+		list->page_array[list->block_count / list->blocks_per_page] = new_page;
+	}
+
+	return list->page_array[list->block_count / list->blocks_per_page] + (list->block_count % list->blocks_per_page);
+}
+
+static int insert_sorted_code_block(struct CodeBlockList *list, struct CodeBlock *new_block) {
+	int first = 0;
+	int last = list->block_count;
+	while (last > first) {
+		int index = (first + last) / 2;
+		const char *this_start = list->sorted_blocks[index]->start;
+		if (this_start < new_block->start) {
+			first = index + 1;
+		}
+		else if (this_start > new_block->start) {
+			last = index;
+		}
+		else {
+			return -1;
+		}
+	}
+
+	for (int i = list->block_count; i > last; i--) {
+		list->sorted_blocks[i] = list->sorted_blocks[i - 1];
+	}
+
+	list->sorted_blocks[last] = new_block;
+	list->block_count++;
+
+	return 0;
+}
+
+static void clear_code_block_list(struct CodeBlockList *list) {
+	if (list->block_count > 0) {
+		const int allocated_pages = (list->block_count + list->blocks_per_page - 1) / list->blocks_per_page;
+		for (int i = allocated_pages - 1; i >= 0; i--) {
+			free(list->page_array[i]);
+		}
+
+		free(list->page_array);
+		free(list->sorted_blocks);
+		list->block_count = 0;
+	}
+}
+
 static void read_block_instruction_address(
 		struct Reader *reader,
 		int value1) {
@@ -563,10 +693,7 @@ static int read_block_instruction(
 		struct Reader *reader,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
-		struct CodeBlock *code_blocks,
-		struct CodeBlock **sorted_blocks,
-		unsigned int code_block_allocation_count,
-		unsigned int *code_block_count,
+		struct CodeBlockList *code_block_list,
 		struct GlobalVariable *global_variables,
 		struct GlobalVariable **sorted_variables,
 		unsigned int global_variables_allocation_count,
@@ -582,7 +709,8 @@ static int read_block_instruction(
 			read_next_byte(reader);
 			return 0;
 		}
-		else if ((value0 & 0x07) == 0x05) {
+		else {
+			// Assuming (value0 & 0x07) == 0x05
 			read_next_word(reader);
 			return 0;
 		}
@@ -591,12 +719,50 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, print_error, block, code_blocks, sorted_blocks, code_block_allocation_count, code_block_count, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count);
+		return read_block_instruction(reader, print_error, block, code_block_list, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
 	}
 	else if ((value0 & 0xF0) == 0x50) {
+		return 0;
+	}
+	else if ((value0 & 0xF0) == 0x70) {
+		const int value1 = read_next_byte(reader);
+		block->end = block->start + reader->buffer_index;
+
+		int result;
+		if ((result = index_of_code_block_with_start(code_block_list, block->start + reader->buffer_index)) < 0) {
+			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			if (!new_block) {
+				return 1;
+			}
+
+			new_block->relative_cs = block->relative_cs;
+			new_block->ip = block->ip + reader->buffer_index;
+			new_block->start = block->start + reader->buffer_index;
+			new_block->end = block->start + reader->buffer_index;
+			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+				return result;
+			}
+		}
+
+		const int diff = (value1 >= 0x80)? -value1 : value1;
+		if ((result = index_of_code_block_with_start(code_block_list, block->start + reader->buffer_index + diff)) < 0) {
+			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			if (!new_block) {
+				return 1;
+			}
+
+			new_block->relative_cs = block->relative_cs;
+			new_block->ip = block->ip + reader->buffer_index + diff;
+			new_block->start = block->start + reader->buffer_index + diff;
+			new_block->end = block->start + reader->buffer_index + diff;
+			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+				return result;
+			}
+		}
+
 		return 0;
 	}
 	else if ((value0 & 0xFC) == 0x88) {
@@ -686,10 +852,7 @@ static int read_block_instruction(
 int read_block(
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
-		struct CodeBlock *code_blocks,
-		struct CodeBlock **sorted_blocks,
-		unsigned int code_block_allocation_count,
-		unsigned int *code_block_count,
+		struct CodeBlockList *code_block_list,
 		struct GlobalVariable *global_variables,
 		struct GlobalVariable **sorted_variables,
 		unsigned int global_variables_allocation_count,
@@ -699,7 +862,7 @@ int read_block(
 	reader.buffer_index = 0;
 	int error_code;
 	do {
-		if (error_code = read_block_instruction(&reader, print_error, block, code_blocks, sorted_blocks, code_block_allocation_count, code_block_count, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count)) {
+		if ((error_code = read_block_instruction(&reader, print_error, block, code_block_list, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count))) {
 			return error_code;
 		}
 	} while (block->end != (block->start + reader.buffer_index));
@@ -710,25 +873,30 @@ int read_block(
 int find_code_blocks_and_variables(
 		struct SegmentReadResult *read_result,
 		void (*print_error)(const char *),
-		struct CodeBlock *code_blocks,
-		struct CodeBlock **sorted_blocks,
-		unsigned int code_block_allocation_count,
-		unsigned int *code_block_count,
+		struct CodeBlockList *code_block_list,
 		struct GlobalVariable *global_variables,
 		struct GlobalVariable **sorted_variables,
 		unsigned int global_variables_allocation_count,
 		unsigned int *global_variable_count) {
-	code_blocks[0].ip = read_result->ip;
-	code_blocks[0].relative_cs = read_result->relative_cs;
-	code_blocks[0].start = read_result->buffer + (read_result->relative_cs * 16 + read_result->ip);
-	code_blocks[0].end = code_blocks[0].start;
-	sorted_blocks[0] = code_blocks;
+	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
+	if (!first_block) {
+		return 1;
+	}
+
+	first_block->ip = read_result->ip;
+	first_block->relative_cs = read_result->relative_cs;
+	first_block->start = read_result->buffer + (read_result->relative_cs * 16 + read_result->ip);
+	first_block->end = first_block->start;
 
 	int error_code;
-	*code_block_count = 1;
+	if (insert_sorted_code_block(code_block_list, first_block)) {
+		return error_code;
+	}
+
 	*global_variable_count = 0;
-	for (int block_index = 0; block_index < *code_block_count; block_index++) {
-		if (error_code = read_block(print_error, code_blocks + block_index, code_blocks, sorted_blocks, code_block_allocation_count, &code_block_count, global_variables, sorted_variables, global_variables_allocation_count, &global_variable_count)) {
+	for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
+		struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
+		if ((error_code = read_block(print_error, block, code_block_list, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count))) {
 			return error_code;
 		}
 	}
@@ -737,7 +905,7 @@ int find_code_blocks_and_variables(
 }
 
 int main(int argc, const char *argv[]) {
-	printf("Disassmebler\n");
+	printf("Disassembler\n");
 
 	const char *filename = NULL;
 	const char *format = NULL;
@@ -788,23 +956,8 @@ int main(int argc, const char *argv[]) {
 
 	struct SegmentReadResult read_result;
 	int error_code;
-	if (error_code = read_file(&read_result, filename, format)) {
+	if ((error_code = read_file(&read_result, filename, format))) {
 		return error_code;
-	}
-
-	unsigned int code_block_allocation_count = read_result.size >> 4;
-	struct CodeBlock *code_blocks = malloc(code_block_allocation_count * sizeof(struct CodeBlock));
-	if (!code_blocks) {
-		fprintf(stderr, "Unable to allocate memory for code blocks\n");
-		error_code = 1;
-		goto end0;
-	}
-
-	struct CodeBlock **sorted_blocks = malloc(code_block_allocation_count * sizeof(struct CodeBlock *));
-	if (!code_blocks) {
-		fprintf(stderr, "Unable to allocate memory for code block indexes\n");
-		error_code = 1;
-		goto end1;
 	}
 
 	unsigned int global_variables_allocation_count = read_result.size >> 3;
@@ -812,37 +965,34 @@ int main(int argc, const char *argv[]) {
 	if (!global_variables) {
 		fprintf(stderr, "Unable to allocate memory for global variables\n");
 		error_code = 1;
-		goto end2;
+		goto end0;
 	}
 
 	struct GlobalVariable **sorted_variables = malloc(global_variables_allocation_count * sizeof(struct GlobalVariable *));
 	if (!sorted_variables) {
 		fprintf(stderr, "Unable to allocate memory for global variable indexes\n");
 		error_code = 1;
-		goto end3;
+		goto end1;
 	}
 
-	unsigned int code_block_count;
+	struct CodeBlockList code_block_list;
+	initialize_code_block_list(&code_block_list);
+
 	unsigned int global_variable_count;
-	if (error_code = find_code_blocks_and_variables(&read_result, print_error, code_blocks, sorted_blocks, code_block_allocation_count, &code_block_count, global_variables, sorted_variables, global_variables_allocation_count, &global_variable_count)) {
+	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, global_variables, sorted_variables, global_variables_allocation_count, &global_variable_count))) {
 		goto end;
 	}
 
-	error_code = dump(sorted_blocks, code_block_count, sorted_variables, global_variable_count, dump_print, print_error);
+	error_code = dump(code_block_list.sorted_blocks, code_block_list.block_count, sorted_variables, global_variable_count, dump_print, print_error);
 
 	end:
 	free(sorted_variables);
 
-	end3:
+	end1:
 	free(global_variables);
 
-	end2:
-	free(sorted_blocks);
-
-	end1:
-	free(code_blocks);
-
 	end0:
+	clear_code_block_list(&code_block_list);
 	free(read_result.buffer);
 	return error_code;
 }
