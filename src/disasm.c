@@ -190,26 +190,15 @@ static int read_block_instruction(
 	}
 	else if ((value0 & 0xF0) == 0x70) {
 		const int value1 = read_next_byte(reader);
-		block->end = block->start + reader->buffer_index;
-
-		int result;
-		if ((result = index_of_code_block_with_start(code_block_list, block->start + reader->buffer_index)) < 0) {
-			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
-			if (!new_block) {
-				return 1;
+		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
+		const char *jump_destination = block->start + reader->buffer_index + diff;
+		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
+		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+		if (!potential_container || potential_container->start != jump_destination) {
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
 			}
 
-			new_block->relative_cs = block->relative_cs;
-			new_block->ip = block->ip + reader->buffer_index;
-			new_block->start = block->start + reader->buffer_index;
-			new_block->end = block->start + reader->buffer_index;
-			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
-				return result;
-			}
-		}
-
-		const int diff = (value1 >= 0x80)? -value1 : value1;
-		if ((result = index_of_code_block_with_start(code_block_list, block->start + reader->buffer_index + diff)) < 0) {
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -217,8 +206,8 @@ static int read_block_instruction(
 
 			new_block->relative_cs = block->relative_cs;
 			new_block->ip = block->ip + reader->buffer_index + diff;
-			new_block->start = block->start + reader->buffer_index + diff;
-			new_block->end = block->start + reader->buffer_index + diff;
+			new_block->start = jump_destination;
+			new_block->end = jump_destination;
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
 			}
@@ -323,7 +312,15 @@ int read_block(
 		if ((error_code = read_block_instruction(&reader, print_error, block, code_block_list, global_variable_list))) {
 			return error_code;
 		}
-	} while (block->end != (block->start + reader.buffer_index));
+
+		const int index = index_of_code_block_with_start(code_block_list, block->start);
+		if (index + 1 < code_block_list->block_count) {
+			const char *next_start = code_block_list->sorted_blocks[index + 1]->start;
+			if (block->start + reader.buffer_index >= next_start) {
+				block->end = next_start;
+			}
+		}
+	} while (block->start == block->end);
 
 	return 0;
 }

@@ -47,7 +47,7 @@ void print_differential_hex_word(void (*print)(const char *), int value) {
 }
 
 void print_address_label(void (*print)(const char *), int ip, int cs) {
-	print("\naddr");
+	print("addr");
 	print_literal_hex_word(print, cs);
 	print("_");
 	print_literal_hex_word(print, ip);

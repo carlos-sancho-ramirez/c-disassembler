@@ -77,6 +77,14 @@ void initialize_code_block_list(struct CodeBlockList *list);
 int index_of_code_block_with_start(const struct CodeBlockList *list, const char *start);
 
 /**
+ * Searches for a block whose start matches he given position.
+ * If none matches, this method will return the block whose start is closest but before the given position.
+ * This will return -1 if there are not blocks, or all of them has a start greater than the given position.
+ * This will return the index of the block within the sorted_blocks array.
+ */
+int index_of_code_block_containing_position(const struct CodeBlockList *list, const char *position);
+
+/**
  * Returns a proper pointer to store a new block.
  * The returned pointer should be filled and call insert_sorted_code_block method in order to sort it properly.
  * This method may require allocating a new page of memory.

@@ -320,6 +320,7 @@ static int dump_block(
     reader.buffer_index = 0;
     reader.buffer_size = block->end - block->start;
 
+    print("\n");
     print_address_label(print, block->ip, block->relative_cs);
     print(":\n");
 

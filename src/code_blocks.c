@@ -28,6 +28,26 @@ int index_of_code_block_with_start(const struct CodeBlockList *list, const char 
 	return -1;
 }
 
+int index_of_code_block_containing_position(const struct CodeBlockList *list, const char *position) {
+	int first = 0;
+	int last = list->block_count;
+	while (last > first) {
+		int index = (first + last) / 2;
+		const char *this_start = list->sorted_blocks[index]->start;
+		if (this_start < position) {
+			first = index + 1;
+		}
+		else if (this_start > position) {
+			last = index;
+		}
+		else {
+			return index;
+		}
+	}
+
+	return first - 1;
+}
+
 struct CodeBlock *prepare_new_code_block(struct CodeBlockList *list) {
 	if ((list->block_count % list->blocks_per_page) == 0) {
 		if ((list->block_count % (list->blocks_per_page * list->page_array_granularity)) == 0) {
