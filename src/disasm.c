@@ -267,6 +267,36 @@ static int read_block_instruction(
 		}
 		return 0;
 	}
+	else if (value0 == 0xE8) {
+		int diff = read_next_word(reader);
+		if (block->ip + reader->buffer_index + diff >= 0x10000) {
+			diff -= 0x10000;
+		}
+
+		const char *jump_destination = block->start + reader->buffer_index + diff;
+		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
+		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+		if (!potential_container || potential_container->start != jump_destination) {
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+			}
+
+			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			if (!new_block) {
+				return 1;
+			}
+
+			new_block->relative_cs = block->relative_cs;
+			new_block->ip = block->ip + reader->buffer_index + diff;
+			new_block->start = jump_destination;
+			new_block->end = jump_destination;
+			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+				return result;
+			}
+		}
+
+		return 0;
+	}
 	else if (value0 == 0xF2) {
 		return 0;
 	}

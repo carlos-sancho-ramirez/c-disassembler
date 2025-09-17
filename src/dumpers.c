@@ -270,6 +270,17 @@ static int dump_instruction(
             print("\n");
             return 0;
         }
+        else if (value0 == 0xE8) {
+            int diff = read_next_word(reader);
+            if (block->ip + reader->buffer_index + diff >= 0x10000) {
+                diff -= 0x10000;
+            }
+
+            print("jmp ");
+            print_address_label(print, block->ip + reader->buffer_index + diff, block->relative_cs);
+            print("\n");
+            return 0;
+        }
         else if (value0 == 0xF2) {
             print("repne\n");
             return 0;
