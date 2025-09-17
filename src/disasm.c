@@ -158,10 +158,7 @@ static int read_block_instruction(
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
-		struct GlobalVariable *global_variables,
-		struct GlobalVariable **sorted_variables,
-		unsigned int global_variables_allocation_count,
-		unsigned int *global_variable_count) {
+		struct GlobalVariableList *global_variable_list) {
 	const int value0 = read_next_byte(reader);
 	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
 		if ((value0 & 0x04) == 0x00) {
@@ -183,7 +180,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, print_error, block, code_block_list, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count);
+		return read_block_instruction(reader, print_error, block, code_block_list, global_variable_list);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -317,16 +314,13 @@ int read_block(
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
-		struct GlobalVariable *global_variables,
-		struct GlobalVariable **sorted_variables,
-		unsigned int global_variables_allocation_count,
-		unsigned int *global_variable_count) {
+		struct GlobalVariableList *global_variable_list) {
 	struct Reader reader;
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, print_error, block, code_block_list, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count))) {
+		if ((error_code = read_block_instruction(&reader, print_error, block, code_block_list, global_variable_list))) {
 			return error_code;
 		}
 	} while (block->end != (block->start + reader.buffer_index));
@@ -338,10 +332,7 @@ int find_code_blocks_and_variables(
 		struct SegmentReadResult *read_result,
 		void (*print_error)(const char *),
 		struct CodeBlockList *code_block_list,
-		struct GlobalVariable *global_variables,
-		struct GlobalVariable **sorted_variables,
-		unsigned int global_variables_allocation_count,
-		unsigned int *global_variable_count) {
+		struct GlobalVariableList *global_variable_list) {
 	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
 	if (!first_block) {
 		return 1;
@@ -357,10 +348,9 @@ int find_code_blocks_and_variables(
 		return error_code;
 	}
 
-	*global_variable_count = 0;
 	for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
 		struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
-		if ((error_code = read_block(print_error, block, code_block_list, global_variables, sorted_variables, global_variables_allocation_count, global_variable_count))) {
+		if ((error_code = read_block(print_error, block, code_block_list, global_variable_list))) {
 			return error_code;
 		}
 	}
@@ -424,38 +414,20 @@ int main(int argc, const char *argv[]) {
 		return error_code;
 	}
 
-	unsigned int global_variables_allocation_count = read_result.size >> 3;
-	struct GlobalVariable *global_variables = malloc(global_variables_allocation_count * sizeof(struct GlobalVariable));
-	if (!global_variables) {
-		fprintf(stderr, "Unable to allocate memory for global variables\n");
-		error_code = 1;
-		goto end0;
-	}
-
-	struct GlobalVariable **sorted_variables = malloc(global_variables_allocation_count * sizeof(struct GlobalVariable *));
-	if (!sorted_variables) {
-		fprintf(stderr, "Unable to allocate memory for global variable indexes\n");
-		error_code = 1;
-		goto end1;
-	}
-
 	struct CodeBlockList code_block_list;
 	initialize_code_block_list(&code_block_list);
 
-	unsigned int global_variable_count;
-	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, global_variables, sorted_variables, global_variables_allocation_count, &global_variable_count))) {
+	struct GlobalVariableList global_variable_list;
+	initialize_global_variable_list(&global_variable_list);
+
+	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, &global_variable_list))) {
 		goto end;
 	}
 
-	error_code = dump(code_block_list.sorted_blocks, code_block_list.block_count, sorted_variables, global_variable_count, dump_print, print_error);
+	error_code = dump(code_block_list.sorted_blocks, code_block_list.block_count, global_variable_list.sorted_variables, global_variable_list.variable_count, dump_print, print_error);
 
 	end:
-	free(sorted_variables);
-
-	end1:
-	free(global_variables);
-
-	end0:
+	clear_global_variable_list(&global_variable_list);
 	clear_code_block_list(&code_block_list);
 	free(read_result.buffer);
 	return error_code;

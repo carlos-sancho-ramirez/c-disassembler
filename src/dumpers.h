@@ -2,11 +2,7 @@
 #define _DUMPERS_H_
 
 #include "code_blocks.h"
-
-struct GlobalVariable {
-	unsigned int *position;
-	unsigned int byte_size;
-};
+#include "global_variables.h"
 
 int dump(
     struct CodeBlock **sorted_blocks,
