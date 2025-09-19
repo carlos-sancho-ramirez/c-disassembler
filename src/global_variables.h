@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 
+#define GLOBAL_VARIABLE_TYPE_WORD 2
 #define GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING 5
 
 struct GlobalVariable {

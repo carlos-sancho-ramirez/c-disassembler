@@ -234,7 +234,115 @@ static int read_block_instruction(
 			return 1;
 		}
 		else {
-			read_block_instruction_address(reader, value1);
+			//read_block_instruction_address(reader, value1);
+
+			/*
+			if ((value1 & 0xC7) == 0x06 || (value1 & 0xC0) == 0x80) {
+				read_next_word(reader);
+			}
+			else if ((value1 & 0xC0) == 0x40) {
+				read_next_byte(reader);
+			}
+			*/
+			int can_resolve_address = 0;
+			int result_address;
+			const int rm = value1 & 0x07;
+			if ((value1 & 0xC0) == 0) {
+				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_si(regs)) & 0xFFFF;
+				}
+				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_di(regs)) & 0xFFFF;
+				}
+				else if (rm == 4 && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = get_register_si(regs) & 0xFFFF;
+				}
+				else if (rm == 5 && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = get_register_di(regs) & 0xFFFF;
+				}
+				else if (rm == 6) {
+					can_resolve_address = 1;
+					result_address = read_next_word(reader);
+				}
+				else if (rm == 7 && is_register_bx_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = get_register_bx(regs) & 0xFFFF;
+				}
+			}
+			else if ((value1 & 0xC0) == 0x40) {
+				const int raw_value = read_next_byte(reader);
+				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 4 && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 5 && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 7 && is_register_bx_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
+				}
+			}
+			else if ((value1 & 0xC0) == 0x80) {
+				const int raw_value = read_next_word(reader);
+				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 4 && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
+				}
+				else if (rm == 5 && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
+				}
+				else if ((value1 & 0xC7) == 6) {
+					can_resolve_address = 1;
+					result_address = raw_value;
+				}
+				else if (rm == 7 && is_register_bx_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
+				}
+			}
+			else {
+				// Assuming (value1 & 0xC0) == 0xC0
+				if ((value0 & 2) && is_word_register_defined(regs, rm)) {
+					set_segment_register(regs, (value1 >> 3) & 0x03, get_word_register(regs, rm));
+				}
+			}
+
+			if (can_resolve_address && is_register_ds_defined_and_relative(regs)) {
+				unsigned int relative_address = (get_register_ds(regs) * 16 + result_address) & 0xFFFF;
+				const char *target = segment_start + relative_address;
+				if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
+					struct GlobalVariable *new_var = prepare_new_global_variable(global_variable_list);
+					new_var->start = target;
+					new_var->end = target + 2;
+					new_var->relative_address = relative_address;
+					new_var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
+					insert_sorted_global_variable(global_variable_list, new_var);
+				}
+			}
+
 			return 0;
 		}
 	}

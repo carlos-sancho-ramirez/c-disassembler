@@ -65,20 +65,48 @@ int is_register_di_defined(struct Registers *regs) {
     return regs->defined & 0x800;
 }
 
-int is_register_es_defined_and_relative(struct Registers *regs) {
+int is_word_register_defined(struct Registers * regs, unsigned int index) {
+    assert(index < 8);
+    return (index == 0)? is_register_ax_defined(regs) :
+            (index == 1)? is_register_cx_defined(regs) :
+            (index == 2)? is_register_dx_defined(regs) :
+            (index == 3)? is_register_bx_defined(regs) :
+            (index == 4)? is_register_sp_defined(regs) :
+            (index == 5)? is_register_bp_defined(regs) :
+            (index == 6)? is_register_si_defined(regs) :
+            is_register_di_defined(regs);
+}
+
+int is_register_es_defined(struct Registers *regs) {
     return regs->defined & 0x1000;
 }
 
-int is_register_cs_defined_and_relative(struct Registers *regs) {
+int is_register_cs_defined(struct Registers *regs) {
     return regs->defined & 0x2000;
 }
 
-int is_register_ss_defined_and_relative(struct Registers *regs) {
+int is_register_ss_defined(struct Registers *regs) {
     return regs->defined & 0x4000;
 }
 
-int is_register_ds_defined_and_relative(struct Registers *regs) {
+int is_register_ds_defined(struct Registers *regs) {
     return regs->defined & 0x8000;
+}
+
+int is_register_es_defined_and_relative(struct Registers *regs) {
+    return (regs->defined & 0x11000) == 0x11000;
+}
+
+int is_register_cs_defined_and_relative(struct Registers *regs) {
+    return (regs->defined & 0x22000) == 0x22000;
+}
+
+int is_register_ss_defined_and_relative(struct Registers *regs) {
+    return (regs->defined & 0x44000) == 0x44000;
+}
+
+int is_register_ds_defined_and_relative(struct Registers *regs) {
+    return (regs->defined & 0x88000) == 0x88000;
 }
 
 unsigned int get_register_al(struct Registers *regs) {
@@ -309,24 +337,66 @@ void set_word_register(struct Registers *regs, unsigned int index, unsigned int 
     }
 }
 
-void set_register_es_relative(struct Registers *regs, uint16_t value) {
+void set_register_es(struct Registers *regs, uint16_t value) {
     regs->es = value;
     regs->defined |= 0x1000;
 }
 
-void set_register_cs_relative(struct Registers *regs, uint16_t value) {
+void set_register_cs(struct Registers *regs, uint16_t value) {
     regs->cs = value;
     regs->defined |= 0x2000;
 }
 
-void set_register_ss_relative(struct Registers *regs, uint16_t value) {
+void set_register_ss(struct Registers *regs, uint16_t value) {
     regs->ss = value;
     regs->defined |= 0x4000;
 }
 
-void set_register_ds_relative(struct Registers *regs, uint16_t value) {
+void set_register_ds(struct Registers *regs, uint16_t value) {
     regs->ds = value;
     regs->defined |= 0x8000;
+}
+
+void set_segment_register(struct Registers *regs, unsigned int index, uint16_t value) {
+    assert(index < 4);
+
+    if (index == 0) {
+        set_register_es(regs, value);
+    }
+    else if (index == 1) {
+        set_register_cs(regs, value);
+    }
+    else if (index == 2) {
+        set_register_ss(regs, value);
+    }
+    else {
+        // Assuming index == 3
+        set_register_ds(regs, value);
+    }
+}
+
+void set_register_es_relative(struct Registers *regs, uint16_t value) {
+    assert(sizeof(unsigned int) > 2);
+    regs->es = value;
+    regs->defined |= 0x11000;
+}
+
+void set_register_cs_relative(struct Registers *regs, uint16_t value) {
+    assert(sizeof(unsigned int) > 2);
+    regs->cs = value;
+    regs->defined |= 0x22000;
+}
+
+void set_register_ss_relative(struct Registers *regs, uint16_t value) {
+    assert(sizeof(unsigned int) > 2);
+    regs->ss = value;
+    regs->defined |= 0x44000;
+}
+
+void set_register_ds_relative(struct Registers *regs, uint16_t value) {
+    assert(sizeof(unsigned int) > 2);
+    regs->ds = value;
+    regs->defined |= 0x88000;
 }
 
 void make_all_registers_undefined(struct Registers *regs) {

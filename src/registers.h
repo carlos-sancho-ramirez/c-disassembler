@@ -39,6 +39,7 @@ int is_register_sp_defined(struct Registers *regs);
 int is_register_bp_defined(struct Registers *regs);
 int is_register_si_defined(struct Registers *regs);
 int is_register_di_defined(struct Registers *regs);
+int is_word_register_defined(struct Registers * regs, unsigned int index);
 
 int is_register_es_defined_and_relative(struct Registers *regs);
 int is_register_cs_defined_and_relative(struct Registers *regs);
@@ -73,6 +74,12 @@ unsigned int get_word_register(struct Registers *regs, unsigned int index);
 
 void set_byte_register(struct Registers *regs, unsigned int index, unsigned int value);
 void set_word_register(struct Registers *regs, unsigned int index, unsigned int value);
+
+void set_register_es(struct Registers *regs, uint16_t value);
+void set_register_cs(struct Registers *regs, uint16_t value);
+void set_register_ss(struct Registers *regs, uint16_t value);
+void set_register_ds(struct Registers *regs, uint16_t value);
+void set_segment_register(struct Registers *regs, unsigned int index, uint16_t value);
 
 void set_register_es_relative(struct Registers *regs, uint16_t value);
 void set_register_cs_relative(struct Registers *regs, uint16_t value);
