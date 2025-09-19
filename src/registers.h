@@ -1,0 +1,83 @@
+#ifndef _REGISTERS_H_
+#define _REGISTERS_H_
+#include <stdint.h>
+
+struct Registers {
+	unsigned char al;
+	unsigned char ah;
+	unsigned char cl;
+	unsigned char ch;
+	unsigned char dl;
+	unsigned char dh;
+	unsigned char bl;
+	unsigned char bh;
+	uint16_t sp;
+	uint16_t bp;
+	uint16_t si;
+	uint16_t di;
+	uint16_t es;
+	uint16_t cs;
+	uint16_t ss;
+	uint16_t ds;
+	unsigned int defined;
+};
+
+int is_register_al_defined(struct Registers *regs);
+int is_register_ah_defined(struct Registers *regs);
+int is_register_cl_defined(struct Registers *regs);
+int is_register_ch_defined(struct Registers *regs);
+int is_register_dl_defined(struct Registers *regs);
+int is_register_dh_defined(struct Registers *regs);
+int is_register_bl_defined(struct Registers *regs);
+int is_register_bh_defined(struct Registers *regs);
+
+int is_register_ax_defined(struct Registers *regs);
+int is_register_cx_defined(struct Registers *regs);
+int is_register_dx_defined(struct Registers *regs);
+int is_register_bx_defined(struct Registers *regs);
+int is_register_sp_defined(struct Registers *regs);
+int is_register_bp_defined(struct Registers *regs);
+int is_register_si_defined(struct Registers *regs);
+int is_register_di_defined(struct Registers *regs);
+
+int is_register_es_defined_and_relative(struct Registers *regs);
+int is_register_cs_defined_and_relative(struct Registers *regs);
+int is_register_ss_defined_and_relative(struct Registers *regs);
+int is_register_ds_defined_and_relative(struct Registers *regs);
+
+unsigned int get_register_al(struct Registers *regs);
+unsigned int get_register_ah(struct Registers *regs);
+unsigned int get_register_cl(struct Registers *regs);
+unsigned int get_register_ch(struct Registers *regs);
+unsigned int get_register_dl(struct Registers *regs);
+unsigned int get_register_dh(struct Registers *regs);
+unsigned int get_register_bl(struct Registers *regs);
+unsigned int get_register_bh(struct Registers *regs);
+
+unsigned int get_register_ax(struct Registers *regs);
+unsigned int get_register_cx(struct Registers *regs);
+unsigned int get_register_dx(struct Registers *regs);
+unsigned int get_register_bx(struct Registers *regs);
+unsigned int get_register_sp(struct Registers *regs);
+unsigned int get_register_bp(struct Registers *regs);
+unsigned int get_register_si(struct Registers *regs);
+unsigned int get_register_di(struct Registers *regs);
+
+unsigned int get_register_es(struct Registers *regs);
+unsigned int get_register_cs(struct Registers *regs);
+unsigned int get_register_ss(struct Registers *regs);
+unsigned int get_register_ds(struct Registers *regs);
+
+unsigned int get_byte_register(struct Registers *regs, unsigned int index);
+unsigned int get_word_register(struct Registers *regs, unsigned int index);
+
+void set_byte_register(struct Registers *regs, unsigned int index, unsigned int value);
+void set_word_register(struct Registers *regs, unsigned int index, unsigned int value);
+
+void set_register_es_relative(struct Registers *regs, uint16_t value);
+void set_register_cs_relative(struct Registers *regs, uint16_t value);
+void set_register_ss_relative(struct Registers *regs, uint16_t value);
+void set_register_ds_relative(struct Registers *regs, uint16_t value);
+
+void make_all_registers_undefined(struct Registers *regs);
+#endif // _REGISTERS_H_

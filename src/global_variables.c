@@ -8,12 +8,12 @@ void initialize_global_variable_list(struct GlobalVariableList *list) {
 	list->sorted_variables = NULL;
 }
 
-int index_of_global_variable_with_position(const struct GlobalVariableList *list, const char *position) {
+int index_of_global_variable_with_start(const struct GlobalVariableList *list, const char *position) {
 	int first = 0;
 	int last = list->variable_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_position = list->sorted_variables[index]->position;
+		const char *this_position = list->sorted_variables[index]->start;
 		if (this_position < position) {
 			first = index + 1;
 		}
@@ -59,11 +59,11 @@ int insert_sorted_global_variable(struct GlobalVariableList *list, struct Global
 	int last = list->variable_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_position = list->sorted_variables[index]->position;
-		if (this_position < new_variable->position) {
+		const char *this_position = list->sorted_variables[index]->start;
+		if (this_position < new_variable->start) {
 			first = index + 1;
 		}
-		else if (this_position > new_variable->position) {
+		else if (this_position > new_variable->start) {
 			last = index;
 		}
 		else {

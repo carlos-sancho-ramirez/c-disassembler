@@ -3,11 +3,14 @@
 
 #include <stdlib.h>
 
-struct GlobalVariable {
-	const char *position;
-	unsigned int byte_size;
-};
+#define GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING 5
 
+struct GlobalVariable {
+	const char *start;
+	const char *end;
+	unsigned int relative_address;
+	unsigned int var_type;
+};
 
 /**
  * Complex structure containing pages of global variables.
@@ -63,7 +66,7 @@ void initialize_global_variable_list(struct GlobalVariableList *list);
  * Searches for a variable whose start matches the given one.
  * This will return the index of the variable within the sorted_variables array. Or -1 if none matches.
  */
-int index_of_global_variable_with_position(const struct GlobalVariableList *list, const char *start);
+int index_of_global_variable_with_start(const struct GlobalVariableList *list, const char *start);
 
 /**
  * Returns a proper pointer to store a new variable.

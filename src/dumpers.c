@@ -351,20 +351,73 @@ static int dump_block(
     return 0;
 }
 
+static int valid_char_for_string_literal(char ch) {
+    // More can be added when required. Avoid adding quotes, as it may conflict
+    return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == ' ' || ch == '!' || ch == '$';
+}
+
+static int dump_variable(
+        const struct GlobalVariable *variable,
+        void (*print)(const char *),
+        void (*print_error)(const char *)) {
+    print("\n");
+    print_variable_label(print, variable->relative_address);
+    print(":\n");
+
+    int should_display_string_literal = 0;
+    if (variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+        should_display_string_literal = 1;
+        for (const char *position = variable->start; position < variable->end; position++) {
+            if (!valid_char_for_string_literal(*position)) {
+                should_display_string_literal = 0;
+                break;
+            }
+        }
+    }
+
+    if (should_display_string_literal) {
+        print("db '");
+        char str[] = "x";
+        for (const char *position = variable->start; position < variable->end; position++) {
+            str[0] = *position;
+            print(str);
+        }
+        print("'\n");
+    }
+    else {
+        for (const char *position = variable->start; position < variable->end; position++) {
+            print("db ");
+            print_literal_hex_byte(print, *position);
+            print("\n");
+        }
+    }
+
+    return 0;
+}
+
 int dump(
         struct CodeBlock **sorted_blocks,
         unsigned int code_block_count,
-        struct GlobalVariable **global_variables,
+        struct GlobalVariable **sorted_variables,
         unsigned int global_variable_count,
         void (*print)(const char *),
         void (*print_error)(const char *)) {
     struct Reader reader;
     int error_code;
 
-    // TODO: Global variables not printed yet
-    for (int code_block_index = 0; code_block_index < code_block_count; code_block_index++) {
-        if ((error_code = dump_block(sorted_blocks[code_block_index], print, print_error))) {
-            return error_code;
+    int next_code_block_index = 0;
+    int next_global_variable_index = 0;
+
+    while (next_code_block_index < code_block_count || next_global_variable_index < global_variable_count) {
+        if (next_code_block_index < code_block_count && (next_global_variable_index == global_variable_count || sorted_blocks[next_code_block_index]->start <= sorted_variables[next_global_variable_index]->start)) {
+            if ((error_code = dump_block(sorted_blocks[next_code_block_index++], print, print_error))) {
+                return error_code;
+            }
+        }
+        else {
+            if ((error_code = dump_variable(sorted_variables[next_global_variable_index++], print, print_error))) {
+                return error_code;
+            }
         }
     }
 

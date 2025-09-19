@@ -52,3 +52,8 @@ void print_address_label(void (*print)(const char *), int ip, int cs) {
 	print("_");
 	print_literal_hex_word(print, ip);
 }
+
+void print_variable_label(void (*print)(const char *), unsigned int address) {
+	print("var");
+	print_literal_hex_word(print, address);
+}

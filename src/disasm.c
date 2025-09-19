@@ -5,6 +5,7 @@
 #include "dumpers.h"
 #include "print_utils.h"
 #include "reader.h"
+#include "registers.h"
 
 struct SegmentReadResult {
 	char *buffer;
@@ -155,6 +156,8 @@ static void read_block_instruction_address(
 
 static int read_block_instruction(
 		struct Reader *reader,
+		struct Registers *regs,
+		const char *segment_start,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
@@ -180,7 +183,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, print_error, block, code_block_list, global_variable_list);
+		return read_block_instruction(reader, regs, segment_start, print_error, block, code_block_list, global_variable_list);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -249,10 +252,10 @@ static int read_block_instruction(
 	}
 	else if ((value0 & 0xF0) == 0xB0) {
 		if (value0 & 0x08) {
-			read_next_word(reader);
+			set_word_register(regs, value0 & 0x07, read_next_word(reader));
 		}
 		else {
-			read_next_byte(reader);
+			set_byte_register(regs, value0 & 0x07, read_next_byte(reader));
 		}
 		return 0;
 	}
@@ -264,6 +267,21 @@ static int read_block_instruction(
 		const int interruption_number = read_next_byte(reader);
 		if (interruption_number == 0x20) {
 			block->end = block->start + reader->buffer_index;
+		}
+		else if (interruption_number == 0x21) {
+			if (get_register_ah(regs) == 0x09 && is_register_ds_defined_and_relative(regs) && is_register_dx_defined(regs)) {
+				unsigned int relative_address = (get_register_ds(regs) * 16 + get_register_dx(regs)) & 0xFFFF;
+				const char *target = segment_start + relative_address;
+				if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
+					struct GlobalVariable *new_var = prepare_new_global_variable(global_variable_list);
+					new_var->start = target;
+					new_var->end = target;
+					new_var->relative_address = relative_address;
+					new_var->var_type = GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING;
+					insert_sorted_global_variable(global_variable_list, new_var);
+				}
+				// What should we do if the variable is present, but its type does not match? Not sure.
+			}
 		}
 		return 0;
 	}
@@ -338,6 +356,8 @@ static int read_block_instruction(
 }
 
 int read_block(
+		struct Registers *regs,
+		const char *segment_start,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		unsigned int block_max_size,
@@ -350,7 +370,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, print_error, block, code_block_list, global_variable_list))) {
+		if ((error_code = read_block_instruction(&reader, regs, segment_start, print_error, block, code_block_list, global_variable_list))) {
 			return error_code;
 		}
 
@@ -387,13 +407,43 @@ int find_code_blocks_and_variables(
 	}
 
 	for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
+		struct Registers regs;		
 		struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
 		unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
-		if ((error_code = read_block(print_error, block, block_max_size, code_block_list, global_variable_list))) {
+
+		make_all_registers_undefined(&regs);
+		set_register_cs_relative(&regs, read_result->relative_cs);	
+		if (block_index == 0) {
+			set_register_ds_relative(&regs, read_result->relative_cs);
+		}
+
+		if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list))) {
 			return error_code;
 		}
 	}
 
+	for (int variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
+		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
+		if (variable->start == variable->end && variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+			const int index = index_of_code_block_containing_position(code_block_list, variable->start);
+			if (index < 0 || code_block_list->sorted_blocks[index]->end <= variable->start) {
+				const char *potential_end = read_result->buffer + read_result->size;
+				if (index + 1 < code_block_list->block_count) {
+					potential_end = code_block_list->sorted_blocks[index + 1]->start;
+				}
+
+				const char *end;
+				for (end = variable->start; end < potential_end; end++) {
+					if (*end == '$') {
+						end++;
+						break;
+					}
+				}
+
+				variable->end = end;
+			}
+		}
+	}
 	return 0;
 }
 
