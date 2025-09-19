@@ -182,11 +182,11 @@ static int dump_instruction(
         else if ((value0 & 0xFD) == 0x8C) {
             const int value1 = read_next_byte(reader);
             if (value1 & 0x20) {
-                print_error("Unknown opcode ");
-                print_literal_hex_byte(print_error, value0);
-                print_error(" ");
-                print_literal_hex_byte(print_error, value1);
-                print_error("\n");
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
                 return 1;
             }
             else {
@@ -314,9 +314,9 @@ static int dump_instruction(
             return 0;
         }
         else {
-            print_error("Unknown opcode ");
-            print_literal_hex_byte(print_error, value0);
-            print_error("\n");
+            print("db ");
+            print_literal_hex_byte(print, value0);
+            print(" ; Unknown instruction\n");
             return 1;
         }
     }
@@ -335,10 +335,15 @@ static int dump_block(
     print_address_label(print, block->ip, block->relative_cs);
     print(":\n");
 
-    int error_code;
+    int error_found = 0;
     do {
-        if ((error_code = dump_instruction(&reader, block, print, print_error))) {
-            return error_code;
+        if (error_found) {
+            print("db ");
+            print_literal_hex_byte(print, read_next_byte(&reader));
+            print("\n");
+        }
+        else {
+            error_found = dump_instruction(&reader, block, print, print_error);
         }
     }
     while (block->start + reader.buffer_index != block->end);

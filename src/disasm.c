@@ -295,6 +295,7 @@ static int read_block_instruction(
 			}
 		}
 
+		block->end = block->start + reader->buffer_index;
 		return 0;
 	}
 	else if (value0 == 0xF2) {
@@ -322,21 +323,31 @@ static int read_block_instruction(
 		return 0;
 	}
 	else {
-		print_error("Unknown opcode ");
-		print_literal_hex_byte(print_error, value0);
-		print_error("\n");
-		return 1;
+		const int this_block_index = index_of_code_block_with_start(code_block_list, block->start);
+		const char *new_end = reader->buffer + reader->buffer_size;
+		if (this_block_index + 1 < code_block_list->block_count) {
+			const char *next_start = code_block_list->sorted_blocks[this_block_index + 1]->start;
+			if (next_start < new_end) {
+				new_end = next_start;
+			}
+		}
+
+		block->end = new_end;
+		return 0;
 	}
 }
 
 int read_block(
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
+		unsigned int block_max_size,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list) {
 	struct Reader reader;
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
+	reader.buffer_size = block_max_size;
+
 	int error_code;
 	do {
 		if ((error_code = read_block_instruction(&reader, print_error, block, code_block_list, global_variable_list))) {
@@ -377,7 +388,8 @@ int find_code_blocks_and_variables(
 
 	for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
 		struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
-		if ((error_code = read_block(print_error, block, code_block_list, global_variable_list))) {
+		unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
+		if ((error_code = read_block(print_error, block, block_max_size, code_block_list, global_variable_list))) {
 			return error_code;
 		}
 	}
