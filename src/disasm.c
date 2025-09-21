@@ -367,7 +367,7 @@ static int read_block_instruction(
 		}
 		return 0;
 	}
-	else if (value0 == 0xCB) {
+	else if ((value0 & 0xF7) == 0xC3) {
 		block->end = block->start + reader->buffer_index;
 		return 0;
 	}

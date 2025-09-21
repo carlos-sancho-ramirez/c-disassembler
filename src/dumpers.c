@@ -260,6 +260,10 @@ static int dump_instruction(
             print("\n");
             return 0;
         }
+        else if (value0 == 0xC3) {
+            print("ret\n");
+            return 0;
+        }
         else if (value0 == 0xCB) {
             print("retf\n");
             return 0;
