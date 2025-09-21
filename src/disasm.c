@@ -393,7 +393,7 @@ static int read_block_instruction(
 		}
 		return 0;
 	}
-	else if (value0 == 0xE8) {
+	else if ((value0 & 0xFE) == 0xE8) {
 		int diff = read_next_word(reader);
 		if (block->ip + reader->buffer_index + diff >= 0x10000) {
 			diff -= 0x10000;
@@ -421,7 +421,9 @@ static int read_block_instruction(
 			}
 		}
 
-		block->end = block->start + reader->buffer_index;
+		if (value0 & 1) {
+			block->end = block->start + reader->buffer_index;
+		}
 		return 0;
 	}
 	else if (value0 == 0xF2) {
