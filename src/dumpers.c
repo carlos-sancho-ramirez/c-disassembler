@@ -264,6 +264,31 @@ static int dump_instruction(
             print("ret\n");
             return 0;
         }
+        else if ((value0 & 0xFE) == 0xC4) {
+            const int value1 = read_next_byte(reader);
+            if ((value1 & 0xC0) == 0xC0) {
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
+                return 1;
+            }
+            else {
+                if (value0 & 1) {
+                    print("lds ");
+                }
+                else {
+                    print("les ");
+                }
+
+                print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
+		        print(",");
+		        dump_address(reader, print, value1, segment, NULL);
+                print("\n");
+                return 0;
+            }
+        }
         else if (value0 == 0xCB) {
             print("retf\n");
             return 0;

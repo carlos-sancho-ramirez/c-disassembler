@@ -371,6 +371,21 @@ static int read_block_instruction(
 		block->end = block->start + reader->buffer_index;
 		return 0;
 	}
+	else if ((value0 & 0xFE) == 0xC4) {
+		const int value1 = read_next_byte(reader);
+		if ((value1 & 0xC0) == 0xC0) {
+			print_error("Unknown opcode ");
+			print_literal_hex_byte(print_error, value0);
+			print_error(" ");
+			print_literal_hex_byte(print_error, value1);
+			print_error("\n");
+			return 1;
+		}
+		else {
+			read_block_instruction_address(reader, value1);
+			return 0;
+		}
+	}
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
 		if (interruption_number == 0x20) {
