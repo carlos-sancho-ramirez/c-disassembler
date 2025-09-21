@@ -245,6 +245,30 @@ static int dump_instruction(
             print("cmpsw\n");
             return 0;
         }
+        else if (value0 == 0xAA) {
+            print("stosb\n");
+            return 0;
+        }
+        else if (value0 == 0xAB) {
+            print("stosw\n");
+            return 0;
+        }
+        else if (value0 == 0xAC) {
+            print("lodsb\n");
+            return 0;
+        }
+        else if (value0 == 0xAD) {
+            print("lodsw\n");
+            return 0;
+        }
+        else if (value0 == 0xAE) {
+            print("scasb\n");
+            return 0;
+        }
+        else if (value0 == 0xAF) {
+            print("scasw\n");
+            return 0;
+        }
         else if ((value0 & 0xF0) == 0xB0) {
             print("mov ");
             if (value0 & 0x08) {

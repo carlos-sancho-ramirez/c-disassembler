@@ -358,6 +358,12 @@ static int read_block_instruction(
 	else if ((value0 & 0xFC) == 0xA4) {
 		return 0;
 	}
+	else if ((value0 & 0xFE) == 0xAA) {
+		return 0;
+	}
+	else if ((value0 & 0xFC) == 0xAC) {
+		return 0;
+	}
 	else if ((value0 & 0xF0) == 0xB0) {
 		if (value0 & 0x08) {
 			set_word_register(regs, value0 & 0x07, read_next_word(reader));
