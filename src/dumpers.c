@@ -27,6 +27,10 @@ const char *JUMP_INSTRUCTIONS[] = {
 	"js", "jns", "jpe", "jpo", "jl", "jge", "jle", "jg"
 };
 
+const char *LOOP_INSTRUCTIONS[] = {
+	"loopnzw", "loopzw", "loopw", "jcxz"
+};
+
 static void dump_address(
 		struct Reader *reader,
 		void (*print)(const char *),
@@ -323,6 +327,15 @@ static int dump_instruction(
         else if (value0 == 0xCD) {
             print("int ");
             print_literal_hex_byte(print, read_next_byte(reader));
+            print("\n");
+            return 0;
+        }
+        else if ((value0 & 0xFC) == 0xE0) {
+            const int value1 = read_next_byte(reader);
+            const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+            print(LOOP_INSTRUCTIONS[value0 & 0x0F]);
+            print(" ");
+            print_code_label(print, target_ip, block->relative_cs);
             print("\n");
             return 0;
         }

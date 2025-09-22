@@ -456,7 +456,7 @@ static int read_block_instruction(
 	else if ((value0 & 0xF0) == 0x50) {
 		return 0;
 	}
-	else if ((value0 & 0xF0) == 0x70) {
+	else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0) {
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
 		const char *jump_destination = block->start + reader->buffer_index + diff;
