@@ -14,6 +14,10 @@ const char *INSTRUCTION[] = {
 	"add", "or", "adc", "sbb", "and", "sub", "xor", "cmp"
 };
 
+const char *MATH_INSTRUCTION[] = {
+    "test", NULL, "not", "neg", "mul", "imul", "div", "idiv"
+};
+
 const char *ADDRESS_REGISTERS[] = {
 	"bx+si", "bx+di", "bp+si", "bp+di", "si", "di", "bp", "bx"
 };
@@ -390,6 +394,45 @@ static int dump_instruction(
         else if (value0 == 0xF3) {
             print("repe\n");
             return 0;
+        }
+        else if ((value0 & 0xFE) == 0xF6) {
+            const int value1 = read_next_byte(reader);
+            if ((value1 & 0x38) == 0x08) {
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
+                return 1;
+            }
+            else {
+                print(MATH_INSTRUCTION[(value1 >> 3) & 0x07]);
+                if ((value1 & 0xC0) != 0xC0) {
+                    if (value0 & 1) {
+                        print(" word ptr ");
+                    }
+                    else {
+                        print(" byte ptr ");
+                    }
+                }
+                else {
+                    print(" ");
+                }
+
+                const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
+                dump_address(reader, print, value1, segment, registers);
+                if ((value0 & 0x38) == 0) {
+                    print(",");
+                    if (value0 & 1) {
+                        print_literal_hex_word(print, read_next_word(reader));
+                    }
+                    else {
+                        print_literal_hex_byte(print, read_next_byte(reader));
+                    }
+                }
+                print("\n");
+                return 0;
+            }
         }
         else if (value0 == 0xF8) {
             print("clc\n");
