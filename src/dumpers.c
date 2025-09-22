@@ -206,6 +206,27 @@ static int dump_instruction(
             print("\n");
             return 0;
         }
+        else if (value0 == 0x83) {
+            const int value1 = read_next_byte(reader);
+            print(INSTRUCTION[(value1 >> 3) & 0x07]);
+            if ((value1 & 0xC0) != 0xC0) {
+                if (value0 & 1) {
+                    print(" word ptr ");
+                }
+                else {
+                    print(" byte ptr ");
+                }
+            }
+            else {
+                print(" ");
+            }
+
+            dump_address(reader, print, value1, segment, WORD_REGISTERS);
+            print(",");
+            print_differential_hex_byte(print, read_next_byte(reader));
+            print("\n");
+            return 0;
+        }
         else if ((value0 & 0xFC) == 0x88) {
             const char **registers;
             if (value0 & 1) {
