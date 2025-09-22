@@ -446,6 +446,14 @@ static int dump_instruction(
             print("\n");
             return 0;
         }
+        else if (value0 == 0xEB) {
+            const int value1 = read_next_byte(reader);
+            const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+            print("jmp ");
+            print_code_label(print, target_ip, block->relative_cs);
+            print("\n");
+            return 0;
+        }
         else if (value0 == 0xF2) {
             print("repne\n");
             return 0;
