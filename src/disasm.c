@@ -19,13 +19,16 @@ struct SegmentReadResult {
 	unsigned int size;
 	int relative_cs;
 	unsigned int ip;
+
+	void (*print_code_label)(void (*print)(const char *), int ip, int cs);
+	void (*print_variable_label)(void (*print)(const char *), unsigned int address);
 };
 
 static void print_help(const char *executedFile) {
 	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n", executedFile);
 }
 
-static void dump_print(const char *str) {
+static void print_output(const char *str) {
 	printf("%s", str);
 }
 
@@ -146,6 +149,8 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 
 		result->relative_cs = header.initial_cs;
 		result->ip = header.initial_ip;
+		result->print_code_label = print_dos_address_label;
+		result->print_variable_label = print_dos_variable_label;
 	}
 	else {
 		if (fseek(file, 0, SEEK_END)) {
@@ -179,6 +184,8 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 
 		result->ip = 0x100;
 		result->relative_cs = -0x10;
+		result->print_code_label = print_bin_address_label;
+		result->print_variable_label = print_bin_variable_label;
 	}
 	fclose(file);
 	return 0;
@@ -685,7 +692,7 @@ int main(int argc, const char *argv[]) {
 		goto end;
 	}
 
-	error_code = dump(code_block_list.sorted_blocks, code_block_list.block_count, global_variable_list.sorted_variables, global_variable_list.variable_count, dump_print, print_error);
+	error_code = dump(code_block_list.sorted_blocks, code_block_list.block_count, global_variable_list.sorted_variables, global_variable_list.variable_count, print_output, print_error, read_result.print_code_label, read_result.print_variable_label);
 
 	end:
 	if (read_result.relocation_count) {

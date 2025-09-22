@@ -20,6 +20,25 @@ void print_literal_hex_word(void (*print)(const char *), int value) {
 	print(number);
 }
 
+void print_literal_hex_word_no_prefix(void (*print)(const char *), int value) {
+	char number[] = "0000";
+	number[3] = HEX_CHAR[value & 0x000F];
+	number[2] = HEX_CHAR[(value >> 4) & 0x000F];
+	number[1] = HEX_CHAR[(value >> 8) & 0x000F];
+	number[0] = HEX_CHAR[(value >> 12) & 0x000F];
+	print(number);
+}
+
+void print_literal_hex_20bit_value_no_prefix(void (*print)(const char *), int value) {
+	char number[] = "00000";
+	number[4] = HEX_CHAR[value & 0x0000F];
+	number[3] = HEX_CHAR[(value >> 4) & 0x0000F];
+	number[2] = HEX_CHAR[(value >> 8) & 0x0000F];
+	number[1] = HEX_CHAR[(value >> 12) & 0x0000F];
+	number[0] = HEX_CHAR[(value >> 16) & 0x0000F];
+	print(number);
+}
+
 void print_differential_hex_byte(void (*print)(const char *), int value) {
 	char number[] = "+0x00";
 	if (value & 0x80) {
@@ -46,14 +65,24 @@ void print_differential_hex_word(void (*print)(const char *), int value) {
 	print(number);
 }
 
-void print_address_label(void (*print)(const char *), int ip, int cs) {
+void print_bin_address_label(void (*print)(const char *), int ip, int cs) {
 	print("addr");
-	print_literal_hex_word(print, cs);
-	print("_");
-	print_literal_hex_word(print, ip);
+	print_literal_hex_word_no_prefix(print, ip & 0xFFFF);
 }
 
-void print_variable_label(void (*print)(const char *), unsigned int address) {
+void print_bin_variable_label(void (*print)(const char *), unsigned int address) {
 	print("var");
-	print_literal_hex_word(print, address);
+	print_literal_hex_word_no_prefix(print, (address + 0x100) & 0xFFFF);
+}
+
+void print_dos_address_label(void (*print)(const char *), int ip, int cs) {
+	print("addr");
+	print_literal_hex_word_no_prefix(print, cs);
+	print("_");
+	print_literal_hex_word_no_prefix(print, ip);
+}
+
+void print_dos_variable_label(void (*print)(const char *), unsigned int address) {
+	print("var");
+	print_literal_hex_20bit_value_no_prefix(print, address);
 }

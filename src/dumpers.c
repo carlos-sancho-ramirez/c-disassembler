@@ -83,7 +83,9 @@ static int dump_instruction(
         struct Reader *reader,
         const struct CodeBlock *block,
         void (*print)(const char *),
-        void (*print_error)(const char *)) {
+        void (*print_error)(const char *),
+        void (*print_code_label)(void (*)(const char *), int, int),
+        void (*print_variable_label)(void (*)(const char *), unsigned int)) {
     const char *segment = NULL;
     while (1) {
         const int value0 = read_next_byte(reader);
@@ -158,9 +160,10 @@ static int dump_instruction(
         }
         else if ((value0 & 0xF0) == 0x70) {
             const int value1 = read_next_byte(reader);
+            const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
             print(JUMP_INSTRUCTIONS[value0 & 0x0F]);
             print(" ");
-            print_address_label(print, block->ip + reader->buffer_index, block->relative_cs);
+            print_code_label(print, target_ip, block->relative_cs);
             print("\n");
             return 0;
         }
@@ -336,7 +339,7 @@ static int dump_instruction(
                 print("call ");
             }
             
-            print_address_label(print, block->ip + reader->buffer_index + diff, block->relative_cs);
+            print_code_label(print, block->ip + reader->buffer_index + diff, block->relative_cs);
             print("\n");
             return 0;
         }
@@ -384,14 +387,16 @@ static int dump_instruction(
 static int dump_block(
         const struct CodeBlock *block,
         void (*print)(const char *),
-        void (*print_error)(const char *)) {
+        void (*print_error)(const char *),
+        void (*print_code_label)(void (*)(const char *), int, int),
+        void (*print_variable_label)(void (*)(const char *), unsigned int)) {
     struct Reader reader;
     reader.buffer = block->start;
     reader.buffer_index = 0;
     reader.buffer_size = block->end - block->start;
 
     print("\n");
-    print_address_label(print, block->ip, block->relative_cs);
+    print_code_label(print, block->ip, block->relative_cs);
     print(":\n");
 
     int error_found = 0;
@@ -402,7 +407,7 @@ static int dump_block(
             print("\n");
         }
         else {
-            error_found = dump_instruction(&reader, block, print, print_error);
+            error_found = dump_instruction(&reader, block, print, print_error, print_code_label, print_variable_label);
         }
     }
     while (block->start + reader.buffer_index != block->end);
@@ -418,7 +423,8 @@ static int valid_char_for_string_literal(char ch) {
 static int dump_variable(
         const struct GlobalVariable *variable,
         void (*print)(const char *),
-        void (*print_error)(const char *)) {
+        void (*print_error)(const char *),
+        void (*print_variable_label)(void (*)(const char *), unsigned int)) {
     print("\n");
     print_variable_label(print, variable->relative_address);
     print(":\n");
@@ -460,7 +466,9 @@ int dump(
         struct GlobalVariable **sorted_variables,
         unsigned int global_variable_count,
         void (*print)(const char *),
-        void (*print_error)(const char *)) {
+        void (*print_error)(const char *),
+        void (*print_code_label)(void (*)(const char *), int, int),
+        void (*print_variable_label)(void (*)(const char *), unsigned int)) {
     struct Reader reader;
     int error_code;
 
@@ -469,12 +477,12 @@ int dump(
 
     while (next_code_block_index < code_block_count || next_global_variable_index < global_variable_count) {
         if (next_code_block_index < code_block_count && (next_global_variable_index == global_variable_count || sorted_blocks[next_code_block_index]->start <= sorted_variables[next_global_variable_index]->start)) {
-            if ((error_code = dump_block(sorted_blocks[next_code_block_index++], print, print_error))) {
+            if ((error_code = dump_block(sorted_blocks[next_code_block_index++], print, print_error, print_code_label, print_variable_label))) {
                 return error_code;
             }
         }
         else {
-            if ((error_code = dump_variable(sorted_variables[next_global_variable_index++], print, print_error))) {
+            if ((error_code = dump_variable(sorted_variables[next_global_variable_index++], print, print_error, print_variable_label))) {
                 return error_code;
             }
         }
