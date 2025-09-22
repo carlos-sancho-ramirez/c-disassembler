@@ -30,6 +30,7 @@ int is_register_dl_defined(struct Registers *regs);
 int is_register_dh_defined(struct Registers *regs);
 int is_register_bl_defined(struct Registers *regs);
 int is_register_bh_defined(struct Registers *regs);
+int is_byte_register_defined(struct Registers * regs, unsigned int index);
 
 int is_register_ax_defined(struct Registers *regs);
 int is_register_cx_defined(struct Registers *regs);
@@ -41,10 +42,13 @@ int is_register_si_defined(struct Registers *regs);
 int is_register_di_defined(struct Registers *regs);
 int is_word_register_defined(struct Registers * regs, unsigned int index);
 
+int is_segment_register_defined(struct Registers *regs, unsigned int index);
+
 int is_register_es_defined_and_relative(struct Registers *regs);
 int is_register_cs_defined_and_relative(struct Registers *regs);
 int is_register_ss_defined_and_relative(struct Registers *regs);
 int is_register_ds_defined_and_relative(struct Registers *regs);
+int is_segment_register_defined_and_relative(struct Registers *regs, unsigned int index);
 
 unsigned int get_register_al(struct Registers *regs);
 unsigned int get_register_ah(struct Registers *regs);
@@ -71,9 +75,13 @@ unsigned int get_register_ds(struct Registers *regs);
 
 unsigned int get_byte_register(struct Registers *regs, unsigned int index);
 unsigned int get_word_register(struct Registers *regs, unsigned int index);
+unsigned int get_segment_register(struct Registers *regs, unsigned int index);
 
 void set_byte_register(struct Registers *regs, unsigned int index, unsigned int value);
 void set_word_register(struct Registers *regs, unsigned int index, unsigned int value);
+
+void set_register_al_undefined(struct Registers *regs);
+void set_register_ax_undefined(struct Registers *regs);
 
 void set_register_es(struct Registers *regs, uint16_t value);
 void set_register_cs(struct Registers *regs, uint16_t value);

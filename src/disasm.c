@@ -202,6 +202,10 @@ static void read_block_instruction_address(
 	}
 }
 
+#define SEGMENT_INDEX_UNDEFINED -1
+#define SEGMENT_INDEX_SS 2
+#define SEGMENT_INDEX_DS 3
+
 static int read_block_instruction(
 		struct Reader *reader,
 		struct Registers *regs,
@@ -209,12 +213,225 @@ static int read_block_instruction(
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
-		struct GlobalVariableList *global_variable_list) {
+		struct GlobalVariableList *global_variable_list,
+		int segment_index) {
 	const int value0 = read_next_byte(reader);
 	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
 		if ((value0 & 0x04) == 0x00) {
 			const int value1 = read_next_byte(reader);
-			read_block_instruction_address(reader, value1);
+
+			int can_resolve_address = 0;
+			int is_absolute_address = 0;
+			int result_address;
+			const int rm = value1 & 0x07;
+			if ((value1 & 0xC0) == 0) {
+				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_si(regs)) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_di(regs)) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 2 && is_register_bp_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + get_register_si(regs)) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 3 && is_register_bp_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + get_register_di(regs)) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 4 && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = get_register_si(regs) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 5 && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = get_register_di(regs) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 6) {
+					can_resolve_address = 1;
+					is_absolute_address = 1;
+					result_address = read_next_word(reader);
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 7 && is_register_bx_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = get_register_bx(regs) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+			}
+			else if ((value1 & 0xC0) == 0x40) {
+				const int raw_value = read_next_byte(reader);
+				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 2 && is_register_bp_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 3 && is_register_bp_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 4 && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 5 && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 6 && is_register_bp_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 7 && is_register_bx_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+			}
+			else if ((value1 & 0xC0) == 0x80) {
+				const int raw_value = read_next_word(reader);
+				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 2 && is_register_bp_defined(regs) && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 3 && is_register_bp_defined(regs) && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 4 && is_register_si_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 5 && is_register_di_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+				else if (rm == 6 && is_register_bp_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bp(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_SS;
+					}
+				}
+				else if (rm == 7 && is_register_bx_defined(regs)) {
+					can_resolve_address = 1;
+					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
+					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+						segment_index = SEGMENT_INDEX_DS;
+					}
+				}
+			}
+			else {
+				// Assuming (value1 & 0xC0) == 0xC0
+				if ((value0 & 0x38) == 0x30 && (((value1 >> 3) & 0x07) == (value1 & 0x07))) { // XOR
+					if (value0 & 1) {
+						set_word_register(regs, value1 & 0x07, 0);
+					}
+					else {
+						set_byte_register(regs, value1 & 0x07, 0);
+					}
+				}
+			}
+
+			if (is_absolute_address && is_register_ds_defined_and_relative(regs)) {
+				unsigned int relative_address = (get_register_ds(regs) * 16 + result_address) & 0xFFFF;
+				const char *target = segment_start + relative_address;
+				if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
+					struct GlobalVariable *new_var = prepare_new_global_variable(global_variable_list);
+					new_var->start = target;
+					new_var->relative_address = relative_address;
+					if (value0 & 1) {
+						new_var->end = target + 2;
+						new_var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
+					}
+					else {
+						new_var->end = target + 1;
+						new_var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
+					}
+					insert_sorted_global_variable(global_variable_list, new_var);
+				}
+			}
+
 			return 0;
 		}
 		else if ((value0 & 0x07) == 0x04) {
@@ -231,7 +448,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, regs, segment_start, print_error, block, code_block_list, global_variable_list);
+		return read_block_instruction(reader, regs, segment_start, print_error, block, code_block_list, global_variable_list, (value0 >> 3) & 0x03);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -282,16 +499,6 @@ static int read_block_instruction(
 			return 1;
 		}
 		else {
-			//read_block_instruction_address(reader, value1);
-
-			/*
-			if ((value1 & 0xC7) == 0x06 || (value1 & 0xC0) == 0x80) {
-				read_next_word(reader);
-			}
-			else if ((value1 & 0xC0) == 0x40) {
-				read_next_byte(reader);
-			}
-			*/
 			int can_resolve_address = 0;
 			int result_address;
 			const int rm = value1 & 0x07;
@@ -396,11 +603,42 @@ static int read_block_instruction(
 	}
 	else if ((value0 & 0xFC) == 0xA0) {
 		if ((value0 & 0xFE) == 0xA0) {
-			read_next_word(reader);
+			if (value0 & 1) {
+				set_register_ax_undefined(regs);
+			}
+			else {
+				set_register_al_undefined(regs);
+			}
 		}
-		else if ((value0 & 0xFE) == 0xA2) {
-			read_next_word(reader);
+
+		const int offset = read_next_word(reader);
+		if (segment_index >= 0 && is_segment_register_defined_and_relative(regs, segment_index) || segment_index == SEGMENT_INDEX_UNDEFINED && is_register_ds_defined_and_relative(regs)) {
+			unsigned int segment_value = (segment_index == SEGMENT_INDEX_UNDEFINED)? get_register_ds(regs) : get_segment_register(regs, segment_index);
+			unsigned int relative_address = (segment_value * 16 + offset) & 0xFFFF;
+			const char *target = segment_start + relative_address;
+			const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+			struct GlobalVariable *var;
+			if (var_index < 0) {
+				var = prepare_new_global_variable(global_variable_list);
+				var->start = target;
+				var->end = target + 2;
+				var->relative_address = relative_address;
+				var->var_type = (value0 & 1)? GLOBAL_VARIABLE_TYPE_WORD : GLOBAL_VARIABLE_TYPE_BYTE;
+
+				insert_sorted_global_variable(global_variable_list, var);
+			}
+			else {
+				var = global_variable_list->sorted_variables[var_index];
+			}
+
+			if (value0 & 2) {
+				var->flags |= GLOBAL_VARIABLE_FLAG_WRITE;
+			}
+			else {
+				var->flags |= GLOBAL_VARIABLE_FLAG_READ;
+			}
 		}
+
 		return 0;
 	}
 	else if ((value0 & 0xFC) == 0xA4) {
@@ -534,6 +772,62 @@ static int read_block_instruction(
 	}
 }
 
+void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
+	if (is_word_register_defined(regs, index)) {
+		fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
+	}
+	else if (is_byte_register_defined(regs, index + 4)) {
+		fprintf(stderr, " %s=%x;", high_byte_reg, get_byte_register(regs, index + 4));
+
+		if (is_byte_register_defined(regs, index)) {
+			fprintf(stderr, " %s=%x;", low_byte_reg, get_byte_register(regs, index));
+		}
+	}
+	else if (is_byte_register_defined(regs, index)) {
+		fprintf(stderr, " %s=%x;", low_byte_reg, get_byte_register(regs, index));
+	}
+	else {
+		fprintf(stderr, " %s=?;", word_reg);
+	}
+}
+
+void print_word_register(struct Registers *regs, unsigned int index, const char *word_reg) {
+	if (is_word_register_defined(regs, index)) {
+		fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
+	}
+	else {
+		fprintf(stderr, " %s=?;", word_reg);
+	}
+}
+
+void print_segment_register(struct Registers *regs, unsigned int index, const char *word_reg) {
+	if (is_segment_register_defined_and_relative(regs, index)) {
+		fprintf(stderr, " %s=+%x;", word_reg, get_segment_register(regs, index));
+	}
+	else if (is_segment_register_defined(regs, index)) {
+		fprintf(stderr, " %s=%x;", word_reg, get_segment_register(regs, index));
+	}
+	else {
+		fprintf(stderr, " %s=?;", word_reg);
+	}
+}
+
+void print_regs(struct Registers *regs) {
+	print_word_or_byte_register(regs, 0, "AX", "AH", "AL");
+	print_word_or_byte_register(regs, 1, "CX", "CH", "CL");
+	print_word_or_byte_register(regs, 2, "DX", "DH", "DL");
+	print_word_or_byte_register(regs, 3, "BX", "BH", "BL");
+	print_word_register(regs, 4, "SP");
+	print_word_register(regs, 5, "BP");
+	print_word_register(regs, 6, "SI");
+	print_word_register(regs, 7, "DI");
+	print_segment_register(regs, 0, "ES");
+	print_segment_register(regs, 1, "CS");
+	print_segment_register(regs, 2, "SS");
+	print_segment_register(regs, 3, "DS");
+	fprintf(stderr, "\n");
+}
+
 int read_block(
 		struct Registers *regs,
 		const char *segment_start,
@@ -549,7 +843,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, segment_start, print_error, block, code_block_list, global_variable_list))) {
+		if ((error_code = read_block_instruction(&reader, regs, segment_start, print_error, block, code_block_list, global_variable_list, SEGMENT_INDEX_UNDEFINED))) {
 			return error_code;
 		}
 

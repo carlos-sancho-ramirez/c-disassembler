@@ -33,6 +33,18 @@ int is_register_bh_defined(struct Registers *regs) {
     return regs->defined & 0x80;
 }
 
+int is_byte_register_defined(struct Registers * regs, unsigned int index) {
+    assert(index < 8);
+    return (index == 0)? is_register_al_defined(regs) :
+            (index == 1)? is_register_cl_defined(regs) :
+            (index == 2)? is_register_dl_defined(regs) :
+            (index == 3)? is_register_bl_defined(regs) :
+            (index == 4)? is_register_ah_defined(regs) :
+            (index == 5)? is_register_ch_defined(regs) :
+            (index == 6)? is_register_dh_defined(regs) :
+            is_register_bh_defined(regs);
+}
+
 int is_register_ax_defined(struct Registers *regs) {
     return (regs->defined & 0x03) == 0x03;
 }
@@ -93,6 +105,11 @@ int is_register_ds_defined(struct Registers *regs) {
     return regs->defined & 0x8000;
 }
 
+int is_segment_register_defined(struct Registers *regs, unsigned int index) {
+    assert(index < 4);
+    return regs->defined & (1 << (12 + index));
+}
+
 int is_register_es_defined_and_relative(struct Registers *regs) {
     return (regs->defined & 0x11000) == 0x11000;
 }
@@ -107,6 +124,12 @@ int is_register_ss_defined_and_relative(struct Registers *regs) {
 
 int is_register_ds_defined_and_relative(struct Registers *regs) {
     return (regs->defined & 0x88000) == 0x88000;
+}
+
+int is_segment_register_defined_and_relative(struct Registers *regs, unsigned int index) {
+    assert(index < 4);
+    const int value = 0x11 << (12 + index);
+    return (regs->defined & value) == value;
 }
 
 unsigned int get_register_al(struct Registers *regs) {
@@ -249,6 +272,24 @@ unsigned int get_word_register(struct Registers *regs, unsigned int index) {
     }
 }
 
+unsigned int get_segment_register(struct Registers *regs, unsigned int index) {
+    assert(index < 4);
+
+    if (index == 0) {
+        return get_register_es(regs);
+    }
+    else if (index == 1) {
+        return get_register_cs(regs);
+    }
+    else if (index == 2) {
+        return get_register_ss(regs);
+    }
+    else {
+        // Assuming index == 3
+        return get_register_ds(regs);
+    }
+}
+
 void set_byte_register(struct Registers *regs, unsigned int index, unsigned int value) {
     assert(index < 8);
     assert(value < 0x100);
@@ -335,6 +376,14 @@ void set_word_register(struct Registers *regs, unsigned int index, unsigned int 
         regs->di = value;
         regs->defined |= 0x800;
     }
+}
+
+void set_register_al_undefined(struct Registers *regs) {
+    regs->defined &= ~0x01;
+}
+
+void set_register_ax_undefined(struct Registers *regs) {
+    regs->defined &= ~0x03;
 }
 
 void set_register_es(struct Registers *regs, uint16_t value) {
