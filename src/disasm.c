@@ -483,6 +483,17 @@ static int read_block_instruction(
 
 		return 0;
 	}
+	else if ((value0 & 0xFE) == 0x80) {
+		const int value1 = read_next_byte(reader);
+		read_block_instruction_address(reader, value1);
+		if (value0 & 1) {
+			read_next_word(reader);
+		}
+		else {
+			read_next_byte(reader);
+		}
+		return 0;
+	}
 	else if ((value0 & 0xFC) == 0x88) {
 		const int value1 = read_next_byte(reader);
 		read_block_instruction_address(reader, value1);
