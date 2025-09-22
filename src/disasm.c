@@ -7,7 +7,14 @@
 #include "reader.h"
 #include "registers.h"
 
+struct RelocationEntry {
+	uint16_t offset;
+	uint16_t segment;
+};
+
 struct SegmentReadResult {
+	struct RelocationEntry *relocation_table;
+	unsigned int relocation_count;
 	char *buffer;
 	unsigned int size;
 	int relative_cs;
@@ -71,6 +78,30 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 			return 1;
 		}
 
+		result->relocation_count = header.relocations_count;
+		if (header.relocations_count > 0) {
+			result->relocation_table = malloc(sizeof(struct RelocationEntry) * header.relocations_count);
+			if (!result->relocation_table) {
+				fprintf(stderr, "Unable to allocate memory for relocation table\n");
+				fclose(file);
+				return 1;
+			}
+
+			if (fseek(file, header.relocation_table_offset, SEEK_SET)) {
+				fprintf(stderr, "Unable to seek file at %d for relocation table\n", header.relocation_table_offset);
+				free(result->relocation_table);
+				fclose(file);
+				return 1;
+			}
+
+			if (fread(result->relocation_table, sizeof(struct RelocationEntry), header.relocations_count, file) != header.relocations_count) {
+				fprintf(stderr, "Unable to read rlocation table from file\n");
+				free(result->relocation_table);
+				fclose(file);
+				return 1;
+			}
+		}
+
 		const unsigned int header_size = header.header_paragraphs * 16;
 		unsigned int file_size;
 		if (header.bytes_in_last_page) {
@@ -87,6 +118,9 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 		if (!result->buffer) {
 			fprintf(stderr, "Unable to allocate memory\n");
 			fclose(file);
+			if (result->relocation_count) {
+				free(result->relocation_table);
+			}
 			return 1;
 		}
 
@@ -94,6 +128,9 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 			fprintf(stderr, "Unable to seek file after header\n");
 			free(result->buffer);
 			fclose(file);
+			if (result->relocation_count) {
+				free(result->relocation_table);
+			}
 			return 1;
 		}
 
@@ -101,6 +138,9 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 			fprintf(stderr, "Unable to read code and data from file\n");
 			free(result->buffer);
 			fclose(file);
+			if (result->relocation_count) {
+				free(result->relocation_table);
+			}
 			return 1;
 		}
 
@@ -121,6 +161,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 			return 1;
 		}
 
+		result->relocation_count = 0;
 		printf("Allocating %d bytes of memory", result->size);
 		result->buffer = malloc(result->size);
 		if (!result->buffer) {
@@ -647,6 +688,10 @@ int main(int argc, const char *argv[]) {
 	error_code = dump(code_block_list.sorted_blocks, code_block_list.block_count, global_variable_list.sorted_variables, global_variable_list.variable_count, dump_print, print_error);
 
 	end:
+	if (read_result.relocation_count) {
+		free(read_result.relocation_table);
+	}
+
 	clear_global_variable_list(&global_variable_list);
 	clear_code_block_list(&code_block_list);
 	free(read_result.buffer);
