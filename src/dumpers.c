@@ -35,6 +35,10 @@ const char *LOOP_INSTRUCTIONS[] = {
 	"loopnzw", "loopzw", "loopw", "jcxz"
 };
 
+const char *SHIFT_INSTRUCTIONS[] = {
+    "rol", "ror", "rcl", "rcr", "shl", "shr", NULL, "sar"
+};
+
 static void dump_address(
 		struct Reader *reader,
 		void (*print)(const char *),
@@ -360,6 +364,40 @@ static int dump_instruction(
             print_literal_hex_byte(print, read_next_byte(reader));
             print("\n");
             return 0;
+        }
+        else if ((value0 & 0xFC) == 0xD0) {
+            const int value1 = read_next_byte(reader);
+            if ((value1 & 0x38) == 0x30) {
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
+                return 1;
+            }
+            else {
+                print(SHIFT_INSTRUCTIONS[(value1 >> 3) & 0x07]);
+                if ((value0 & 0xC0) == 0xC0) {
+                    print(" ");
+                }
+                else if (value1 & 1) {
+                    print(" word ptr ");
+                }
+                else {
+                    print(" byte ptr ");
+                }
+
+                const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
+                dump_address(reader, print, value1, segment, registers);
+
+                if (value0 & 2) {
+                    print(",cl\n");
+                }
+                else {
+                    print(",1\n");
+                }
+                return 0;
+            }
         }
         else if ((value0 & 0xFC) == 0xE0) {
             const int value1 = read_next_byte(reader);

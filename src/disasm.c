@@ -711,6 +711,21 @@ static int read_block_instruction(
 		}
 		return 0;
 	}
+	else if ((value0 & 0xFC) == 0xD0) {
+		const int value1 = read_next_byte(reader);
+		if ((value1 & 0x38) == 0x30) {
+			print_error("Unknown opcode ");
+			print_literal_hex_byte(print_error, value0);
+			print_error(" ");
+			print_literal_hex_byte(print_error, value1);
+			print_error("\n");
+			return 1;
+		}
+		else {
+			read_block_instruction_address(reader, value1);
+			return 0;
+		}
+	}
 	else if ((value0 & 0xFE) == 0xE8) {
 		int diff = read_next_word(reader);
 		if (block->ip + reader->buffer_index + diff >= 0x10000) {
