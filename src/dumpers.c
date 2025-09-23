@@ -39,6 +39,10 @@ const char *SHIFT_INSTRUCTIONS[] = {
     "rol", "ror", "rcl", "rcr", "shl", "shr", NULL, "sar"
 };
 
+const char *FF_INSTRUCTIONS[] = {
+    "inc", "dec", "call", "call", "jmp", "jmp", "push" /*, NULL */
+};
+
 static void dump_address(
 		struct Reader *reader,
 		void (*print)(const char *),
@@ -525,7 +529,33 @@ static int dump_instruction(
             print("std\n");
             return 0;
         }
-        else {
+        else if (value0 == 0xFF) {
+            const int value1 = read_next_byte(reader);
+            if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
+                print_error("Unknown opcode ");
+                print_literal_hex_byte(print_error, value0);
+                print_error(" ");
+                print_literal_hex_byte(print_error, value1);
+                print_error("\n");
+                return 1;
+            }
+            else {
+                print(FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
+                if (value1 < 0xC0 && ((value1 & 0x08) == 0x00 || (value1 & 0x38) == 0x08)) {
+                    print(" word ptr ");
+                }
+                else if (value1 < 0xC0 && ((value1 & 0x38) == 0x18 || (value1 & 0x38) == 0x28)) {
+                    print(" far16 ");
+                }
+                else {
+                    print(" ");
+                }
+                dump_address(reader, print, value1, segment, WORD_REGISTERS);
+                print("\n");
+                return 0;
+            }
+	    }
+	    else {
             print("db ");
             print_literal_hex_byte(print, value0);
             print(" ; Unknown instruction\n");

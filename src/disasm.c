@@ -889,6 +889,24 @@ static int read_block_instruction(
 	else if ((value0 & 0xFC) == 0xF8 || (value0 & 0xFE) == 0xFC) {
 		return 0;
 	}
+	else if (value0 == 0xFF) {
+		const int value1 = read_next_byte(reader);
+		if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
+			print_error("Unknown opcode ");
+			print_literal_hex_byte(print_error, value0);
+			print_error(" ");
+			print_literal_hex_byte(print_error, value1);
+			print_error("\n");
+			return 1;
+		}
+		else {
+			read_block_instruction_address(reader, value1);
+			if ((value1 & 0x30) == 0x20) {
+				block->end = block->start + reader->buffer_index;
+			}
+			return 0;
+		}
+	}
 	else {
 		const int this_block_index = index_of_code_block_with_start(code_block_list, block->start);
 		const char *new_end = reader->buffer + reader->buffer_size;
