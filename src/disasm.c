@@ -6,14 +6,10 @@
 #include "print_utils.h"
 #include "reader.h"
 #include "registers.h"
-
-struct RelocationEntry {
-	uint16_t offset;
-	uint16_t segment;
-};
+#include "interruption_table.h"
 
 struct SegmentReadResult {
-	struct RelocationEntry *relocation_table;
+	struct FarPointer *relocation_table;
 	unsigned int relocation_count;
 	char *buffer;
 	unsigned int size;
@@ -83,7 +79,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 
 		result->relocation_count = header.relocations_count;
 		if (header.relocations_count > 0) {
-			result->relocation_table = malloc(sizeof(struct RelocationEntry) * header.relocations_count);
+			result->relocation_table = malloc(sizeof(struct FarPointer) * header.relocations_count);
 			if (!result->relocation_table) {
 				fprintf(stderr, "Unable to allocate memory for relocation table\n");
 				fclose(file);
@@ -97,7 +93,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 				return 1;
 			}
 
-			if (fread(result->relocation_table, sizeof(struct RelocationEntry), header.relocations_count, file) != header.relocations_count) {
+			if (fread(result->relocation_table, sizeof(struct FarPointer), header.relocations_count, file) != header.relocations_count) {
 				fprintf(stderr, "Unable to read rlocation table from file\n");
 				free(result->relocation_table);
 				fclose(file);
@@ -209,6 +205,7 @@ static void read_block_instruction_address(
 static int read_block_instruction(
 		struct Reader *reader,
 		struct Registers *regs,
+		struct InterruptionTable *int_table,
 		const char *segment_start,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
@@ -448,7 +445,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, regs, segment_start, print_error, block, code_block_list, global_variable_list, (value0 >> 3) & 0x03);
+		return read_block_instruction(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, (value0 >> 3) & 0x03);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -597,8 +594,24 @@ static int read_block_instruction(
 			}
 			else {
 				// Assuming (value1 & 0xC0) == 0xC0
+				const int index = (value1 >> 3) & 0x03;
 				if ((value0 & 2) && is_word_register_defined(regs, rm)) {
-					set_segment_register(regs, (value1 >> 3) & 0x03, get_word_register(regs, rm));
+					const uint16_t value = get_word_register(regs, rm);
+					if (is_word_register_defined_and_relative(regs, rm)) {
+						set_segment_register_relative(regs, index, value);
+					}
+					else {
+						set_segment_register(regs, index, value);
+					}
+				}
+				else if ((value0 & 2) == 0 && is_segment_register_defined(regs, index)) {
+					const uint16_t value = get_segment_register(regs, index);
+					if (is_segment_register_defined_and_relative(regs, index)) {
+						set_word_register_relative(regs, rm, value);
+					}
+					else {
+						set_word_register(regs, rm, value);
+					}
 				}
 			}
 
@@ -629,6 +642,24 @@ static int read_block_instruction(
 		}
 
 		const int offset = read_next_word(reader);
+		const unsigned int current_segment_index = (segment_index >= 0)? segment_index : SEGMENT_INDEX_DS;
+		if (value0 == 0xA3 && is_register_ax_defined(regs) && is_segment_register_defined_and_absolute(regs, current_segment_index)) {
+			unsigned int addr = get_segment_register(regs, current_segment_index);
+			addr = addr * 16 + offset;
+			if ((offset & 1) == 0 && addr < 0x400) {
+				const uint16_t value = get_register_ax(regs);
+				if ((addr & 2) == 0) {
+					set_interruption_table_offset(int_table, addr >> 2, value);
+				}
+				else if (is_register_ax_defined_and_relative(regs)) {
+					set_interruption_table_segment_relative(int_table, addr >> 2, value);
+				}
+				else {
+					set_interruption_table_segment(int_table, addr >> 2, value);
+				}
+			}
+		}
+
 		if (segment_index >= 0 && is_segment_register_defined_and_relative(regs, segment_index) || segment_index == SEGMENT_INDEX_UNDEFINED && is_register_ds_defined_and_relative(regs)) {
 			unsigned int segment_value = (segment_index == SEGMENT_INDEX_UNDEFINED)? get_register_ds(regs) : get_segment_register(regs, segment_index);
 			unsigned int relative_address = (segment_value * 16 + offset) & 0xFFFF;
@@ -821,6 +852,40 @@ static int read_block_instruction(
 			return 0;
 		}
 	}
+	else if (value0 == 0xFB) { // sti
+		for (int i = 0; i < 256; i++) {
+			if (is_interruption_defined_and_relative_in_table(int_table, i)) {
+				uint16_t target_relative_cs = get_interruption_table_relative_segment(int_table, i);
+				uint16_t target_ip = get_interruption_table_offset(int_table, i);
+				unsigned int addr = target_relative_cs;
+				addr = (addr * 16 + target_ip) & 0xFFFFF;
+
+				const char *jump_destination = segment_start + addr;
+				int result = index_of_code_block_containing_position(code_block_list, jump_destination);
+				struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+				if (!potential_container || potential_container->start != jump_destination) {
+					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+						potential_container->end = jump_destination;
+					}
+
+					struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+					if (!new_block) {
+						return 1;
+					}
+
+					new_block->relative_cs = target_relative_cs;
+					new_block->ip = target_ip;
+					new_block->start = jump_destination;
+					new_block->end = jump_destination;
+					if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+						return result;
+					}
+				}
+			}
+		}
+
+		return 0;
+	}
 	else if ((value0 & 0xFC) == 0xF8 || (value0 & 0xFE) == 0xFC) {
 		return 0;
 	}
@@ -841,7 +906,12 @@ static int read_block_instruction(
 
 void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
 	if (is_word_register_defined(regs, index)) {
-		fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
+		if (is_word_register_defined_and_relative(regs, index)) {
+			fprintf(stderr, " %s=+%x;", word_reg, get_word_register(regs, index));
+		}
+		else {
+			fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
+		}
 	}
 	else if (is_byte_register_defined(regs, index + 4)) {
 		fprintf(stderr, " %s=%x;", high_byte_reg, get_byte_register(regs, index + 4));
@@ -859,7 +929,10 @@ void print_word_or_byte_register(struct Registers *regs, unsigned int index, con
 }
 
 void print_word_register(struct Registers *regs, unsigned int index, const char *word_reg) {
-	if (is_word_register_defined(regs, index)) {
+	if (is_word_register_defined_and_relative(regs, index)) {
+		fprintf(stderr, " %s=+%x;", word_reg, get_word_register(regs, index));
+	}
+	else if (is_word_register_defined(regs, index)) {
 		fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
 	}
 	else {
@@ -892,7 +965,34 @@ void print_regs(struct Registers *regs) {
 	print_segment_register(regs, 1, "CS");
 	print_segment_register(regs, 2, "SS");
 	print_segment_register(regs, 3, "DS");
-	fprintf(stderr, "\n");
+}
+
+void print_interruption_table(struct InterruptionTable *table) {
+	fprintf(stderr, " IntTable(");
+	for (int i = 0; i < 256; i++) {
+		const int defined = (table->defined[i >> 2] >> ((i & 0x03) * 2)) & 0x03;
+		if (defined == 0x01) {
+			fprintf(stderr, "%x->?:%x", i, table->pointers[i].offset);
+		}
+		else if (defined == 0x02) {
+			if (table->relative[i >> 3] & (1 << (i & 7))) {
+				fprintf(stderr, "%x->+%x:?", i, table->pointers[i].segment);
+			}
+			else {
+				fprintf(stderr, "%x->%x:?", i, table->pointers[i].segment);
+			}
+		}
+		else if (defined == 0x03) {
+			if (table->relative[i >> 3] & (1 << (i & 7))) {
+				fprintf(stderr, "%x->+%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
+			}
+			else {
+				fprintf(stderr, "%x->%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
+			}
+		}
+	}
+
+	fprintf(stderr, ")\n");
 }
 
 int read_block(
@@ -908,9 +1008,12 @@ int read_block(
 	reader.buffer_index = 0;
 	reader.buffer_size = block_max_size;
 
+	struct InterruptionTable int_table;
+	make_all_interruption_table_undefined(&int_table);
+
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, segment_start, print_error, block, code_block_list, global_variable_list, SEGMENT_INDEX_UNDEFINED))) {
+		if ((error_code = read_block_instruction(&reader, regs, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, SEGMENT_INDEX_UNDEFINED))) {
 			return error_code;
 		}
 
