@@ -312,6 +312,18 @@ static int dump_instruction(
             print("cmpsw\n");
             return 0;
         }
+        else if (value0 == 0xA8) {
+            print("test al,");
+            print_literal_hex_byte(print, read_next_byte(reader));
+            print("\n");
+            return 0;
+        }
+        else if (value0 == 0xA9) {
+            print("test ax,");
+            print_literal_hex_word(print, read_next_word(reader));
+            print("\n");
+            return 0;
+        }
         else if (value0 == 0xAA) {
             print("stosb\n");
             return 0;

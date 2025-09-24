@@ -692,6 +692,14 @@ static int read_block_instruction(
 	else if ((value0 & 0xFC) == 0xA4) {
 		return 0;
 	}
+	else if (value0 == 0xA8) {
+		read_next_byte(reader);
+		return 0;
+	}
+	else if (value0 == 0xA9) {
+		read_next_word(reader);
+		return 0;
+	}
 	else if ((value0 & 0xFE) == 0xAA) {
 		return 0;
 	}
