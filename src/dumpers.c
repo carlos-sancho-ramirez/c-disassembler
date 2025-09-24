@@ -380,6 +380,28 @@ static int dump_instruction(
                 return 0;
             }
         }
+        else if (value0 == 0xC6) {
+            const int value1 = read_next_byte(reader);
+            if (value1 & 0x38) {
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
+                return 1;
+            }
+            else {
+                print("mov ");
+                if ((value1 & 0xC0) != 0xC0) {
+                    print("byte ptr ");
+                }
+                dump_address(reader, print, value1, segment, BYTE_REGISTERS);
+                print(",");
+                print_literal_hex_byte(print, read_next_byte(reader));
+                print("\n");
+                return 0;
+            }
+        }
         else if (value0 == 0xCB) {
             print("retf\n");
             return 0;
