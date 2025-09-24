@@ -363,6 +363,12 @@ static int dump_instruction(
             print("\n");
             return 0;
         }
+        else if (value0 == 0xC2) {
+            print("ret ");
+            print_literal_hex_word(print, read_next_word(reader));
+            print("\n");
+            return 0;
+        }
         else if (value0 == 0xC3) {
             print("ret\n");
             return 0;
