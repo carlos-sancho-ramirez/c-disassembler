@@ -22,11 +22,13 @@ struct SegmentReadResult {
 };
 
 static void print_help(const char *executedFile) {
-	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n", executedFile);
+	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n  -o <filename>     Uses this file as output.\n                    If not defined, the result will be printed in the standard output.\n", executedFile);
 }
 
+static FILE *print_output_file;
+
 static void print_output(const char *str) {
-	printf("%s", str);
+	fprintf(print_output_file, "%s", str);
 }
 
 static void print_error(const char *str) {
@@ -113,7 +115,6 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 
 		result->size = file_size - header_size;
 
-		printf("Allocating %d bytes of memory\n", result->size);
 		result->buffer = malloc(result->size);
 		if (!result->buffer) {
 			fprintf(stderr, "Unable to allocate memory\n");
@@ -164,7 +165,6 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 		}
 
 		result->relocation_count = 0;
-		printf("Allocating %d bytes of memory", result->size);
 		result->buffer = malloc(result->size);
 		if (!result->buffer) {
 			fprintf(stderr, "Unable to allocate memory\n");
@@ -1162,6 +1162,7 @@ int main(int argc, const char *argv[]) {
 
 	const char *filename = NULL;
 	const char *format = NULL;
+	const char *out_filename = NULL;
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--format")) {
@@ -1181,6 +1182,16 @@ int main(int argc, const char *argv[]) {
 		else if (!strcmp(argv[i], "-i")) {
 			if (++i < argc) {
 				filename = argv[i];
+			}
+			else {
+				fprintf(stderr, "Missing file name after %s argument\n", argv[i - 1]);
+				print_help(argv[0]);
+				return 1;
+			}
+		}
+		else if (!strcmp(argv[i], "-o")) {
+			if (++i < argc) {
+				out_filename = argv[i];
 			}
 			else {
 				fprintf(stderr, "Missing file name after %s argument\n", argv[i - 1]);
@@ -1226,6 +1237,17 @@ int main(int argc, const char *argv[]) {
 		goto end;
 	}
 
+	if (out_filename) {
+		print_output_file = fopen(out_filename, "w");
+		if (!print_output_file) {
+			fprintf(stderr, "Unable to open output file\n");
+			goto end;
+		}
+	}
+	else {
+		print_output_file = stdout;
+	}
+
 	error_code = dump(
 			code_block_list.sorted_blocks,
 			code_block_list.block_count,
@@ -1237,6 +1259,10 @@ int main(int argc, const char *argv[]) {
 			print_error,
 			read_result.print_code_label,
 			read_result.print_variable_label);
+
+	if (print_output_file != stdout) {
+		fclose(print_output_file);
+	}
 
 	end:
 	if (read_result.relocation_count) {
