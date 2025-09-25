@@ -7,6 +7,7 @@
 #include "reader.h"
 #include "registers.h"
 #include "interruption_table.h"
+#include "version.h"
 
 struct SegmentReadResult {
 	struct FarPointer *relocation_table;
@@ -1138,7 +1139,7 @@ int find_code_blocks_and_variables(
 }
 
 int main(int argc, const char *argv[]) {
-	printf("Disassembler\n");
+	printf("%s", application_name_and_version);
 
 	const char *filename = NULL;
 	const char *format = NULL;
