@@ -95,9 +95,12 @@ static void dump_address_register_combination(
 	}
 }
 
+#define DUMP_GLOBAL_VARIABLE_RELATIVE_ADDRESS_UNDEFINED 0xFFFFFFFF
+
 static int dump_instruction(
         struct Reader *reader,
         const struct CodeBlock *block,
+        unsigned int global_variable_relative_address,
         void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_code_label)(void (*)(const char *), int, int),
@@ -353,7 +356,13 @@ static int dump_instruction(
             if (value0 & 0x08) {
                 print(WORD_REGISTERS[value0 & 0x07]);
                 print(",");
-                print_literal_hex_word(print, read_next_word(reader));
+                const int offset_value = read_next_word(reader);
+                if (global_variable_relative_address == DUMP_GLOBAL_VARIABLE_RELATIVE_ADDRESS_UNDEFINED) {
+                    print_literal_hex_word(print, offset_value);
+                }
+                else {
+                    print_variable_label(print, global_variable_relative_address);
+                }
             }
             else {
                 print(BYTE_REGISTERS[value0 & 0x07]);
@@ -606,6 +615,8 @@ static int dump_instruction(
 
 static int dump_block(
         const struct CodeBlock *block,
+        struct GlobalVariableReference **global_variable_references,
+        unsigned int global_variable_reference_count,
         void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_code_label)(void (*)(const char *), int, int),
@@ -627,7 +638,19 @@ static int dump_block(
             print("\n");
         }
         else {
-            error_found = dump_instruction(&reader, block, print, print_error, print_code_label, print_variable_label);
+            while (global_variable_reference_count > 0 && global_variable_references[0]->opcode_reference < reader.buffer + reader.buffer_index) {
+                global_variable_references++;
+                global_variable_reference_count--;
+            }
+
+            unsigned int global_variable_relative_address = DUMP_GLOBAL_VARIABLE_RELATIVE_ADDRESS_UNDEFINED;
+            if (global_variable_reference_count > 0 && global_variable_references[0]->opcode_reference == reader.buffer + reader.buffer_index) {
+                global_variable_relative_address = global_variable_references[0]->variable->relative_address;
+                global_variable_references++;
+                global_variable_reference_count--;
+            }
+
+            error_found = dump_instruction(&reader, block, global_variable_relative_address, print, print_error, print_code_label, print_variable_label);
         }
     }
     while (block->start + reader.buffer_index != block->end);
@@ -685,6 +708,8 @@ int dump(
         unsigned int code_block_count,
         struct GlobalVariable **sorted_variables,
         unsigned int global_variable_count,
+        struct GlobalVariableReference **global_variable_references,
+        unsigned int global_variable_reference_count,
         void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_code_label)(void (*)(const char *), int, int),
@@ -697,7 +722,13 @@ int dump(
 
     while (next_code_block_index < code_block_count || next_global_variable_index < global_variable_count) {
         if (next_code_block_index < code_block_count && (next_global_variable_index == global_variable_count || sorted_blocks[next_code_block_index]->start <= sorted_variables[next_global_variable_index]->start)) {
-            if ((error_code = dump_block(sorted_blocks[next_code_block_index++], print, print_error, print_code_label, print_variable_label))) {
+            struct CodeBlock *block = sorted_blocks[next_code_block_index++];
+            while(global_variable_reference_count > 0 && global_variable_references[0]->opcode_reference < block->start) {
+                global_variable_references++;
+                global_variable_reference_count--;
+            }
+
+            if ((error_code = dump_block(block, global_variable_references, global_variable_reference_count, print, print_error, print_code_label, print_variable_label))) {
                 return error_code;
             }
         }

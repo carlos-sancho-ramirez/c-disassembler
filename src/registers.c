@@ -1,217 +1,205 @@
 #include "registers.h"
 #include <assert.h>
+#include <stdlib.h>
 
 int is_register_al_defined(struct Registers *regs) {
-    return regs->defined & 0x01;
+    return regs->defined[0] != NULL;
 }
 
 int is_register_cl_defined(struct Registers *regs) {
-    return regs->defined & 0x04;
+    return regs->defined[2] != NULL;
 }
 
 int is_register_dl_defined(struct Registers *regs) {
-    return regs->defined & 0x10;
+    return regs->defined[4] != NULL;
 }
 
 int is_register_bl_defined(struct Registers *regs) {
-    return regs->defined & 0x40;
+    return regs->defined[6] != NULL;
 }
 
 int is_register_ah_defined(struct Registers *regs) {
-    return regs->defined & 0x02;
+    return regs->defined[1] != NULL;
 }
 
 int is_register_ch_defined(struct Registers *regs) {
-    return regs->defined & 0x08;
+    return regs->defined[3] != NULL;
 }
 
 int is_register_dh_defined(struct Registers *regs) {
-    return regs->defined & 0x20;
+    return regs->defined[5] != NULL;
 }
 
 int is_register_bh_defined(struct Registers *regs) {
-    return regs->defined & 0x80;
+    return regs->defined[7] != NULL;
 }
 
 int is_byte_register_defined(struct Registers * regs, unsigned int index) {
     assert(index < 8);
-    return (index == 0)? is_register_al_defined(regs) :
-            (index == 1)? is_register_cl_defined(regs) :
-            (index == 2)? is_register_dl_defined(regs) :
-            (index == 3)? is_register_bl_defined(regs) :
-            (index == 4)? is_register_ah_defined(regs) :
-            (index == 5)? is_register_ch_defined(regs) :
-            (index == 6)? is_register_dh_defined(regs) :
-            is_register_bh_defined(regs);
+    if (index < 4) {
+        return regs->defined[index * 2] != NULL;
+    }
+    else {
+        return regs->defined[(index & 3) * 2 + 1] != NULL;
+    }
 }
 
 int is_register_ax_defined(struct Registers *regs) {
-    return (regs->defined & 0x03) == 0x03;
+    return regs->defined[0] != NULL && regs->defined[1] != NULL;
 }
 
 int is_register_cx_defined(struct Registers *regs) {
-    return (regs->defined & 0x0C) == 0x0C;
+    return regs->defined[2] != NULL && regs->defined[3] != NULL;
 }
 
 int is_register_dx_defined(struct Registers *regs) {
-    return (regs->defined & 0x30) == 0x30;
+    return regs->defined[4] != NULL && regs->defined[5] != NULL;
 }
 
 int is_register_bx_defined(struct Registers *regs) {
-    return (regs->defined & 0xC0) == 0xC0;
+    return regs->defined[6] != NULL && regs->defined[7] != NULL;
 }
 
 int is_register_sp_defined(struct Registers *regs) {
-    return regs->defined & 0x100;
+    return regs->defined[8] != NULL;
 }
 
 int is_register_bp_defined(struct Registers *regs) {
-    return regs->defined & 0x200;
+    return regs->defined[9] != NULL;
 }
 
 int is_register_si_defined(struct Registers *regs) {
-    return regs->defined & 0x400;
+    return regs->defined[10] != NULL;
 }
 
 int is_register_di_defined(struct Registers *regs) {
-    return regs->defined & 0x800;
+    return regs->defined[11] != NULL;
 }
 
 int is_register_ax_defined_and_absolute(struct Registers *regs) {
-    return (regs->defined & 0x03) == 0x03 && (regs->relative & 0x10) == 0;
+    return regs->defined[0] != NULL && regs->defined[4] != NULL && (regs->relative & 0x10) == 0;
 }
 
 int is_register_cx_defined_and_absolute(struct Registers *regs) {
-    return (regs->defined & 0x0C) == 0x0C && (regs->relative & 0x20) == 0;
+    return regs->defined[1] != NULL && regs->defined[5] != NULL && (regs->relative & 0x20) == 0;
 }
 
 int is_register_dx_defined_and_absolute(struct Registers *regs) {
-    return (regs->defined & 0x30) == 0x30 && (regs->relative & 0x40) == 0;
+    return regs->defined[2] != NULL && regs->defined[6] != NULL && (regs->relative & 0x40) == 0;
 }
 
 int is_register_bx_defined_and_absolute(struct Registers *regs) {
-    return (regs->defined & 0xC0) == 0xC0 && (regs->relative & 0x80) == 0;
+    return regs->defined[3] != NULL && regs->defined[7] != NULL && (regs->relative & 0x80) == 0;
 }
 
 int is_register_sp_defined_and_absolute(struct Registers *regs) {
-    return regs->defined & 0x100 && (regs->relative & 0x100) == 0;
+    return regs->defined[8] != NULL && (regs->relative & 0x100) == 0;
 }
 
 int is_register_bp_defined_and_absolute(struct Registers *regs) {
-    return regs->defined & 0x200 && (regs->relative & 0x200) == 0;
+    return regs->defined[9] != NULL && (regs->relative & 0x200) == 0;
 }
 
 int is_register_si_defined_and_absolute(struct Registers *regs) {
-    return regs->defined & 0x400 && (regs->relative & 0x400) == 0;
+    return regs->defined[10] != NULL && (regs->relative & 0x400) == 0;
 }
 
 int is_register_di_defined_and_absolute(struct Registers *regs) {
-    return regs->defined & 0x800 && (regs->relative & 0x800) == 0;
+    return regs->defined[11] != NULL && (regs->relative & 0x800) == 0;
 }
 
 int is_register_ax_defined_and_relative(struct Registers *regs) {
-    return (regs->defined & 0x03) == 0x03 && regs->relative & 0x10;
+    return regs->defined[0] != NULL && regs->defined[1] != NULL && regs->relative & 0x10;
 }
 
 int is_register_cx_defined_and_relative(struct Registers *regs) {
-    return (regs->defined & 0x0C) == 0x0C && regs->relative & 0x20;
+    return regs->defined[2] != NULL && regs->defined[3] != NULL && regs->relative & 0x20;
 }
 
 int is_register_dx_defined_and_relative(struct Registers *regs) {
-    return (regs->defined & 0x30) == 0x30 && regs->relative & 0x40;
+    return regs->defined[4] != NULL && regs->defined[5] != NULL && regs->relative & 0x40;
 }
 
 int is_register_bx_defined_and_relative(struct Registers *regs) {
-    return (regs->defined & 0xC0) == 0xC0 && regs->relative & 0x80;
+    return regs->defined[6] != NULL && regs->defined[7] != NULL && regs->relative & 0x80;
 }
 
 int is_register_sp_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x100;
+    return regs->defined[8] != NULL && regs->relative & 0x100;
 }
 
 int is_register_bp_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x200;
+    return regs->defined[9] != NULL && regs->relative & 0x200;
 }
 
 int is_register_si_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x400;
+    return regs->defined[10] != NULL && regs->relative & 0x400;
 }
 
 int is_register_di_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x800;
+    return regs->defined[11] != NULL && regs->relative & 0x800;
 }
 
-int is_word_register_defined(struct Registers * regs, unsigned int index) {
+int is_word_register_defined(struct Registers *regs, unsigned int index) {
     assert(index < 8);
-    return (index == 0)? is_register_ax_defined(regs) :
-            (index == 1)? is_register_cx_defined(regs) :
-            (index == 2)? is_register_dx_defined(regs) :
-            (index == 3)? is_register_bx_defined(regs) :
-            (index == 4)? is_register_sp_defined(regs) :
-            (index == 5)? is_register_bp_defined(regs) :
-            (index == 6)? is_register_si_defined(regs) :
-            is_register_di_defined(regs);
+    return (index < 4)? regs->defined[index * 2] != NULL && regs->defined[index * 2 + 1] != NULL : regs->defined[index + 4] != NULL;
 }
 
-int is_word_register_defined_and_relative(struct Registers * regs, unsigned int index) {
+int is_word_register_defined_and_relative(struct Registers *regs, unsigned int index) {
     assert(index < 8);
-    return (index == 0)? is_register_ax_defined_and_relative(regs) :
-            (index == 1)? is_register_cx_defined_and_relative(regs) :
-            (index == 2)? is_register_dx_defined_and_relative(regs) :
-            (index == 3)? is_register_bx_defined_and_relative(regs) :
-            (index == 4)? is_register_sp_defined_and_relative(regs) :
-            (index == 5)? is_register_bp_defined_and_relative(regs) :
-            (index == 6)? is_register_si_defined_and_relative(regs) :
-            is_register_di_defined_and_relative(regs);
+    return regs->relative & (0x10 << index) && is_word_register_defined(regs, index);
 }
 
 int is_register_es_defined(struct Registers *regs) {
-    return regs->defined & 0x1000;
+    return regs->defined[12] != NULL;
 }
 
 int is_register_cs_defined(struct Registers *regs) {
-    return regs->defined & 0x2000;
+    return regs->defined[13] != NULL;
 }
 
 int is_register_ss_defined(struct Registers *regs) {
-    return regs->defined & 0x4000;
+    return regs->defined[14] != NULL;
 }
 
 int is_register_ds_defined(struct Registers *regs) {
-    return regs->defined & 0x8000;
+    return regs->defined[15] != NULL;
 }
 
 int is_segment_register_defined(struct Registers *regs, unsigned int index) {
     assert(index < 4);
-    return regs->defined & (0x1000 << index);
+    return regs->defined[index + 12] != NULL;
 }
 
 int is_segment_register_defined_and_absolute(struct Registers *regs, unsigned int index) {
     assert(index < 4);
-    const int mask = 0x1000 << index;
-    return (regs->defined & mask) && (regs->relative & mask) == 0;
+    return (regs->relative & (0x1000 << index)) == 0 && is_segment_register_defined(regs, index);
 }
 
 int is_register_es_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x1000;
+    return regs->relative & 0x1000 && is_register_es_defined(regs);
 }
 
 int is_register_cs_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x2000;
+    return regs->relative & 0x2000 && is_register_cs_defined(regs);
 }
 
 int is_register_ss_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x4000;
+    return regs->relative & 0x4000 && is_register_ss_defined(regs);
 }
 
 int is_register_ds_defined_and_relative(struct Registers *regs) {
-    return regs->defined & regs->relative & 0x8000;
+    return regs->relative & 0x8000 && is_register_ds_defined(regs);
 }
 
 int is_segment_register_defined_and_relative(struct Registers *regs, unsigned int index) {
     assert(index < 4);
-    const int mask = 0x1000 << index;
-    return regs->defined & regs->relative & mask;
+    return regs->relative & (0x1000 << index) && is_segment_register_defined(regs, index);
+}
+
+const char *where_register_dx_defined(struct Registers *regs) {
+    const char *dl_defined = regs->defined[4];
+    return (dl_defined == regs->defined[5])? dl_defined : NULL;
 }
 
 unsigned int get_register_al(struct Registers *regs) {
@@ -372,7 +360,7 @@ unsigned int get_segment_register(struct Registers *regs, unsigned int index) {
     }
 }
 
-void set_byte_register(struct Registers *regs, unsigned int index, unsigned char value) {
+void set_byte_register(struct Registers *regs, unsigned int index, const char *where, unsigned char value) {
     assert(index < 8);
 
     // This should be optimised using the regs pointer plus index to determinate the byte within
@@ -380,40 +368,40 @@ void set_byte_register(struct Registers *regs, unsigned int index, unsigned char
     // architecture.
     if (index == 0) {
         regs->al = value;
-        regs->defined |= 0x01;
+        regs->defined[0] = where;
     }
     else if (index == 1) {
         regs->cl = value;
-        regs->defined |= 0x04;
+        regs->defined[2] = where;
     }
     else if (index == 2) {
         regs->dl = value;
-        regs->defined |= 0x10;
+        regs->defined[4] = where;
     }
     else if (index == 3) {
         regs->bl = value;
-        regs->defined |= 0x40;
+        regs->defined[6] = where;
     }
     else if (index == 4) {
         regs->ah = value;
-        regs->defined |= 0x02;
+        regs->defined[1] = where;
     }
     else if (index == 5) {
         regs->ch = value;
-        regs->defined |= 0x08;
+        regs->defined[3] = where;
     }
     else if (index == 6) {
         regs->dh = value;
-        regs->defined |= 0x20;
+        regs->defined[5] = where;
     }
     else {
         // Assuming index == 7
         regs->bh = value;
-        regs->defined |= 0x80;
+        regs->defined[7] = where;
     }
 }
 
-void set_word_register(struct Registers *regs, unsigned int index, uint16_t value) {
+void set_word_register(struct Registers *regs, unsigned int index, const char *where, uint16_t value) {
     assert(index < 8);
 
     // This should be optimised using the regs pointer plus index to determinate the byte within
@@ -422,51 +410,55 @@ void set_word_register(struct Registers *regs, unsigned int index, uint16_t valu
     if (index == 0) {
         regs->al = value & 0xFF;
         regs->ah = (value >> 8) & 0xFF;
-        regs->defined |= 0x03;
+        regs->defined[0] = where;
+        regs->defined[1] = where;
         regs->relative &= ~0x10;
     }
     else if (index == 1) {
         regs->cl = value & 0xFF;
         regs->ch = (value >> 8) & 0xFF;
-        regs->defined |= 0x0C;
+        regs->defined[2] = where;
+        regs->defined[3] = where;
         regs->relative &= ~0x20;
     }
     else if (index == 2) {
         regs->dl = value & 0xFF;
         regs->dh = (value >> 8) & 0xFF;
-        regs->defined |= 0x30;
+        regs->defined[4] = where;
+        regs->defined[5] = where;
         regs->relative &= ~0x40;
     }
     else if (index == 3) {
         regs->bl = value & 0xFF;
         regs->bh = (value >> 8) & 0xFF;
-        regs->defined |= 0xC0;
+        regs->defined[6] = where;
+        regs->defined[7] = where;
         regs->relative &= ~0x80;
     }
     else if (index == 4) {
         regs->sp = value;
-        regs->defined |= 0x100;
+        regs->defined[8] = where;
         regs->relative &= ~0x100;
     }
     else if (index == 5) {
         regs->bp = value;
-        regs->defined |= 0x200;
+        regs->defined[9] = where;
         regs->relative &= ~0x200;
     }
     else if (index == 6) {
         regs->si = value;
-        regs->defined |= 0x400;
+        regs->defined[10] = where;
         regs->relative &= ~0x400;
     }
     else {
         // Assuming index == 7
         regs->di = value;
-        regs->defined |= 0x800;
+        regs->defined[11] = where;
         regs->relative &= ~0x800;
     }
 }
 
-void set_word_register_relative(struct Registers *regs, unsigned int index, uint16_t value) {
+void set_word_register_relative(struct Registers *regs, unsigned int index, const char * where, uint16_t value) {
     assert(index < 8);
 
     // This should be optimised using the regs pointer plus index to determinate the byte within
@@ -475,142 +467,149 @@ void set_word_register_relative(struct Registers *regs, unsigned int index, uint
     if (index == 0) {
         regs->al = value & 0xFF;
         regs->ah = (value >> 8) & 0xFF;
-        regs->defined |= 0x03;
+        regs->defined[0] = where;
+        regs->defined[1] = where;
         regs->relative |= 0x10;
     }
     else if (index == 1) {
         regs->cl = value & 0xFF;
         regs->ch = (value >> 8) & 0xFF;
-        regs->defined |= 0x0C;
+        regs->defined[2] = where;
+        regs->defined[3] = where;
         regs->relative |= 0x20;
     }
     else if (index == 2) {
         regs->dl = value & 0xFF;
         regs->dh = (value >> 8) & 0xFF;
-        regs->defined |= 0x30;
+        regs->defined[4] = where;
+        regs->defined[5] = where;
         regs->relative |= 0x40;
     }
     else if (index == 3) {
         regs->bl = value & 0xFF;
         regs->bh = (value >> 8) & 0xFF;
-        regs->defined |= 0xC0;
+        regs->defined[6] = where;
+        regs->defined[7] = where;
         regs->relative |= 0x80;
     }
     else if (index == 4) {
         regs->sp = value;
-        regs->defined |= 0x100;
+        regs->defined[8] = where;
         regs->relative |= 0x100;
     }
     else if (index == 5) {
         regs->bp = value;
-        regs->defined |= 0x200;
+        regs->defined[9] = where;
         regs->relative |= 0x200;
     }
     else if (index == 6) {
         regs->si = value;
-        regs->defined |= 0x400;
+        regs->defined[10] = where;
         regs->relative |= 0x400;
     }
     else {
         // Assuming index == 7
         regs->di = value;
-        regs->defined |= 0x800;
+        regs->defined[11] = where;
         regs->relative |= 0x800;
     }
 }
 
 void set_register_al_undefined(struct Registers *regs) {
-    regs->defined &= ~0x01;
+    regs->defined[0] = NULL;
 }
 
 void set_register_ax_undefined(struct Registers *regs) {
-    regs->defined &= ~0x03;
+    regs->defined[0] = NULL;
+    regs->defined[1] = NULL;
 }
 
-void set_register_es(struct Registers *regs, uint16_t value) {
+void set_register_es(struct Registers *regs, const char *where, uint16_t value) {
     regs->es = value;
-    regs->defined |= 0x1000;
+    regs->defined[12] = where;
     regs->relative &= ~0x1000;
 }
 
-void set_register_cs(struct Registers *regs, uint16_t value) {
+void set_register_cs(struct Registers *regs, const char *where, uint16_t value) {
     regs->cs = value;
-    regs->defined |= 0x2000;
+    regs->defined[13] = where;
     regs->relative &= ~0x2000;
 }
 
-void set_register_ss(struct Registers *regs, uint16_t value) {
+void set_register_ss(struct Registers *regs, const char *where, uint16_t value) {
     regs->ss = value;
-    regs->defined |= 0x4000;
+    regs->defined[14] = where;
     regs->relative &= ~0x4000;
 }
 
-void set_register_ds(struct Registers *regs, uint16_t value) {
+void set_register_ds(struct Registers *regs, const char *where, uint16_t value) {
     regs->ds = value;
-    regs->defined |= 0x8000;
+    regs->defined[15] = where;
     regs->relative &= ~0x8000;
 }
 
-void set_segment_register(struct Registers *regs, unsigned int index, uint16_t value) {
+void set_segment_register(struct Registers *regs, unsigned int index, const char *where, uint16_t value) {
     assert(index < 4);
 
     if (index == 0) {
-        set_register_es(regs, value);
+        set_register_es(regs, where, value);
     }
     else if (index == 1) {
-        set_register_cs(regs, value);
+        set_register_cs(regs, where, value);
     }
     else if (index == 2) {
-        set_register_ss(regs, value);
+        set_register_ss(regs, where, value);
     }
     else {
         // Assuming index == 3
-        set_register_ds(regs, value);
+        set_register_ds(regs, where, value);
     }
 }
 
-void set_register_es_relative(struct Registers *regs, uint16_t value) {
+void set_register_es_relative(struct Registers *regs, const char *where, uint16_t value) {
     regs->es = value;
-    regs->defined |= 0x1000;
+    regs->defined[12] = where;
     regs->relative |= 0x1000;
 }
 
-void set_register_cs_relative(struct Registers *regs, uint16_t value) {
+void set_register_cs_relative(struct Registers *regs, const char *where, uint16_t value) {
     regs->cs = value;
-    regs->defined |= 0x2000;
+    regs->defined[13] = where;
     regs->relative |= 0x2000;
 }
 
-void set_register_ss_relative(struct Registers *regs, uint16_t value) {
+void set_register_ss_relative(struct Registers *regs, const char *where, uint16_t value) {
     regs->ss = value;
-    regs->defined |= 0x4000;
+    regs->defined[14] = where;
     regs->relative |= 0x4000;
 }
 
-void set_register_ds_relative(struct Registers *regs, uint16_t value) {
+void set_register_ds_relative(struct Registers *regs, const char *where, uint16_t value) {
     regs->ds = value;
-    regs->defined |= 0x8000;
+    regs->defined[15] = where;
     regs->relative |= 0x8000;
 }
 
-void set_segment_register_relative(struct Registers *regs, unsigned int index, uint16_t value) {
+void set_segment_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value) {
     assert(index < 4);
 
     if (index == 0) {
-        set_register_es_relative(regs, value);
+        set_register_es_relative(regs, where, value);
     }
     else if (index == 1) {
-        set_register_cs_relative(regs, value);
+        set_register_cs_relative(regs, where, value);
     }
     else if (index == 2) {
-        set_register_ss_relative(regs, value);
+        set_register_ss_relative(regs, where, value);
     }
     else {
         // Assuming index == 3
-        set_register_ds_relative(regs, value);
+        set_register_ds_relative(regs, where, value);
     }
 }
 
 void make_all_registers_undefined(struct Registers *regs) {
-    regs->defined = 0;
+    for (int i = 0; i < 16; i++) {
+        regs->defined[i] = NULL;
+    }
 }
