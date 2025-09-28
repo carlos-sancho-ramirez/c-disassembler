@@ -1248,6 +1248,10 @@ int main(int argc, const char *argv[]) {
 		print_output_file = stdout;
 	}
 
+	if (!strcmp(format, "bin")) {
+		print_output("org 0x100\n");
+	}
+
 	error_code = dump(
 			code_block_list.sorted_blocks,
 			code_block_list.block_count,
