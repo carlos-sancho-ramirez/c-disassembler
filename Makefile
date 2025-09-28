@@ -1,4 +1,4 @@
-.PHONY: clean
+.PHONY: clean test
 
 headers = src/code_blocks.h src/dumpers.h src/global_variables.h src/global_variable_references.h src/interruption_table.h src/print_utils.h src/reader.h src/registers.h src/version.h
 sources = src/code_blocks.c src/disasm.c src/dumpers.c src/global_variables.c src/global_variable_references.c src/interruption_table.c src/print_utils.c src/reader.c src/registers.c build/src/version.c
@@ -17,8 +17,23 @@ build/bin: build
 build/src: build
 	mkdir $@
 
+build/test: build
+	mkdir $@
+
+build/test/samples: build/test
+	mkdir $@
+
+build/test/samples/bin: build/test/samples
+	mkdir $@
+
 build:
 	mkdir $@
+
+build/test/samples/bin/%.asm: samples/bin/%.com build/bin/disasm build/test/samples/bin
+	build/bin/disasm -f bin -i $< -o $@
+
+test: build/test/samples/bin/hello.asm
+	cmp test/samples/bin/hello.asm build/test/samples/bin/hello.asm
 
 clean:
 	rm -rf build
