@@ -682,6 +682,14 @@ static int read_block_instruction(
 				var = global_variable_list->sorted_variables[var_index];
 			}
 
+			if (index_of_global_variable_reference_with_instruction(global_variable_reference_list, opcode_reference) < 0) {
+				struct GlobalVariableReference *new_ref = prepare_new_global_variable_reference(global_variable_reference_list);
+				new_ref->instruction = opcode_reference;
+				new_ref->address = var;
+				new_ref->value = NULL;
+				insert_sorted_global_variable_reference(global_variable_reference_list, new_ref);
+			}
+
 			if (value0 & 2) {
 				var->flags |= GLOBAL_VARIABLE_FLAG_WRITE;
 			}
@@ -784,10 +792,11 @@ static int read_block_instruction(
 
 				const char *instruction = where_register_dx_defined(regs);
 				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
-					if (index_of_global_variable_reference_with_opcode_reference(global_variable_reference_list, instruction) < 0) {
+					if (index_of_global_variable_reference_with_instruction(global_variable_reference_list, instruction) < 0) {
 						struct GlobalVariableReference *new_ref = prepare_new_global_variable_reference(global_variable_reference_list);
-						new_ref->opcode_reference = instruction;
-						new_ref->variable = var;
+						new_ref->instruction = instruction;
+						new_ref->address = NULL;
+						new_ref->value = var;
 						insert_sorted_global_variable_reference(global_variable_reference_list, new_ref);
 					}
 				}

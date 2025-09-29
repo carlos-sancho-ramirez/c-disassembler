@@ -12,25 +12,25 @@ build/src/version.c: build/src .git/HEAD
 	echo "const char *application_name_and_version = \"Disassembler 1.0.0-SNAPSHOT"`git rev-parse --short HEAD`"\\\\n\";" >> $@
 
 build/bin: build
-	mkdir $@
+	mkdir -p $@
 
 build/src: build
-	mkdir $@
-
-build/test: build
-	mkdir $@
-
-build/test/samples: build/test
-	mkdir $@
-
-build/test/samples/bin: build/test/samples
-	mkdir $@
-
-build:
-	mkdir $@
+	mkdir -p $@
 
 build/test/samples/bin/%.asm: samples/bin/%.com build/bin/disasm build/test/samples/bin
 	build/bin/disasm -f bin -i $< -o $@
+
+build/test/samples/bin: build/test/samples
+	mkdir -p $@
+
+build/test/samples: build/test
+	mkdir -p $@
+
+build/test: build
+	mkdir -p $@
+
+build:
+	mkdir -p $@
 
 test: build/test/samples/bin/hello.asm
 	cmp test/samples/bin/hello.asm build/test/samples/bin/hello.asm

@@ -95,12 +95,13 @@ static void dump_address_register_combination(
 	}
 }
 
-#define DUMP_GLOBAL_VARIABLE_RELATIVE_ADDRESS_UNDEFINED 0xFFFFFFFF
+#define DUMP_GLOBAL_VARIABLE_UNDEFINED 0xFFFFFFFF
 
 static int dump_instruction(
         struct Reader *reader,
         const struct CodeBlock *block,
-        unsigned int global_variable_relative_address,
+        unsigned int global_variable_reference_address,
+        unsigned int global_variable_reference_value,
         void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_code_label)(void (*)(const char *), int, int),
@@ -276,6 +277,7 @@ static int dump_instruction(
                 registers = BYTE_REGISTERS;
             }
 
+            const int addr_value = read_next_word(reader);
             if ((value0 & 0xFE) == 0xA0) {
                 print(registers[0]);
                 print(",[");
@@ -283,19 +285,34 @@ static int dump_instruction(
                     print(segment);
                     print(":");
                 }
-                print_literal_hex_word(print, read_next_word(reader));
+
+                if (global_variable_reference_address == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
+                    print_literal_hex_word(print, addr_value);
+                }
+                else {
+                    print_variable_label(print, global_variable_reference_address);
+                }
+
                 print("]");
             }
-            else if ((value0 & 0xFE) == 0xA2) {
+            else {
                 print("[");
                 if (segment) {
                     print(segment);
                     print(":");
                 }
-                print_literal_hex_word(print, read_next_word(reader));
+
+                if (global_variable_reference_address == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
+                    print_literal_hex_word(print, addr_value);
+                }
+                else {
+                    print_variable_label(print, global_variable_reference_address);
+                }
+
                 print("],");
                 print(registers[0]);
             }
+
             print("\n");
             return 0;
         }
@@ -357,11 +374,11 @@ static int dump_instruction(
                 print(WORD_REGISTERS[value0 & 0x07]);
                 print(",");
                 const int offset_value = read_next_word(reader);
-                if (global_variable_relative_address == DUMP_GLOBAL_VARIABLE_RELATIVE_ADDRESS_UNDEFINED) {
+                if (global_variable_reference_value == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
                     print_literal_hex_word(print, offset_value);
                 }
                 else {
-                    print_variable_label(print, global_variable_relative_address);
+                    print_variable_label(print, global_variable_reference_value);
                 }
             }
             else {
@@ -638,19 +655,28 @@ static int dump_block(
             print("\n");
         }
         else {
-            while (global_variable_reference_count > 0 && global_variable_references[0]->opcode_reference < reader.buffer + reader.buffer_index) {
+            while (global_variable_reference_count > 0 && global_variable_references[0]->instruction < reader.buffer + reader.buffer_index) {
                 global_variable_references++;
                 global_variable_reference_count--;
             }
 
-            unsigned int global_variable_relative_address = DUMP_GLOBAL_VARIABLE_RELATIVE_ADDRESS_UNDEFINED;
-            if (global_variable_reference_count > 0 && global_variable_references[0]->opcode_reference == reader.buffer + reader.buffer_index) {
-                global_variable_relative_address = global_variable_references[0]->variable->relative_address;
+            unsigned int global_variable_reference_address = DUMP_GLOBAL_VARIABLE_UNDEFINED;
+            unsigned int global_variable_reference_value = DUMP_GLOBAL_VARIABLE_UNDEFINED;
+            if (global_variable_reference_count > 0 && global_variable_references[0]->instruction == reader.buffer + reader.buffer_index) {
+                struct GlobalVariableReference *reference = global_variable_references[0];
+                if (reference->address) {
+                    global_variable_reference_address = reference->address->relative_address;
+                }
+
+                if (reference->value) {
+                    global_variable_reference_value = reference->value->relative_address;
+                }
+
                 global_variable_references++;
                 global_variable_reference_count--;
             }
 
-            error_found = dump_instruction(&reader, block, global_variable_relative_address, print, print_error, print_code_label, print_variable_label);
+            error_found = dump_instruction(&reader, block, global_variable_reference_address, global_variable_reference_value, print, print_error, print_code_label, print_variable_label);
         }
     }
     while (block->start + reader.buffer_index != block->end);
@@ -723,7 +749,7 @@ int dump(
     while (next_code_block_index < code_block_count || next_global_variable_index < global_variable_count) {
         if (next_code_block_index < code_block_count && (next_global_variable_index == global_variable_count || sorted_blocks[next_code_block_index]->start <= sorted_variables[next_global_variable_index]->start)) {
             struct CodeBlock *block = sorted_blocks[next_code_block_index++];
-            while(global_variable_reference_count > 0 && global_variable_references[0]->opcode_reference < block->start) {
+            while(global_variable_reference_count > 0 && global_variable_references[0]->instruction < block->start) {
                 global_variable_references++;
                 global_variable_reference_count--;
             }
