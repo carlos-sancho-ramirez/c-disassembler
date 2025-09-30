@@ -43,9 +43,13 @@ const char *FF_INSTRUCTIONS[] = {
     "inc", "dec", "call", "call", "jmp", "jmp", "push" /*, NULL */
 };
 
+#define DUMP_GLOBAL_VARIABLE_UNDEFINED 0xFFFFFFFF
+
 static void dump_address(
 		struct Reader *reader,
-		void (*print)(const char *),
+		unsigned int reference_address,
+        void (*print)(const char *),
+        void (*print_variable_label)(void (*)(const char *), unsigned int),
 		int value1,
 		const char *segment,
 		const char **registers) {
@@ -57,7 +61,13 @@ static void dump_address(
 		}
 
 		if ((value1 & 0xC7) == 0x06) {
-			print_literal_hex_word(print, read_next_word(reader));
+			const int addr = read_next_word(reader);
+            if (reference_address == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
+                print_literal_hex_word(print, addr);
+            }
+            else {
+                print_variable_label(print, reference_address);
+            }
 		}
 		else {
 			print(ADDRESS_REGISTERS[value1 & 0x07]);
@@ -77,7 +87,9 @@ static void dump_address(
 
 static void dump_address_register_combination(
 		struct Reader *reader,
-		void (*print)(const char *),
+		unsigned int reference_address,
+        void (*print)(const char *),
+        void (*print_variable_label)(void (*)(const char *), unsigned int),
 		int value0,
 		int value1,
 		const char **registers,
@@ -86,16 +98,14 @@ static void dump_address_register_combination(
 	if (value0 & 0x02) {
 		print(registers[(value1 >> 3) & 0x07]);
 		print(",");
-		dump_address(reader, print, value1, segment, addr_replacement_registers);
+		dump_address(reader, reference_address, print, print_variable_label, value1, segment, addr_replacement_registers);
 	}
 	else {
-		dump_address(reader, print, value1, segment, addr_replacement_registers);
+		dump_address(reader, reference_address, print, print_variable_label, value1, segment, addr_replacement_registers);
 		print(",");
 		print(registers[(value1 >> 3) & 0x07]);
 	}
 }
-
-#define DUMP_GLOBAL_VARIABLE_UNDEFINED 0xFFFFFFFF
 
 static int dump_instruction(
         struct Reader *reader,
@@ -123,7 +133,7 @@ static int dump_instruction(
                 }
 
                 const int value1 = read_next_byte(reader);
-                dump_address_register_combination(reader, print, value0, value1, registers, segment, registers);
+                dump_address_register_combination(reader, reference_address, print, print_variable_label, value0, value1, registers, segment, registers);
                 print("\n");
                 return 0;
             }
@@ -204,7 +214,7 @@ static int dump_instruction(
             }
 
             const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-            dump_address(reader, print, value1, segment, registers);
+            dump_address(reader, reference_address, print, print_variable_label, value1, segment, registers);
             print(",");
             if (value0 & 1) {
                 print_literal_hex_word(print, read_next_word(reader));
@@ -230,7 +240,7 @@ static int dump_instruction(
                 print(" ");
             }
 
-            dump_address(reader, print, value1, segment, WORD_REGISTERS);
+            dump_address(reader, reference_address, print, print_variable_label, value1, segment, WORD_REGISTERS);
             print(",");
             print_differential_hex_byte(print, read_next_byte(reader));
             print("\n");
@@ -247,7 +257,7 @@ static int dump_instruction(
 
             const int value1 = read_next_byte(reader);
             print("mov ");
-            dump_address_register_combination(reader, print, value0, value1, registers, segment, registers);
+            dump_address_register_combination(reader, reference_address, print, print_variable_label, value0, value1, registers, segment, registers);
             print("\n");
             return 0;
         }
@@ -263,7 +273,7 @@ static int dump_instruction(
             }
             else {
                 print("mov ");
-                dump_address_register_combination(reader, print, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
+                dump_address_register_combination(reader, reference_address, print, print_variable_label, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
                 print("\n");
                 return 0;
             }
@@ -423,7 +433,7 @@ static int dump_instruction(
 
                 print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
 		        print(",");
-		        dump_address(reader, print, value1, segment, NULL);
+		        dump_address(reader, reference_address, print, print_variable_label, value1, segment, NULL);
                 print("\n");
                 return 0;
             }
@@ -443,7 +453,7 @@ static int dump_instruction(
                 if ((value1 & 0xC0) != 0xC0) {
                     print("byte ptr ");
                 }
-                dump_address(reader, print, value1, segment, BYTE_REGISTERS);
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, BYTE_REGISTERS);
                 print(",");
                 print_literal_hex_byte(print, read_next_byte(reader));
                 print("\n");
@@ -483,7 +493,7 @@ static int dump_instruction(
                 }
 
                 const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-                dump_address(reader, print, value1, segment, registers);
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, registers);
 
                 if (value0 & 2) {
                     print(",cl\n");
@@ -561,7 +571,7 @@ static int dump_instruction(
                 }
 
                 const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-                dump_address(reader, print, value1, segment, registers);
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, registers);
                 if ((value0 & 0x38) == 0) {
                     print(",");
                     if (value0 & 1) {
@@ -620,7 +630,7 @@ static int dump_instruction(
                 else {
                     print(" ");
                 }
-                dump_address(reader, print, value1, segment, WORD_REGISTERS);
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, WORD_REGISTERS);
                 print("\n");
                 return 0;
             }

@@ -413,22 +413,36 @@ static int read_block_instruction(
 				}
 			}
 
-			if (is_absolute_address && is_register_ds_defined_and_relative(regs)) {
-				unsigned int relative_address = (get_register_ds(regs) * 16 + result_address) & 0xFFFF;
+			if (is_absolute_address && segment_index != SEGMENT_INDEX_UNDEFINED && is_segment_register_defined_and_relative(regs, segment_index)) {
+				unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
 				const char *target = segment_start + relative_address;
-				if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
-					struct GlobalVariable *new_var = prepare_new_global_variable(global_variable_list);
-					new_var->start = target;
-					new_var->relative_address = relative_address;
+				const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+				struct GlobalVariable *var;
+				if (var_index >= 0) {
+					var = global_variable_list->sorted_variables[var_index];
+				}
+				else {
+					var = prepare_new_global_variable(global_variable_list);
+					var->start = target;
+					var->relative_address = relative_address;
 					if (value0 & 1) {
-						new_var->end = target + 2;
-						new_var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
+						var->end = target + 2;
+						var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
 					}
 					else {
-						new_var->end = target + 1;
-						new_var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
+						var->end = target + 1;
+						var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
 					}
-					insert_sorted_global_variable(global_variable_list, new_var);
+					insert_sorted_global_variable(global_variable_list, var);
+				}
+
+				if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
+					struct Reference *new_ref = prepare_new_reference(reference_list);
+					new_ref->instruction = opcode_reference;
+					new_ref->address = var;
+					new_ref->variable_value = NULL;
+					new_ref->block_value = NULL;
+					insert_sorted_reference(reference_list, new_ref);
 				}
 			}
 
