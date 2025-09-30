@@ -3,14 +3,14 @@
 
 #include "code_blocks.h"
 #include "global_variables.h"
-#include "global_variable_references.h"
+#include "refs.h"
 
 int dump(
     struct CodeBlock **sorted_blocks,
     unsigned int code_block_count,
     struct GlobalVariable **global_variables,
     unsigned int global_variable_count,
-    struct GlobalVariableReference **global_variable_references,
+    struct Reference **global_variable_references,
     unsigned int global_variable_reference_count,
     void (*print)(const char *),
     void (*print_error)(const char *),

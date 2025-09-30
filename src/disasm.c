@@ -212,7 +212,7 @@ static int read_block_instruction(
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
-		struct GlobalVariableReferenceList *global_variable_reference_list,
+		struct ReferenceList *reference_list,
 		int segment_index) {
 	const char *opcode_reference = reader->buffer + reader->buffer_index;
 	const int value0 = read_next_byte(reader);
@@ -448,7 +448,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, global_variable_reference_list, (value0 >> 3) & 0x03);
+		return read_block_instruction(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -651,14 +651,15 @@ static int read_block_instruction(
 			addr = addr * 16 + offset;
 			if ((offset & 1) == 0 && addr < 0x400) {
 				const uint16_t value = get_register_ax(regs);
+				const char *where = where_register_ax_defined(regs);
 				if ((addr & 2) == 0) {
-					set_interruption_table_offset(int_table, addr >> 2, value);
+					set_interruption_table_offset(int_table, addr >> 2, where, value);
 				}
 				else if (is_register_ax_defined_and_relative(regs)) {
-					set_interruption_table_segment_relative(int_table, addr >> 2, value);
+					set_interruption_table_segment_relative(int_table, addr >> 2, where, value);
 				}
 				else {
-					set_interruption_table_segment(int_table, addr >> 2, value);
+					set_interruption_table_segment(int_table, addr >> 2, where, value);
 				}
 			}
 		}
@@ -682,12 +683,13 @@ static int read_block_instruction(
 				var = global_variable_list->sorted_variables[var_index];
 			}
 
-			if (index_of_global_variable_reference_with_instruction(global_variable_reference_list, opcode_reference) < 0) {
-				struct GlobalVariableReference *new_ref = prepare_new_global_variable_reference(global_variable_reference_list);
+			if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
+				struct Reference *new_ref = prepare_new_reference(reference_list);
 				new_ref->instruction = opcode_reference;
 				new_ref->address = var;
-				new_ref->value = NULL;
-				insert_sorted_global_variable_reference(global_variable_reference_list, new_ref);
+				new_ref->variable_value = NULL;
+				new_ref->block_value = NULL;
+				insert_sorted_reference(reference_list, new_ref);
 			}
 
 			if (value0 & 2) {
@@ -792,12 +794,13 @@ static int read_block_instruction(
 
 				const char *instruction = where_register_dx_defined(regs);
 				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
-					if (index_of_global_variable_reference_with_instruction(global_variable_reference_list, instruction) < 0) {
-						struct GlobalVariableReference *new_ref = prepare_new_global_variable_reference(global_variable_reference_list);
+					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
+						struct Reference *new_ref = prepare_new_reference(reference_list);
 						new_ref->instruction = instruction;
 						new_ref->address = NULL;
-						new_ref->value = var;
-						insert_sorted_global_variable_reference(global_variable_reference_list, new_ref);
+						new_ref->variable_value = var;
+						new_ref->block_value = NULL;
+						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
 			}
@@ -919,22 +922,38 @@ static int read_block_instruction(
 				const char *jump_destination = segment_start + addr;
 				int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 				struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-				if (!potential_container || potential_container->start != jump_destination) {
+				struct CodeBlock *target_block;
+				if (potential_container && potential_container->start == jump_destination) {
+					target_block = potential_container;
+				}
+				else {
 					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
 						potential_container->end = jump_destination;
 					}
 
-					struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
-					if (!new_block) {
+					target_block = prepare_new_code_block(code_block_list);
+					if (!target_block) {
 						return 1;
 					}
 
-					new_block->relative_cs = target_relative_cs;
-					new_block->ip = target_ip;
-					new_block->start = jump_destination;
-					new_block->end = jump_destination;
-					if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+					target_block->relative_cs = target_relative_cs;
+					target_block->ip = target_ip;
+					target_block->start = jump_destination;
+					target_block->end = jump_destination;
+					if ((result = insert_sorted_code_block(code_block_list, target_block))) {
 						return result;
+					}
+				}
+
+				const char *where_offset = where_interruption_offset_defined_in_table(int_table, i);
+				if (where_offset && where_offset != REGISTER_DEFINED_OUTSIDE && (((unsigned int) *where_offset) & 0xF8) == 0xB8) {
+					if (index_of_reference_with_instruction(reference_list, where_offset) < 0) {
+						struct Reference *new_ref = prepare_new_reference(reference_list);
+						new_ref->instruction = where_offset;
+						new_ref->address = NULL;
+						new_ref->variable_value = NULL;
+						new_ref->block_value = target_block;
+						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
 			}
@@ -1044,24 +1063,25 @@ void print_regs(struct Registers *regs) {
 void print_interruption_table(struct InterruptionTable *table) {
 	fprintf(stderr, " IntTable(");
 	for (int i = 0; i < 256; i++) {
-		const int defined = (table->defined[i >> 2] >> ((i & 0x03) * 2)) & 0x03;
-		if (defined == 0x01) {
-			fprintf(stderr, "%x->?:%x", i, table->pointers[i].offset);
-		}
-		else if (defined == 0x02) {
-			if (table->relative[i >> 3] & (1 << (i & 7))) {
-				fprintf(stderr, "%x->+%x:?", i, table->pointers[i].segment);
-			}
-			else {
-				fprintf(stderr, "%x->%x:?", i, table->pointers[i].segment);
-			}
-		}
-		else if (defined == 0x03) {
+		const char *offset_defined = table->offset_defined[i];
+		const char *segment_defined = table->segment_defined[i];
+		if (offset_defined && segment_defined) {
 			if (table->relative[i >> 3] & (1 << (i & 7))) {
 				fprintf(stderr, "%x->+%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
 			}
 			else {
 				fprintf(stderr, "%x->%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
+			}
+		}
+		else if (offset_defined) {
+			fprintf(stderr, "%x->?:%x", i, table->pointers[i].offset);
+		}
+		else if (segment_defined) {
+			if (table->relative[i >> 3] & (1 << (i & 7))) {
+				fprintf(stderr, "%x->+%x:?", i, table->pointers[i].segment);
+			}
+			else {
+				fprintf(stderr, "%x->%x:?", i, table->pointers[i].segment);
 			}
 		}
 	}
@@ -1077,7 +1097,7 @@ int read_block(
 		unsigned int block_max_size,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
-		struct GlobalVariableReferenceList *global_variable_reference_list) {
+		struct ReferenceList *reference_list) {
 	struct Reader reader;
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
@@ -1088,7 +1108,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, global_variable_reference_list, SEGMENT_INDEX_UNDEFINED))) {
+		if ((error_code = read_block_instruction(&reader, regs, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED))) {
 			return error_code;
 		}
 
@@ -1109,7 +1129,7 @@ int find_code_blocks_and_variables(
 		void (*print_error)(const char *),
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
-		struct GlobalVariableReferenceList *global_variable_reference_list) {
+		struct ReferenceList *reference_list) {
 	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
 	if (!first_block) {
 		return 1;
@@ -1136,7 +1156,7 @@ int find_code_blocks_and_variables(
 			set_register_ds_relative(&regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
 		}
 
-		if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list, global_variable_reference_list))) {
+		if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {
 			return error_code;
 		}
 	}
@@ -1239,10 +1259,10 @@ int main(int argc, const char *argv[]) {
 	struct GlobalVariableList global_variable_list;
 	initialize_global_variable_list(&global_variable_list);
 
-	struct GlobalVariableReferenceList global_variable_reference_list;
-	initialize_global_variable_reference_list(&global_variable_reference_list);
+	struct ReferenceList reference_list;
+	initialize_reference_list(&reference_list);
 
-	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, &global_variable_list, &global_variable_reference_list))) {
+	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, &global_variable_list, &reference_list))) {
 		goto end;
 	}
 
@@ -1266,8 +1286,8 @@ int main(int argc, const char *argv[]) {
 			code_block_list.block_count,
 			global_variable_list.sorted_variables,
 			global_variable_list.variable_count,
-			global_variable_reference_list.sorted_references,
-			global_variable_reference_list.reference_count,
+			reference_list.sorted_references,
+			reference_list.reference_count,
 			print_output,
 			print_error,
 			read_result.print_code_label,
@@ -1282,7 +1302,7 @@ int main(int argc, const char *argv[]) {
 		free(read_result.relocation_table);
 	}
 
-	clear_global_variable_reference_list(&global_variable_reference_list);
+	clear_reference_list(&reference_list);
 	clear_global_variable_list(&global_variable_list);
 	clear_code_block_list(&code_block_list);
 	free(read_result.buffer);

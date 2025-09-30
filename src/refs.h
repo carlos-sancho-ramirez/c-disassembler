@@ -1,12 +1,13 @@
-#ifndef _GLOBAL_VARIABLE_REFERENCES_H_
-#define _GLOBAL_VARIABLE_REFERENCES_H_
+#ifndef _REFS_H_
+#define _REFS_H_
 
 #include "global_variables.h"
+#include "code_blocks.h"
 
 /**
  * Reference to a global variable in the code.
  */
-struct GlobalVariableReference {
+struct Reference {
 	/**
 	 * Points to the instruction where this reference appears.
 	 */
@@ -22,10 +23,16 @@ struct GlobalVariableReference {
 	 * Variable that must be used instead of the numeric value in the instruction.
 	 * NULL if no value requires substitution.
 	 */
-	struct GlobalVariable *value;
+	struct GlobalVariable *variable_value;
+
+	/**
+	 * Code block that must be used instead of the numeric value in the instruction.
+	 * NULL if no value requires substitution.
+	 */
+	struct CodeBlock *block_value;
 };
 
-DEFINE_STRUCT_LIST(GlobalVariableReference, reference);
-DECLARE_STRUCT_LIST_METHODS(GlobalVariableReference, global_variable_reference, reference, instruction);
+DEFINE_STRUCT_LIST(Reference, reference);
+DECLARE_STRUCT_LIST_METHODS(Reference, reference, reference, instruction);
 
 #endif // _GLOBAL_VARIABLE_REFERENCES_H_

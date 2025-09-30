@@ -197,6 +197,11 @@ int is_segment_register_defined_and_relative(struct Registers *regs, unsigned in
     return regs->relative & (0x1000 << index) && is_segment_register_defined(regs, index);
 }
 
+const char *where_register_ax_defined(struct Registers *regs) {
+    const char *al_defined = regs->defined[0];
+    return (al_defined == regs->defined[1])? al_defined : NULL;
+}
+
 const char *where_register_dx_defined(struct Registers *regs) {
     const char *dl_defined = regs->defined[4];
     return (dl_defined == regs->defined[5])? dl_defined : NULL;
