@@ -307,10 +307,6 @@ static int read_block_instruction(
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-			}
-
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -320,8 +316,33 @@ static int read_block_instruction(
 			new_block->ip = block->ip + reader->buffer_index + diff;
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
+			initialize_code_block_origin_list(&new_block->origin_list);
+
+			struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&new_block->origin_list);
+			origin->block = block;
+			origin->instruction = opcode_reference;
+			copy_registers(&origin->regs, regs);
+
+			if ((result = insert_sorted_code_block_origin(&new_block->origin_list, origin))) {
+				return result;
+			}
+
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
+			}
+
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+
+				origin = prepare_new_code_block_origin(&new_block->origin_list);
+				origin->block = potential_container;
+				origin->instruction = jump_destination;
+				make_all_registers_undefined(&origin->regs); // TODO: We should re-run the potential_container to get valid registers
+				set_register_cs_relative(&origin->regs, potential_container->start, potential_container->relative_cs); // TODO: This must be improved to determine where the CS has been set
+
+				if ((result = insert_sorted_code_block_origin(&new_block->origin_list, origin))) {
+					return result;
+				}
 			}
 		}
 
@@ -676,10 +697,6 @@ static int read_block_instruction(
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-			}
-
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -689,8 +706,33 @@ static int read_block_instruction(
 			new_block->ip = block->ip + reader->buffer_index + diff;
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
+			initialize_code_block_origin_list(&new_block->origin_list);
+
+			struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&new_block->origin_list);
+			origin->block = block;
+			origin->instruction = opcode_reference;
+			copy_registers(&origin->regs, regs);
+
+			if ((result = insert_sorted_code_block_origin(&new_block->origin_list, origin))) {
+				return result;
+			}
+
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
+			}
+
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+
+				origin = prepare_new_code_block_origin(&new_block->origin_list);
+				origin->block = potential_container;
+				origin->instruction = jump_destination;
+				make_all_registers_undefined(&origin->regs); // TODO: We should re-run the potential_container to get valid registers
+				set_register_cs_relative(&origin->regs, potential_container->start, potential_container->relative_cs); // TODO: This must be improved to determine where the CS has been set
+
+				if ((result = insert_sorted_code_block_origin(&new_block->origin_list, origin))) {
+					return result;
+				}
 			}
 		}
 
@@ -706,10 +748,6 @@ static int read_block_instruction(
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-			}
-
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -719,8 +757,35 @@ static int read_block_instruction(
 			new_block->ip = block->ip + reader->buffer_index + diff;
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
+			initialize_code_block_origin_list(&new_block->origin_list);
+
+
+
+			struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&new_block->origin_list);
+			origin->block = block;
+			origin->instruction = opcode_reference;
+			copy_registers(&origin->regs, regs);
+
+			if ((result = insert_sorted_code_block_origin(&new_block->origin_list, origin))) {
+				return result;
+			}
+
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
+			}
+
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+
+				origin = prepare_new_code_block_origin(&new_block->origin_list);
+				origin->block = potential_container;
+				origin->instruction = jump_destination;
+				make_all_registers_undefined(&origin->regs); // TODO: We should re-run the potential_container to get valid registers
+				set_register_cs_relative(&origin->regs, potential_container->start, potential_container->relative_cs); // TODO: This must be improved to determine where the CS has been set
+
+				if ((result = insert_sorted_code_block_origin(&new_block->origin_list, origin))) {
+					return result;
+				}
 			}
 		}
 
@@ -771,10 +836,6 @@ static int read_block_instruction(
 					target_block = potential_container;
 				}
 				else {
-					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-						potential_container->end = jump_destination;
-					}
-
 					target_block = prepare_new_code_block(code_block_list);
 					if (!target_block) {
 						return 1;
@@ -784,8 +845,36 @@ static int read_block_instruction(
 					target_block->ip = target_ip;
 					target_block->start = jump_destination;
 					target_block->end = jump_destination;
+					initialize_code_block_origin_list(&target_block->origin_list);
+
+
+
+					struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&target_block->origin_list);
+					origin->block = CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION;
+					origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION;
+					make_all_registers_undefined(&origin->regs);
+					set_register_cs_relative(&origin->regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
+
+					if ((result = insert_sorted_code_block_origin(&target_block->origin_list, origin))) {
+						return result;
+					}
+
 					if ((result = insert_sorted_code_block(code_block_list, target_block))) {
 						return result;
+					}
+
+					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+						potential_container->end = jump_destination;
+
+						origin = prepare_new_code_block_origin(&target_block->origin_list);
+						origin->block = potential_container;
+						origin->instruction = jump_destination;
+						make_all_registers_undefined(&origin->regs); // TODO: We should re-run the potential_container to get valid registers
+						set_register_cs_relative(&origin->regs, potential_container->start, potential_container->relative_cs); // TODO: This must be improved to determine where the CS has been set
+
+						if ((result = insert_sorted_code_block_origin(&target_block->origin_list, origin))) {
+							return result;
+						}
 					}
 				}
 
@@ -983,21 +1072,32 @@ int find_code_blocks_and_variables(
 	first_block->relative_cs = read_result->relative_cs;
 	first_block->start = read_result->buffer + (read_result->relative_cs * 16 + read_result->ip);
 	first_block->end = first_block->start;
+	initialize_code_block_origin_list(&first_block->origin_list);
+
+	struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&first_block->origin_list);
+	origin->block = CODE_BLOCK_ORIGIN_BLOCK_OS;
+	origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_OS;
+	make_all_registers_undefined(&origin->regs);
+	set_register_cs_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);	
+	set_register_ds_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
 
 	int error_code;
-	if (insert_sorted_code_block(code_block_list, first_block)) {
+	if ((error_code = insert_sorted_code_block_origin(&first_block->origin_list, origin))) {
+		return error_code;
+	}
+
+	if ((error_code = insert_sorted_code_block(code_block_list, first_block))) {
 		return error_code;
 	}
 
 	for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
-		struct Registers regs;		
+		struct Registers regs;
 		struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
 		unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
 
-		make_all_registers_undefined(&regs);
-		set_register_cs_relative(&regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);	
-		if (block_index == 0) {
-			set_register_ds_relative(&regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
+		copy_registers(&regs, &block->origin_list.sorted_origins[0]->regs);
+		for (int i = 1; i < block->origin_list.origin_count; i++) {
+			merge_registers(&regs, &block->origin_list.sorted_origins[1]->regs);
 		}
 
 		if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {

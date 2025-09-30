@@ -29,6 +29,7 @@ struct InterruptionTable {
 
 int is_interruption_defined_and_relative_in_table(struct InterruptionTable *table, uint8_t index);
 const char *where_interruption_offset_defined_in_table(struct InterruptionTable *table, uint8_t index);
+const char *where_interruption_segment_defined_in_table(struct InterruptionTable *table, uint8_t index);
 
 uint16_t get_interruption_table_offset(struct InterruptionTable *table, uint8_t index);
 uint16_t get_interruption_table_relative_segment(struct InterruptionTable *table, uint8_t index);

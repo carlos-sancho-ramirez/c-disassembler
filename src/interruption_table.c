@@ -9,6 +9,10 @@ const char *where_interruption_offset_defined_in_table(struct InterruptionTable 
     return table->offset_defined[index];
 }
 
+const char *where_interruption_segment_defined_in_table(struct InterruptionTable *table, uint8_t index) {
+    return table->segment_defined[index];
+}
+
 uint16_t get_interruption_table_offset(struct InterruptionTable *table, uint8_t index) {
     return table->pointers[index].offset;
 }
