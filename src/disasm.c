@@ -344,7 +344,7 @@ static int read_block_instruction(
 		read_next_byte(reader);
 		return 0;
 	}
-	else if ((value0 & 0xFC) == 0x88) {
+	else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
 		const int value1 = read_next_byte(reader);
 		read_block_instruction_address(reader, value1);
 		return 0;

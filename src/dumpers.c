@@ -246,17 +246,10 @@ static int dump_instruction(
             print("\n");
             return 0;
         }
-        else if ((value0 & 0xFC) == 0x88) {
-            const char **registers;
-            if (value0 & 1) {
-                registers = WORD_REGISTERS;
-            }
-            else {
-                registers = BYTE_REGISTERS;
-            }
-
+        else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
+            const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
             const int value1 = read_next_byte(reader);
-            print("mov ");
+            print((value0 < 0x88)? "xchg " : "mov ");
             dump_address_register_combination(reader, reference_address, print, print_variable_label, value0, value1, registers, segment, registers);
             print("\n");
             return 0;
