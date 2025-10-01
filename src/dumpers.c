@@ -278,6 +278,10 @@ static int dump_instruction(
                 return 0;
             }
         }
+        else if (value0 == 0x90) {
+            print("nop\n");
+            return 0;
+        }
         else if ((value0 & 0xFC) == 0xA0) {
             print("mov ");
             const char **registers;
