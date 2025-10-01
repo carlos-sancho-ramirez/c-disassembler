@@ -219,187 +219,50 @@ static int read_block_instruction(
 	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
 		if ((value0 & 0x04) == 0x00) {
 			const int value1 = read_next_byte(reader);
+			if ((value1 & 0xC0) == 0 && (value1 & 0x07) == 6) {
+				int result_address = read_next_word(reader);
+				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+					segment_index = SEGMENT_INDEX_DS;
+				}
 
-			int can_resolve_address = 0;
-			int is_absolute_address = 0;
-			int result_address;
-			const int rm = value1 & 0x07;
-			if ((value1 & 0xC0) == 0) {
-				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_si(regs)) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
+				if (is_segment_register_defined_and_relative(regs, segment_index)) {
+					unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
+					const char *target = segment_start + relative_address;
+					const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+					struct GlobalVariable *var;
+					if (var_index >= 0) {
+						var = global_variable_list->sorted_variables[var_index];
 					}
-				}
-				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_di(regs)) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
+					else {
+						var = prepare_new_global_variable(global_variable_list);
+						var->start = target;
+						var->relative_address = relative_address;
+						if (value0 & 1) {
+							var->end = target + 2;
+							var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
+						}
+						else {
+							var->end = target + 1;
+							var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
+						}
+						insert_sorted_global_variable(global_variable_list, var);
 					}
-				}
-				else if (rm == 2 && is_register_bp_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + get_register_si(regs)) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 3 && is_register_bp_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + get_register_di(regs)) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 4 && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = get_register_si(regs) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 5 && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = get_register_di(regs) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 6) {
-					can_resolve_address = 1;
-					is_absolute_address = 1;
-					result_address = read_next_word(reader);
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 7 && is_register_bx_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = get_register_bx(regs) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
+	
+					if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
+						struct Reference *new_ref = prepare_new_reference(reference_list);
+						new_ref->instruction = opcode_reference;
+						new_ref->address = var;
+						new_ref->variable_value = NULL;
+						new_ref->block_value = NULL;
+						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
 			}
 			else if ((value1 & 0xC0) == 0x40) {
 				const int raw_value = read_next_byte(reader);
-				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 2 && is_register_bp_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 3 && is_register_bp_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 4 && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 5 && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 6 && is_register_bp_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 7 && is_register_bx_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
 			}
 			else if ((value1 & 0xC0) == 0x80) {
 				const int raw_value = read_next_word(reader);
-				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 2 && is_register_bp_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 3 && is_register_bp_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 4 && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 5 && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
-				else if (rm == 6 && is_register_bp_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bp(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_SS;
-					}
-				}
-				else if (rm == 7 && is_register_bx_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
-					if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-						segment_index = SEGMENT_INDEX_DS;
-					}
-				}
 			}
 			else {
 				// Assuming (value1 & 0xC0) == 0xC0
@@ -410,39 +273,6 @@ static int read_block_instruction(
 					else {
 						set_byte_register(regs, value1 & 0x07, opcode_reference, 0);
 					}
-				}
-			}
-
-			if (is_absolute_address && segment_index != SEGMENT_INDEX_UNDEFINED && is_segment_register_defined_and_relative(regs, segment_index)) {
-				unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
-				const char *target = segment_start + relative_address;
-				const int var_index = index_of_global_variable_with_start(global_variable_list, target);
-				struct GlobalVariable *var;
-				if (var_index >= 0) {
-					var = global_variable_list->sorted_variables[var_index];
-				}
-				else {
-					var = prepare_new_global_variable(global_variable_list);
-					var->start = target;
-					var->relative_address = relative_address;
-					if (value0 & 1) {
-						var->end = target + 2;
-						var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
-					}
-					else {
-						var->end = target + 1;
-						var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
-					}
-					insert_sorted_global_variable(global_variable_list, var);
-				}
-
-				if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
-					struct Reference *new_ref = prepare_new_reference(reference_list);
-					new_ref->instruction = opcode_reference;
-					new_ref->address = var;
-					new_ref->variable_value = NULL;
-					new_ref->block_value = NULL;
-					insert_sorted_reference(reference_list, new_ref);
 				}
 			}
 
