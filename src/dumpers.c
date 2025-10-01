@@ -278,6 +278,23 @@ static int dump_instruction(
                 return 0;
             }
         }
+        else if (value0 == 0x8F) {
+            const int value1 = read_next_byte(reader);
+            if (value1 & 0x38 || value1 >= 0xC0) {
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
+                return 1;
+            }
+            else {
+                print("pop ");
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, NULL);
+                print("\n");
+                return 0;
+            }
+        }
         else if (value0 == 0x90) {
             print("nop\n");
             return 0;
