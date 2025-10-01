@@ -596,7 +596,7 @@ static int read_block_instruction(
 			return 0;
 		}
 	}
-	else if (value0 == 0xC6) {
+	else if ((value0 & 0xFE) == 0xC6) {
 		const int value1 = read_next_byte(reader);
 		if (value1 & 0x38) {
 			print_error("Unknown opcode ");
@@ -608,7 +608,12 @@ static int read_block_instruction(
 		}
 		else {
 			read_block_instruction_address(reader, value1);
-			read_next_byte(reader);
+			if (value0 & 1) {
+				read_next_word(reader);
+			}
+			else {
+				read_next_byte(reader);
+			}
 			return 0;
 		}
 	}

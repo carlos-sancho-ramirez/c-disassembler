@@ -438,7 +438,7 @@ static int dump_instruction(
                 return 0;
             }
         }
-        else if (value0 == 0xC6) {
+        else if ((value0 & 0xFE) == 0xC6) {
             const int value1 = read_next_byte(reader);
             if (value1 & 0x38) {
                 print("db ");
@@ -451,11 +451,21 @@ static int dump_instruction(
             else {
                 print("mov ");
                 if ((value1 & 0xC0) != 0xC0) {
-                    print("byte ");
+                    if (value0 & 1) {
+                        print("word ");
+                    }
+                    else {
+                        print("byte ");
+                    }
                 }
                 dump_address(reader, reference_address, print, print_variable_label, value1, segment, BYTE_REGISTERS);
                 print(",");
-                print_literal_hex_byte(print, read_next_byte(reader));
+                if (value0 & 1) {
+                    print_literal_hex_word(print, read_next_word(reader));
+                }
+                else {
+                    print_literal_hex_byte(print, read_next_byte(reader));
+                }
                 print("\n");
                 return 0;
             }
