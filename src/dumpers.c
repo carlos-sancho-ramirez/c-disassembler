@@ -203,10 +203,10 @@ static int dump_instruction(
             print(INSTRUCTION[(value1 >> 3) & 0x07]);
             if ((value1 & 0xC0) != 0xC0) {
                 if (value0 & 1) {
-                    print(" word ptr ");
+                    print(" word ");
                 }
                 else {
-                    print(" byte ptr ");
+                    print(" byte ");
                 }
             }
             else {
@@ -230,10 +230,10 @@ static int dump_instruction(
             print(INSTRUCTION[(value1 >> 3) & 0x07]);
             if ((value1 & 0xC0) != 0xC0) {
                 if (value0 & 1) {
-                    print(" word ptr ");
+                    print(" word ");
                 }
                 else {
-                    print(" byte ptr ");
+                    print(" byte ");
                 }
             }
             else {
@@ -451,7 +451,7 @@ static int dump_instruction(
             else {
                 print("mov ");
                 if ((value1 & 0xC0) != 0xC0) {
-                    print("byte ptr ");
+                    print("byte ");
                 }
                 dump_address(reader, reference_address, print, print_variable_label, value1, segment, BYTE_REGISTERS);
                 print(",");
@@ -486,10 +486,10 @@ static int dump_instruction(
                     print(" ");
                 }
                 else if (value1 & 1) {
-                    print(" word ptr ");
+                    print(" word ");
                 }
                 else {
-                    print(" byte ptr ");
+                    print(" byte ");
                 }
 
                 const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
@@ -560,10 +560,10 @@ static int dump_instruction(
                 print(MATH_INSTRUCTION[(value1 >> 3) & 0x07]);
                 if ((value1 & 0xC0) != 0xC0) {
                     if (value0 & 1) {
-                        print(" word ptr ");
+                        print(" word ");
                     }
                     else {
-                        print(" byte ptr ");
+                        print(" byte ");
                     }
                 }
                 else {
@@ -622,7 +622,7 @@ static int dump_instruction(
             else {
                 print(FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
                 if (value1 < 0xC0 && ((value1 & 0x08) == 0x00 || (value1 & 0x38) == 0x08)) {
-                    print(" word ptr ");
+                    print(" word ");
                 }
                 else if (value1 < 0xC0 && ((value1 & 0x38) == 0x18 || (value1 & 0x38) == 0x28)) {
                     print(" far16 ");
