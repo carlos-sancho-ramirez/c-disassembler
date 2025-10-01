@@ -538,7 +538,7 @@ static int read_block_instruction(
 			return 0;
 		}
 	}
-	else if (value0 == 0x90) { // nop
+	else if ((value0 & 0xF8) == 0x90) { // xchg
 		return 0;
 	}
 	else if ((value0 & 0xFC) == 0xA0) {

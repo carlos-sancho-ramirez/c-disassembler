@@ -292,6 +292,12 @@ static int dump_instruction(
             print("nop\n");
             return 0;
         }
+        else if ((value0 & 0xF8) == 0x90) {
+            print("xchg ax,");
+            print(WORD_REGISTERS[value0 & 0x07]);
+            print("\n");
+            return 0;
+        }
         else if ((value0 & 0xFC) == 0xA0) {
             print("mov ");
             const char **registers;
