@@ -744,7 +744,7 @@ static int dump_block(
             error_found = dump_instruction(&reader, block, global_variable_reference_address, global_variable_reference_value, reference_block_value, print, print_error, print_code_label, print_variable_label);
         }
     }
-    while (block->start + reader.buffer_index != block->end);
+    while (block->start + reader.buffer_index != block->end && reader.buffer_index < reader.buffer_size);
 
     return 0;
 }
