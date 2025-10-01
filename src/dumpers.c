@@ -53,7 +53,7 @@ static void dump_address(
 		int value1,
 		const char *segment,
 		const char **registers) {
-	if ((value1 & 0xC0) != 0xC0) {
+	if (value1 < 0xC0) {
 		print("[");
 		if (segment) {
 			print(segment);
@@ -267,6 +267,25 @@ static int dump_instruction(
             else {
                 print("mov ");
                 dump_address_register_combination(reader, reference_address, print, print_variable_label, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
+                print("\n");
+                return 0;
+            }
+        }
+        else if (value0 == 0x8D) {
+            const int value1 = read_next_byte(reader);
+            if (value1 >= 0xC0) {
+                print("db ");
+                print_literal_hex_byte(print, value0);
+                print(" ");
+                print_literal_hex_byte(print, value1);
+                print(" ; Unknown instruction\n");
+                return 1;
+            }
+            else {
+                print("lea ");
+                print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
+                print(",");
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, NULL);
                 print("\n");
                 return 0;
             }
