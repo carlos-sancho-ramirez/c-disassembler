@@ -203,7 +203,7 @@ static void read_block_instruction_address(
 #define SEGMENT_INDEX_SS 2
 #define SEGMENT_INDEX_DS 3
 
-static int read_block_instruction(
+static int read_block_instruction_internal(
 		struct Reader *reader,
 		struct Registers *regs,
 		struct InterruptionTable *int_table,
@@ -213,8 +213,8 @@ static int read_block_instruction(
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
 		struct ReferenceList *reference_list,
-		int segment_index) {
-	const char *opcode_reference = reader->buffer + reader->buffer_index;
+		int segment_index,
+		const char *opcode_reference) {
 	const int value0 = read_next_byte(reader);
 	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
 		if ((value0 & 0x04) == 0x00) {
@@ -292,7 +292,7 @@ static int read_block_instruction(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03);
+		return read_block_instruction_internal(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -924,6 +924,20 @@ static int read_block_instruction(
 	}
 }
 
+static int read_block_instruction(
+		struct Reader *reader,
+		struct Registers *regs,
+		struct InterruptionTable *int_table,
+		const char *segment_start,
+		void (*print_error)(const char *),
+		struct CodeBlock *block,
+		struct CodeBlockList *code_block_list,
+		struct GlobalVariableList *global_variable_list,
+		struct ReferenceList *reference_list) {
+	const char *instruction = reader->buffer + reader->buffer_index;
+	return read_block_instruction_internal(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
+}
+
 void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
 	if (is_word_register_defined(regs, index)) {
 		if (is_word_register_defined_and_relative(regs, index)) {
@@ -1035,7 +1049,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED))) {
+		if ((error_code = read_block_instruction(&reader, regs, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list))) {
 			return error_code;
 		}
 
