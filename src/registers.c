@@ -613,6 +613,225 @@ void set_segment_register_relative(struct Registers *regs, unsigned int index, c
     }
 }
 
+void copy_registers(struct Registers *target_regs, const struct Registers *source_regs) {
+    // TODO: Optimise this copy
+    target_regs->al = source_regs->al;
+    target_regs->ah = source_regs->ah;
+    target_regs->cl = source_regs->cl;
+    target_regs->ch = source_regs->ch;
+    target_regs->dl = source_regs->dl;
+    target_regs->dh = source_regs->dh;
+    target_regs->bl = source_regs->bl;
+    target_regs->bh = source_regs->bh;
+    target_regs->sp = source_regs->sp;
+    target_regs->bp = source_regs->bp;
+    target_regs->si = source_regs->si;
+    target_regs->di = source_regs->di;
+    target_regs->es = source_regs->es;
+    target_regs->cs = source_regs->cs;
+    target_regs->ss = source_regs->ss;
+    target_regs->ds = source_regs->ds;
+    target_regs->relative = source_regs->relative;
+
+    for (int i = 0; i < 16; i++) {
+        target_regs->defined[i] = source_regs->defined[i];
+    }
+}
+
+void merge_registers(struct Registers *regs, const struct Registers *other_regs) {
+    // AX
+    if (regs->defined[0] && (!other_regs->defined[0] || regs->al != other_regs->al)) {
+        regs->defined[0] = NULL;
+    }
+
+    if (regs->defined[1] && (!other_regs->defined[1] || regs->ah != other_regs->ah)) {
+        regs->defined[1] = NULL;
+    }
+
+    if (regs->defined[0] && regs->defined[1] && (regs->relative & 0x10) != (other_regs->relative & 0x10)) {
+        regs->defined[0] = NULL;
+        regs->defined[1] = NULL;
+    }
+
+    // CX
+    if (regs->defined[2] && (!other_regs->defined[2] || regs->cl != other_regs->cl)) {
+        regs->defined[2] = NULL;
+    }
+
+    if (regs->defined[3] && (!other_regs->defined[3] || regs->ch != other_regs->ch)) {
+        regs->defined[3] = NULL;
+    }
+
+    if (regs->defined[2] && regs->defined[3] && (regs->relative & 0x20) != (other_regs->relative & 0x20)) {
+        regs->defined[2] = NULL;
+        regs->defined[3] = NULL;
+    }
+
+    // DX
+    if (regs->defined[4] && (!other_regs->defined[4] || regs->dl != other_regs->dl)) {
+        regs->defined[4] = NULL;
+    }
+
+    if (regs->defined[5] && (!other_regs->defined[5] || regs->dh != other_regs->dh)) {
+        regs->defined[5] = NULL;
+    }
+
+    if (regs->defined[4] && regs->defined[5] && (regs->relative & 0x40) != (other_regs->relative & 0x40)) {
+        regs->defined[4] = NULL;
+        regs->defined[5] = NULL;
+    }
+
+    // BX
+    if (regs->defined[6] && (!other_regs->defined[6] || regs->bl != other_regs->bl)) {
+        regs->defined[6] = NULL;
+    }
+
+    if (regs->defined[7] && (!other_regs->defined[7] || regs->bh != other_regs->bh)) {
+        regs->defined[7] = NULL;
+    }
+
+    if (regs->defined[6] && regs->defined[7] && (regs->relative & 0x80) != (other_regs->relative & 0x80)) {
+        regs->defined[6] = NULL;
+        regs->defined[7] = NULL;
+    }
+
+    // SP
+    if (regs->defined[8] && (!other_regs->defined[8] || regs->sp != other_regs->sp || (regs->relative & 0x100) != (other_regs->relative & 0x100))) {
+        regs->defined[8] = NULL;
+    }
+
+    // BP
+    if (regs->defined[9] && (!other_regs->defined[9] || regs->bp != other_regs->bp || (regs->relative & 0x200) != (other_regs->relative & 0x200))) {
+        regs->defined[9] = NULL;
+    }
+
+    // SI
+    if (regs->defined[10] && (!other_regs->defined[10] || regs->si != other_regs->si || (regs->relative & 0x400) != (other_regs->relative & 0x400))) {
+        regs->defined[10] = NULL;
+    }
+
+    // DI
+    if (regs->defined[11] && (!other_regs->defined[11] || regs->di != other_regs->di || (regs->relative & 0x800) != (other_regs->relative & 0x800))) {
+        regs->defined[11] = NULL;
+    }
+
+    // ES
+    if (regs->defined[12] && (!other_regs->defined[12] || regs->es != other_regs->es || (regs->relative & 0x1000) != (other_regs->relative & 0x1000))) {
+        regs->defined[12] = NULL;
+    }
+
+    // CS
+    if (regs->defined[13] && (!other_regs->defined[13] || regs->cs != other_regs->cs || (regs->relative & 0x2000) != (other_regs->relative & 0x2000))) {
+        regs->defined[13] = NULL;
+    }
+
+    // SS
+    if (regs->defined[14] && (!other_regs->defined[14] || regs->ss != other_regs->ss || (regs->relative & 0x4000) != (other_regs->relative & 0x4000))) {
+        regs->defined[14] = NULL;
+    }
+
+    // DS
+    if (regs->defined[15] && (!other_regs->defined[15] || regs->ds != other_regs->ds || (regs->relative & 0x8000) != (other_regs->relative & 0x8000))) {
+        regs->defined[15] = NULL;
+    }
+}
+
+int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs) {
+    // AX
+    if (regs->defined[0] && (!other_regs->defined[0] || regs->al != other_regs->al)) {
+        return 1;
+    }
+
+    if (regs->defined[1] && (!other_regs->defined[1] || regs->ah != other_regs->ah)) {
+        return 1;
+    }
+
+    if (regs->defined[0] && regs->defined[1] && (regs->relative & 0x10) != (other_regs->relative & 0x10)) {
+        return 1;
+    }
+
+    // CX
+    if (regs->defined[2] && (!other_regs->defined[2] || regs->cl != other_regs->cl)) {
+        return 1;
+    }
+
+    if (regs->defined[3] && (!other_regs->defined[3] || regs->ch != other_regs->ch)) {
+        return 1;
+    }
+
+    if (regs->defined[2] && regs->defined[3] && (regs->relative & 0x20) != (other_regs->relative & 0x20)) {
+        return 1;
+    }
+
+    // DX
+    if (regs->defined[4] && (!other_regs->defined[4] || regs->dl != other_regs->dl)) {
+        return 1;
+    }
+
+    if (regs->defined[5] && (!other_regs->defined[5] || regs->dh != other_regs->dh)) {
+        return 1;
+    }
+
+    if (regs->defined[4] && regs->defined[5] && (regs->relative & 0x40) != (other_regs->relative & 0x40)) {
+        return 1;
+    }
+
+    // BX
+    if (regs->defined[6] && (!other_regs->defined[6] || regs->bl != other_regs->bl)) {
+        return 1;
+    }
+
+    if (regs->defined[7] && (!other_regs->defined[7] || regs->bh != other_regs->bh)) {
+        return 1;
+    }
+
+    if (regs->defined[6] && regs->defined[7] && (regs->relative & 0x80) != (other_regs->relative & 0x80)) {
+        return 1;
+    }
+
+    // SP
+    if (regs->defined[8] && (!other_regs->defined[8] || regs->sp != other_regs->sp || (regs->relative & 0x100) != (other_regs->relative & 0x100))) {
+        return 1;
+    }
+
+    // BP
+    if (regs->defined[9] && (!other_regs->defined[9] || regs->bp != other_regs->bp || (regs->relative & 0x200) != (other_regs->relative & 0x200))) {
+        return 1;
+    }
+
+    // SI
+    if (regs->defined[10] && (!other_regs->defined[10] || regs->si != other_regs->si || (regs->relative & 0x400) != (other_regs->relative & 0x400))) {
+        return 1;
+    }
+
+    // DI
+    if (regs->defined[11] && (!other_regs->defined[11] || regs->di != other_regs->di || (regs->relative & 0x800) != (other_regs->relative & 0x800))) {
+        return 1;
+    }
+
+    // ES
+    if (regs->defined[12] && (!other_regs->defined[12] || regs->es != other_regs->es || (regs->relative & 0x1000) != (other_regs->relative & 0x1000))) {
+        return 1;
+    }
+
+    // CS
+    if (regs->defined[13] && (!other_regs->defined[13] || regs->cs != other_regs->cs || (regs->relative & 0x2000) != (other_regs->relative & 0x2000))) {
+        return 1;
+    }
+
+    // SS
+    if (regs->defined[14] && (!other_regs->defined[14] || regs->ss != other_regs->ss || (regs->relative & 0x4000) != (other_regs->relative & 0x4000))) {
+        return 1;
+    }
+
+    // DS
+    if (regs->defined[15] && (!other_regs->defined[15] || regs->ds != other_regs->ds || (regs->relative & 0x8000) != (other_regs->relative & 0x8000))) {
+        return 1;
+    }
+
+    return 0;
+}
+
 void make_all_registers_undefined(struct Registers *regs) {
     for (int i = 0; i < 16; i++) {
         regs->defined[i] = NULL;

@@ -307,10 +307,6 @@ static int read_block_instruction_internal(
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-			}
-
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -320,8 +316,19 @@ static int read_block_instruction_internal(
 			new_block->ip = block->ip + reader->buffer_index + diff;
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
+			new_block->flags = 0;
+			initialize_code_block_origin_list(&new_block->origin_list);
+			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
+				return result;
+			}
+
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
+			}
+
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+				invalidate_code_block_check(potential_container);
 			}
 		}
 
@@ -759,10 +766,6 @@ static int read_block_instruction_internal(
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-			}
-
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -772,8 +775,18 @@ static int read_block_instruction_internal(
 			new_block->ip = block->ip + reader->buffer_index + diff;
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
+			new_block->flags = 0;
+			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
+				return result;
+			}
+
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
+			}
+
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+				invalidate_code_block_check(potential_container);
 			}
 		}
 
@@ -789,10 +802,6 @@ static int read_block_instruction_internal(
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-			}
-
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -802,8 +811,18 @@ static int read_block_instruction_internal(
 			new_block->ip = block->ip + reader->buffer_index + diff;
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
+			new_block->flags = 0;
+			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
+				return result;
+			}
+
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
+			}
+
+			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+				potential_container->end = jump_destination;
+				invalidate_code_block_check(potential_container);
 			}
 		}
 
@@ -867,6 +886,15 @@ static int read_block_instruction_internal(
 					target_block->ip = target_ip;
 					target_block->start = jump_destination;
 					target_block->end = jump_destination;
+					target_block->flags = 0;
+
+					struct Registers int_regs;
+					make_all_registers_undefined(&int_regs);
+					set_register_cs_relative(&int_regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
+					if ((result = add_code_block_origin(target_block, CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION, CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION, &int_regs))) {
+						return result;
+					}
+
 					if ((result = insert_sorted_code_block(code_block_list, target_block))) {
 						return result;
 					}
@@ -1080,27 +1108,48 @@ int find_code_blocks_and_variables(
 	first_block->relative_cs = read_result->relative_cs;
 	first_block->start = read_result->buffer + (read_result->relative_cs * 16 + read_result->ip);
 	first_block->end = first_block->start;
+	first_block->flags = 0;
+	initialize_code_block_origin_list(&first_block->origin_list);
+
+	struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&first_block->origin_list);
+	origin->block = CODE_BLOCK_ORIGIN_BLOCK_OS;
+	origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_OS;
+	make_all_registers_undefined(&origin->regs);
+	set_register_cs_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
+	set_register_ds_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
 
 	int error_code;
-	if (insert_sorted_code_block(code_block_list, first_block)) {
+	if ((error_code = insert_sorted_code_block_origin(&first_block->origin_list, origin))) {
 		return error_code;
 	}
 
-	for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
-		struct Registers regs;		
-		struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
-		unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
+	if ((error_code = insert_sorted_code_block(code_block_list, first_block))) {
+		return error_code;
+	}
 
-		make_all_registers_undefined(&regs);
-		set_register_cs_relative(&regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);	
-		if (block_index == 0) {
-			set_register_ds_relative(&regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
-		}
+	int any_evaluated;
+	do {
+		any_evaluated = 0;
 
-		if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {
-			return error_code;
+		for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
+			struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
+			if (code_block_requires_evaluation(block)) {
+				any_evaluated = 1;
+				mark_code_block_as_being_evaluated(block);
+
+				struct Registers regs;
+				unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
+	
+				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
+				if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {
+					return error_code;
+				}
+
+				mark_code_block_as_evaluated(block);
+			}
 		}
 	}
+	while (any_evaluated);
 
 	for (int variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];

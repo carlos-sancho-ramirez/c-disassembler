@@ -131,5 +131,8 @@ void set_register_ss_relative(struct Registers *regs, const char *where, uint16_
 void set_register_ds_relative(struct Registers *regs, const char *where, uint16_t value);
 void set_segment_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
 
+void copy_registers(struct Registers *target_regs, const struct Registers *source_regs);
+void merge_registers(struct Registers *regs, const struct Registers *other_regs);
+int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs);
 void make_all_registers_undefined(struct Registers *regs);
 #endif // _REGISTERS_H_
