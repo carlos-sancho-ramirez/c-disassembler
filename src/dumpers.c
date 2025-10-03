@@ -74,7 +74,7 @@ static void dump_address(
 			if ((value1 & 0xC0) == 0x40) {
 				print_differential_hex_byte(print, read_next_byte(reader));
 			}
-			else if ((value1 & 0xC0) == 0x40) {
+			else if ((value1 & 0xC0) == 0x80) {
 				print_differential_hex_word(print, read_next_word(reader));
 			}
 		}
@@ -105,6 +105,229 @@ static void dump_address_register_combination(
 		print(",");
 		print(registers[(value1 >> 3) & 0x07]);
 	}
+}
+
+#define MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED 1
+#define MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE 2
+
+static int move_reader_forward(struct Reader *reader, unsigned int byte_count) {
+    reader->buffer_index += byte_count;
+    return (reader->buffer_index <= reader->buffer_size)? 0 :
+            MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+}
+
+static int move_reader_forward_for_address_length(struct Reader *reader, int value1) {
+    if (value1 < 0xC0) {
+        if (value1 >= 0x80 || (value1 & 0xC7) == 0x06) {
+            return move_reader_forward(reader, 2);
+        }
+        else if ((value1 & 0xC0) == 0x40) {
+            return move_reader_forward(reader, 1);
+        }
+    }
+
+    return 0;
+}
+
+static int move_reader_forward_for_instruction_length(struct Reader *reader) {
+    if (reader->buffer_index >= reader->buffer_size) {
+        return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+    }
+    const int value0 = read_next_byte(reader);
+
+    if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
+        if ((value0 & 0x04) == 0x00) {
+            if (reader->buffer_index >= reader->buffer_size) {
+                return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+            }
+            const int value1 = read_next_byte(reader);
+
+            return move_reader_forward_for_address_length(reader, value1);
+        }
+        else if ((value0 & 0x07) == 0x04) {
+            return move_reader_forward(reader, 1);
+        }
+        else {
+            // Assuming (value0 & 0x07) == 0x05
+            return move_reader_forward(reader, 2);
+        }
+    }
+    else if ((value0 & 0xE6) == 0x06 && value0 != 0x0F) {
+        return 0;
+    }
+    else if ((value0 & 0xE7) == 0x26) {
+        return move_reader_forward_for_instruction_length(reader);
+    }
+    else if ((value0 & 0xF0) == 0x40) {
+        return 0;
+    }
+    else if ((value0 & 0xF0) == 0x50) {
+        return 0;
+    }
+    else if ((value0 & 0xF0) == 0x70) {
+        return move_reader_forward(reader, 1);
+    }
+    else if ((value0 & 0xFE) == 0x80) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        if (move_reader_forward_for_address_length(reader, value1)) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+
+        return move_reader_forward(reader, (value0 & 1) + 1);
+    }
+    else if (value0 == 0x83) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        if (move_reader_forward_for_address_length(reader, value1)) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        return move_reader_forward(reader, 1);
+    }
+    else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        return move_reader_forward_for_address_length(reader, value1);
+    }
+    else if ((value0 & 0xFD) == 0x8C) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        return (value1 & 0x20)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
+                move_reader_forward_for_address_length(reader, value1);
+    }
+    else if (value0 == 0x8D) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        return (value1 >= 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
+                move_reader_forward_for_address_length(reader, value1);
+    }
+    else if (value0 == 0x8F) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        return (value1 & 0x38 || value1 >= 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
+                move_reader_forward_for_address_length(reader, value1);
+    }
+    else if ((value0 & 0xF8) == 0x90) {
+        return 0;
+    }
+    else if ((value0 & 0xFC) == 0xA0) {
+        return move_reader_forward(reader, 2);
+    }
+    else if ((value0 & 0xFC) == 0xA4) {
+        return 0;
+    }
+    else if (value0 == 0xA8) {
+        return move_reader_forward(reader, 1);
+    }
+    else if (value0 == 0xA9) {
+        return move_reader_forward(reader, 2);
+    }
+    else if ((value0 & 0xFE) == 0xAA || (value0 & 0xFC) == 0xAC) {
+        return 0;
+    }
+    else if ((value0 & 0xF0) == 0xB0) {
+        return move_reader_forward(reader, (value0 & 0x08)? 2 : 1);
+    }
+    else if (value0 == 0xC2) {
+        return move_reader_forward(reader, 2);
+    }
+    else if (value0 == 0xC3) {
+        return 0;
+    }
+    else if ((value0 & 0xFE) == 0xC4) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        return ((value1 & 0xC0) == 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
+                move_reader_forward_for_address_length(reader, value1);
+    }
+    else if ((value0 & 0xFE) == 0xC6) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        if (value1 & 0x38) {
+            return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
+        }
+        else {
+            if (move_reader_forward_for_address_length(reader, value1)) {
+                return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+            }
+            return move_reader_forward(reader, (value0 & 1) + 1);
+        }
+    }
+    else if (value0 == 0xCB) {
+        return 0;
+    }
+    else if (value0 == 0xCD) {
+        return move_reader_forward(reader, 1);
+    }
+    else if ((value0 & 0xFC) == 0xD0) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        return ((value1 & 0x38) == 0x30)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
+                move_reader_forward_for_address_length(reader, value1);
+    }
+    else if ((value0 & 0xFC) == 0xE0) {
+        return move_reader_forward(reader, 1);
+    }
+    else if ((value0 & 0xFE) == 0xE8) {
+        return move_reader_forward(reader, 2);
+    }
+    else if (value0 == 0xEB) {
+        return move_reader_forward(reader, 1);
+    }
+    else if ((value0 & 0xFE) == 0xF2) {
+        return 0;
+    }
+    else if ((value0 & 0xFE) == 0xF6) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        if ((value1 & 0x38) == 0x08) {
+            return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
+        }
+        else {
+            if (move_reader_forward_for_address_length(reader, value1)) {
+                return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+            }
+            return (value0 & 0x38)? 0 : move_reader_forward(reader, (value0 & 1) + 1);
+        }
+    }
+    else if ((value0 & 0xFC) == 0xF8 || (value0 & 0xFE) == 0xFC) {
+        return 0;
+    }
+    else if (value0 == 0xFF) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
+            return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
+        }
+        else {
+            return move_reader_forward_for_address_length(reader, value1);
+        }
+    }
+    else {
+        return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
+    }
 }
 
 static int dump_instruction(
@@ -693,62 +916,6 @@ static int dump_instruction(
     }
 }
 
-static int dump_block(
-        const struct CodeBlock *block,
-        struct Reference **references,
-        unsigned int global_variable_reference_count,
-        void (*print)(const char *),
-        void (*print_error)(const char *),
-        void (*print_code_label)(void (*)(const char *), int, int),
-        void (*print_variable_label)(void (*)(const char *), unsigned int)) {
-    struct Reader reader;
-    reader.buffer = block->start;
-    reader.buffer_index = 0;
-    reader.buffer_size = block->end - block->start;
-
-    print("\n");
-    print_code_label(print, block->ip, block->relative_cs);
-    print(":\n");
-
-    int error_found = 0;
-    do {
-        if (error_found) {
-            print("db ");
-            print_literal_hex_byte(print, read_next_byte(&reader));
-            print("\n");
-        }
-        else {
-            while (global_variable_reference_count > 0 && references[0]->instruction < reader.buffer + reader.buffer_index) {
-                references++;
-                global_variable_reference_count--;
-            }
-
-            unsigned int global_variable_reference_address = DUMP_GLOBAL_VARIABLE_UNDEFINED;
-            unsigned int global_variable_reference_value = DUMP_GLOBAL_VARIABLE_UNDEFINED;
-            struct CodeBlock *reference_block_value = NULL;
-            if (global_variable_reference_count > 0 && references[0]->instruction == reader.buffer + reader.buffer_index) {
-                struct Reference *reference = references[0];
-                if (reference->address) {
-                    global_variable_reference_address = reference->address->relative_address;
-                }
-
-                if (reference->variable_value) {
-                    global_variable_reference_value = reference->variable_value->relative_address;
-                }
-
-                reference_block_value = reference->block_value;
-                references++;
-                global_variable_reference_count--;
-            }
-
-            error_found = dump_instruction(&reader, block, global_variable_reference_address, global_variable_reference_value, reference_block_value, print, print_error, print_code_label, print_variable_label);
-        }
-    }
-    while (block->start + reader.buffer_index != block->end && reader.buffer_index < reader.buffer_size);
-
-    return 0;
-}
-
 static int valid_char_for_string_literal(char ch) {
     // More can be added when required. Avoid adding quotes, as it may conflict
     return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == ' ' || ch == '!' || ch == '$';
@@ -808,24 +975,247 @@ int dump(
     struct Reader reader;
     int error_code;
 
-    int next_code_block_index = 0;
-    int next_global_variable_index = 0;
+    int code_block_index = 0;
+    int global_variable_index = 0;
+    struct CodeBlock *block;
+    const char *position;
+    struct GlobalVariable *variable;
+    int unknown_opcode_found_in_block = 0;
 
-    while (next_code_block_index < code_block_count || next_global_variable_index < global_variable_count) {
-        if (next_code_block_index < code_block_count && (next_global_variable_index == global_variable_count || sorted_blocks[next_code_block_index]->start <= sorted_variables[next_global_variable_index]->start)) {
-            struct CodeBlock *block = sorted_blocks[next_code_block_index++];
-            while(global_variable_reference_count > 0 && global_variable_references[0]->instruction < block->start) {
-                global_variable_references++;
-                global_variable_reference_count--;
+    block = (code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+    variable = (global_variable_index < global_variable_count)? sorted_variables[global_variable_index] : NULL;
+
+    if (block && variable) {
+        position = (block->start < variable->start)? block->start : variable->start;
+    }
+    else if (block) {
+        position = block->start;
+    }
+    else if (variable) {
+        position = variable->start;
+    }
+    else {
+        position = NULL;
+    }
+
+    while (position) {
+        int position_in_block = block && block->start <= position && position < block->end;
+        int position_in_variable = variable && variable->start <= position && position < variable->end;
+
+        if (position_in_variable && !position_in_block && (!block || block->start >= variable->end)) {
+            if ((error_code = dump_variable(variable, print, print_error, print_variable_label))) {
+                return error_code;
             }
 
-            if ((error_code = dump_block(block, global_variable_references, global_variable_reference_count, print, print_error, print_code_label, print_variable_label))) {
-                return error_code;
+            variable = (++global_variable_index < global_variable_count)? sorted_variables[global_variable_index] : NULL;
+
+            if (block && variable) {
+                position = (block->start < variable->start)? block->start : variable->start;
+            }
+            else if (block) {
+                position = block->start;
+            }
+            else if (variable) {
+                position = variable->start;
+            }
+            else {
+                position = NULL;
+            }
+        }
+        else if (position_in_block && !position_in_variable) {
+            if (block->start == position) {
+                print("\n");
+                print_code_label(print, block->ip, block->relative_cs);
+                print(":\n");
+            }
+
+            if (unknown_opcode_found_in_block) {
+                reader.buffer = block->start;
+                reader.buffer_index = position - block->start;
+                reader.buffer_size = block->end - block->start;
+            
+                print("db ");
+                print_literal_hex_byte(print, read_next_byte(&reader));
+                print("\n");
+
+                position++;
+                if (position >= block->end) {
+                    unknown_opcode_found_in_block = 0;
+                    block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+
+                    if (block && variable) {
+                        position = (block->start < variable->start)? block->start : variable->start;
+                    }
+                    else if (block) {
+                        position = block->start;
+                    }
+                    else if (variable) {
+                        position = variable->start;
+                    }
+                    else {
+                        position = NULL;
+                    }
+                }
+            }
+            else {
+                reader.buffer = position;
+                reader.buffer_index = 0;
+                reader.buffer_size = block->end - position;
+                error_code = move_reader_forward_for_instruction_length(&reader);
+                const char *next_position = position + reader.buffer_index;
+
+                if (error_code || variable && next_position > variable->start) {
+                    unknown_opcode_found_in_block = 1;
+                    reader.buffer_index = 0;
+                    print("db ");
+                    print_literal_hex_byte(print, read_next_byte(&reader));
+                    print((error_code == MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE)? " ; Unknown opcode\n" : "\n");
+
+                    position++;
+                    if (position >= block->end) {
+                        unknown_opcode_found_in_block = 0;
+                        block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+
+                        if (block && variable) {
+                            position = (block->start < variable->start)? block->start : variable->start;
+                        }
+                        else if (block) {
+                            position = block->start;
+                        }
+                        else if (variable) {
+                            position = variable->start;
+                        }
+                        else {
+                            position = NULL;
+                        }
+                    }
+                }
+                else {
+                    reader.buffer = block->start;
+                    reader.buffer_index = position - block->start;
+                    reader.buffer_size = block->end - block->start;
+
+                    while(global_variable_reference_count > 0 && global_variable_references[0]->instruction < position) {
+                        global_variable_references++;
+                        global_variable_reference_count--;
+                    }
+
+                    unsigned int global_variable_reference_address = DUMP_GLOBAL_VARIABLE_UNDEFINED;
+                    unsigned int global_variable_reference_value = DUMP_GLOBAL_VARIABLE_UNDEFINED;
+                    struct CodeBlock *reference_block_value = NULL;
+                    if (global_variable_reference_count > 0 && global_variable_references[0]->instruction == position) {
+                        struct Reference *reference = global_variable_references[0];
+                        if (reference->address) {
+                            global_variable_reference_address = reference->address->relative_address;
+                        }
+
+                        if (reference->variable_value) {
+                            global_variable_reference_value = reference->variable_value->relative_address;
+                        }
+
+                        reference_block_value = reference->block_value;
+                        global_variable_references++;
+                        global_variable_reference_count--;
+                    }
+
+                    unknown_opcode_found_in_block = dump_instruction(&reader, block, global_variable_reference_address, global_variable_reference_value, reference_block_value, print, print_error, print_code_label, print_variable_label);
+                    position = next_position;
+                    if (position >= block->end) {
+                        unknown_opcode_found_in_block = 0;
+                        block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+
+                        if (block && variable) {
+                            position = (block->start < variable->start)? block->start : variable->start;
+                        }
+                        else if (block) {
+                            position = block->start;
+                        }
+                        else if (variable) {
+                            position = variable->start;
+                        }
+                        else {
+                            position = NULL;
+                        }
+                    }
+                }
             }
         }
         else {
-            if ((error_code = dump_variable(sorted_variables[next_global_variable_index++], print, print_error, print_variable_label))) {
+            if (block->start == position) {
+                print("\n");
+                print_code_label(print, block->ip, block->relative_cs);
+                print(":\n");
+            }
+
+            if ((error_code = dump_variable(variable, print, print_error, print_variable_label))) {
                 return error_code;
+            }
+
+            const char *current_variable_end = variable->end;
+            unsigned int current_variable_size = variable->end - variable->start;
+            variable = (++global_variable_index < global_variable_count)? sorted_variables[global_variable_index] : NULL;
+
+            if (unknown_opcode_found_in_block) {
+                position += current_variable_size;
+                
+                if (position >= block->end) {
+                    unknown_opcode_found_in_block = 0;
+                    block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+
+                    if (block && variable) {
+                        position = (block->start < variable->start)? block->start : variable->start;
+                    }
+                    else if (block) {
+                        position = block->start;
+                    }
+                    else if (variable) {
+                        position = variable->start;
+                    }
+                    else {
+                        position = NULL;
+                    }
+                }
+            }
+            else {
+                const char *next_position;
+                do {
+                    reader.buffer = position;
+                    reader.buffer_index = 0;
+                    reader.buffer_size = block->end - position;
+                    error_code = move_reader_forward_for_instruction_length(&reader);
+                    next_position = position + reader.buffer_index;
+                    if (next_position < current_variable_end) {
+                        position = next_position;
+                    }
+                }
+                while (error_code == 0 && position < current_variable_end);
+
+                for (; position < next_position; position++) {
+                    reader.buffer = position;
+                    reader.buffer_index = 0;
+                    reader.buffer_size = 1;
+                    print("db ");
+                    print_literal_hex_byte(print, read_next_byte(&reader));
+                    print("\n");
+                }
+
+                if (position >= block->end) {
+                    unknown_opcode_found_in_block = 0;
+                    block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+
+                    if (block && variable) {
+                        position = (block->start < variable->start)? block->start : variable->start;
+                    }
+                    else if (block) {
+                        position = block->start;
+                    }
+                    else if (variable) {
+                        position = variable->start;
+                    }
+                    else {
+                        position = NULL;
+                    }
+                }
             }
         }
     }
