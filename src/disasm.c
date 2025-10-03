@@ -215,6 +215,7 @@ static int read_block_instruction_internal(
 		struct ReferenceList *reference_list,
 		int segment_index,
 		const char *opcode_reference) {
+	int error_code;
 	const int value0 = read_next_byte(reader);
 	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
 		if ((value0 & 0x04) == 0x00) {
@@ -225,37 +226,8 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if (is_segment_register_defined_and_relative(regs, segment_index)) {
-					unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
-					const char *target = segment_start + relative_address;
-					const int var_index = index_of_global_variable_with_start(global_variable_list, target);
-					struct GlobalVariable *var;
-					if (var_index >= 0) {
-						var = global_variable_list->sorted_variables[var_index];
-					}
-					else {
-						var = prepare_new_global_variable(global_variable_list);
-						var->start = target;
-						var->relative_address = relative_address;
-						if (value0 & 1) {
-							var->end = target + 2;
-							var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
-						}
-						else {
-							var->end = target + 1;
-							var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
-						}
-						insert_sorted_global_variable(global_variable_list, var);
-					}
-	
-					if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
-						struct Reference *new_ref = prepare_new_reference(reference_list);
-						new_ref->instruction = opcode_reference;
-						new_ref->address = var;
-						new_ref->variable_value = NULL;
-						new_ref->block_value = NULL;
-						insert_sorted_reference(reference_list, new_ref);
-					}
+				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+					return error_code;
 				}
 			}
 			else if ((value1 & 0xC0) == 0x40) {
@@ -264,8 +236,7 @@ static int read_block_instruction_internal(
 			else if ((value1 & 0xC0) == 0x80) {
 				const int raw_value = read_next_word(reader);
 			}
-			else {
-				// Assuming (value1 & 0xC0) == 0xC0
+			else if (value1 >= 0xC0) {
 				if ((value0 & 0x38) == 0x30 && (((value1 >> 3) & 0x07) == (value1 & 0x07))) { // XOR
 					if (value0 & 1) {
 						set_word_register(regs, value1 & 0x07, opcode_reference, 0);
@@ -336,13 +307,30 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0x80) {
 		const int value1 = read_next_byte(reader);
-		read_block_instruction_address(reader, value1);
+		if ((value1 & 0xC0) == 0 && (value1 & 0x07) == 6) {
+			int result_address = read_next_word(reader);
+			if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+				segment_index = SEGMENT_INDEX_DS;
+			}
+
+			if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				return error_code;
+			}
+		}
+		else if ((value1 & 0xC0) == 0x40) {
+			read_next_byte(reader);
+		}
+		else if ((value1 & 0xC0) == 0x80) {
+			read_next_word(reader);
+		}
+
 		if (value0 & 1) {
 			read_next_word(reader);
 		}
 		else {
 			read_next_byte(reader);
 		}
+
 		return 0;
 	}
 	else if (value0 == 0x83) {
@@ -517,37 +505,8 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if (is_segment_register_defined_and_relative(regs, segment_index)) {
-					unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
-					const char *target = segment_start + relative_address;
-					const int var_index = index_of_global_variable_with_start(global_variable_list, target);
-					struct GlobalVariable *var;
-					if (var_index >= 0) {
-						var = global_variable_list->sorted_variables[var_index];
-					}
-					else {
-						var = prepare_new_global_variable(global_variable_list);
-						var->start = target;
-						var->relative_address = relative_address;
-						if (value0 & 1) {
-							var->end = target + 2;
-							var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
-						}
-						else {
-							var->end = target + 1;
-							var->var_type = GLOBAL_VARIABLE_TYPE_BYTE;
-						}
-						insert_sorted_global_variable(global_variable_list, var);
-					}
-
-					if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
-						struct Reference *new_ref = prepare_new_reference(reference_list);
-						new_ref->instruction = opcode_reference;
-						new_ref->address = var;
-						new_ref->variable_value = NULL;
-						new_ref->block_value = NULL;
-						insert_sorted_reference(reference_list, new_ref);
-					}
+				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+					return error_code;
 				}
 			}
 			else if ((value1 & 0xC0) == 0x80) {

@@ -22,4 +22,17 @@ struct GlobalVariable {
 DEFINE_STRUCT_LIST(GlobalVariable, variable);
 DECLARE_STRUCT_LIST_METHODS(GlobalVariable, global_variable, variable, start);
 
+#include "refs.h"
+#include "registers.h"
+
+int add_global_variable_reference(
+        struct GlobalVariableList *global_variable_list,
+        struct ReferenceList *reference_list,
+        struct Registers *regs,
+        int segment_index,
+        int result_address,
+        const char *segment_start,
+        const int value0,
+        const char *opcode_reference);
+
 #endif // _GLOBAL_VARIABLES_H_

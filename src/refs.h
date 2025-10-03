@@ -1,6 +1,9 @@
 #ifndef _REFS_H_
 #define _REFS_H_
 
+struct Reference;
+struct ReferenceList;
+
 #include "global_variables.h"
 #include "code_blocks.h"
 
