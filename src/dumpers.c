@@ -316,6 +316,18 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
     else if ((value0 & 0xFC) == 0xF8 || (value0 & 0xFE) == 0xFC) {
         return 0;
     }
+    else if (value0 == 0xFE) {
+        if (reader->buffer_index >= reader->buffer_size) {
+            return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
+        }
+        const int value1 = read_next_byte(reader);
+        if (value1 & 0x30) {
+            return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
+        }
+        else {
+            return move_reader_forward_for_address_length(reader, value1);
+        }
+    }
     else if (value0 == 0xFF) {
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
@@ -892,7 +904,25 @@ static int dump_instruction(
             print("std\n");
             return 0;
         }
-        else if (value0 == 0xFF) {
+        else if (value0 == 0xFE) {
+            const int value1 = read_next_byte(reader);
+            if (value1 & 0x30) {
+                print_error("Unknown opcode ");
+                print_literal_hex_byte(print_error, value0);
+                print_error(" ");
+                print_literal_hex_byte(print_error, value1);
+                print_error("\n");
+                return 1;
+            }
+            else {
+                print(FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
+                print((value1 < 0xC0)? " byte " : " ");
+                dump_address(reader, reference_address, print, print_variable_label, value1, segment, BYTE_REGISTERS);
+                print("\n");
+                return 0;
+            }
+	    }
+	    else if (value0 == 0xFF) {
             const int value1 = read_next_byte(reader);
             if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
                 print_error("Unknown opcode ");
