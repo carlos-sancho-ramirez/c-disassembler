@@ -950,6 +950,11 @@ static int dump_variable(
         }
         print("'\n");
     }
+    else if (variable->var_type == GLOBAL_VARIABLE_TYPE_WORD && variable->start + 2 == variable->end) {
+        print("dw ");
+        print_literal_hex_word(print, *((const uint16_t *) variable->start));
+        print("\n");
+    }
     else {
         for (const char *position = variable->start; position < variable->end; position++) {
             print("db ");
