@@ -320,10 +320,10 @@ static int read_block_instruction_internal(
 			}
 		}
 		else {
-			if (is_segment_register_defined_and_relative(regs, rindex)) {
+			if (is_word_register_defined_and_relative(regs, rindex)) {
 				push_relative_in_stack(stack, get_word_register(regs, rindex));
 			}
-			else if (is_segment_register_defined(regs, (value0 >> 3) & 3)) {
+			else if (is_word_register_defined(regs, rindex)) {
 				push_in_stack(stack, get_word_register(regs, rindex));
 			}
 			else {
