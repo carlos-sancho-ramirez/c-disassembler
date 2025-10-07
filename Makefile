@@ -32,8 +32,9 @@ build/test: build
 build:
 	mkdir -p $@
 
-test: build/test/samples/bin/hello.asm
+test: build/test/samples/bin/hello.asm build/test/samples/bin/timer.asm
 	cmp test/samples/bin/hello.asm build/test/samples/bin/hello.asm
+	cmp test/samples/bin/timer.asm build/test/samples/bin/timer.asm
 
 clean:
 	rm -rf build
