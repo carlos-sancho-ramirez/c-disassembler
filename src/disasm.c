@@ -801,6 +801,7 @@ static int read_block_instruction_internal(
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
 			new_block->flags = 0;
+			initialize_code_block_origin_list(&new_block->origin_list);
 			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
 				return result;
 			}
@@ -843,6 +844,7 @@ static int read_block_instruction_internal(
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
 			new_block->flags = 0;
+			initialize_code_block_origin_list(&new_block->origin_list);
 			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
 				return result;
 			}
@@ -918,6 +920,7 @@ static int read_block_instruction_internal(
 					target_block->start = jump_destination;
 					target_block->end = jump_destination;
 					target_block->flags = 0;
+					initialize_code_block_origin_list(&target_block->origin_list);
 
 					struct Registers int_regs;
 					make_all_registers_undefined(&int_regs);
