@@ -6,6 +6,7 @@
 #include "print_utils.h"
 #include "reader.h"
 #include "registers.h"
+#include "stack.h"
 #include "interruption_table.h"
 #include "version.h"
 
@@ -206,6 +207,7 @@ static void read_block_instruction_address(
 static int read_block_instruction_internal(
 		struct Reader *reader,
 		struct Registers *regs,
+		struct Stack *stack,
 		struct InterruptionTable *int_table,
 		const char *segment_start,
 		void (*print_error)(const char *),
@@ -260,15 +262,75 @@ static int read_block_instruction_internal(
 		}
 	}
 	else if ((value0 & 0xE6) == 0x06 && value0 != 0x0F) {
+		const unsigned int sindex = (value0 >> 3) & 3;
+		if (value0 & 1) {
+			if (stack_is_empty(stack)) {
+				mark_segment_register_undefined(regs, sindex);
+			}
+			else if (top_is_defined_and_relative_in_stack(stack)) {
+				uint16_t stack_value = pop_from_stack(stack);
+				set_segment_register_relative(regs, sindex, opcode_reference, stack_value);
+			}
+			else if (top_is_defined_in_stack(stack)) {
+				uint16_t stack_value = pop_from_stack(stack);
+				set_segment_register(regs, sindex, opcode_reference, stack_value);
+			}
+			else {
+				pop_from_stack(stack);
+				mark_segment_register_undefined(regs, sindex);
+			}
+		}
+		else {
+			if (is_segment_register_defined_and_relative(regs, sindex)) {
+				push_relative_in_stack(stack, get_segment_register(regs, sindex));
+			}
+			else if (is_segment_register_defined(regs, sindex)) {
+				push_in_stack(stack, get_segment_register(regs, sindex));
+			}
+			else {
+				push_undefined_in_stack(stack);
+			}
+		}
+
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction_internal(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
+		return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
 	}
 	else if ((value0 & 0xF0) == 0x50) {
+		const unsigned int rindex = value0 & 7;
+		if (value0 & 0x08) {
+			if (stack_is_empty(stack)) {
+				mark_word_register_undefined(regs, rindex);
+			}
+			else if (top_is_defined_and_relative_in_stack(stack)) {
+				uint16_t stack_value = pop_from_stack(stack);
+				set_word_register_relative(regs, rindex, opcode_reference, stack_value);
+			}
+			else if (top_is_defined_in_stack(stack)) {
+				uint16_t stack_value = pop_from_stack(stack);
+				set_word_register(regs, rindex, opcode_reference, stack_value);
+			}
+			else {
+				pop_from_stack(stack);
+				mark_word_register_undefined(regs, rindex);
+			}
+		}
+		else {
+			if (is_segment_register_defined_and_relative(regs, rindex)) {
+				push_relative_in_stack(stack, get_word_register(regs, rindex));
+			}
+			else if (is_segment_register_defined(regs, (value0 >> 3) & 3)) {
+				push_in_stack(stack, get_word_register(regs, rindex));
+			}
+			else {
+				push_undefined_in_stack(stack);
+			}
+		}
+
 		return 0;
 	}
 	else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0) {
@@ -499,6 +561,10 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
+			if (!stack_is_empty(stack)) {
+				pop_from_stack(stack);
+			}
+
 			if ((value1 & 0xC7) == 0x06) {
 				int result_address = read_next_word(reader);
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
@@ -914,6 +980,7 @@ static int read_block_instruction_internal(
 static int read_block_instruction(
 		struct Reader *reader,
 		struct Registers *regs,
+		struct Stack *stack,
 		struct InterruptionTable *int_table,
 		const char *segment_start,
 		void (*print_error)(const char *),
@@ -922,7 +989,7 @@ static int read_block_instruction(
 		struct GlobalVariableList *global_variable_list,
 		struct ReferenceList *reference_list) {
 	const char *instruction = reader->buffer + reader->buffer_index;
-	return read_block_instruction_internal(reader, regs, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
+	return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
 }
 
 void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
@@ -988,6 +1055,28 @@ void print_regs(struct Registers *regs) {
 	print_segment_register(regs, 3, "DS");
 }
 
+void print_stack(struct Stack *stack) {
+	fprintf(stderr, " Stack(");
+	for (int i = 0; i < stack->word_count; i++) {
+		if (i > 0) {
+			fprintf(stderr, ", ");
+		}
+
+		const unsigned int definition = stack->defined_and_relative[i >> 3] >> ((i & 7) * 2);
+		if ((definition & 1) == 0) {
+			fprintf(stderr, "?");
+		}
+		else if (definition & 2) {
+			fprintf(stderr, "+%x", stack->values[i]);
+		}
+		else {
+			fprintf(stderr, "%x", stack->values[i]);
+		}
+	}
+
+	fprintf(stderr, ")");
+}
+
 void print_interruption_table(struct InterruptionTable *table) {
 	fprintf(stderr, " IntTable(");
 	for (int i = 0; i < 256; i++) {
@@ -1031,12 +1120,16 @@ int read_block(
 	reader.buffer_index = 0;
 	reader.buffer_size = block_max_size;
 
+	struct Stack stack;
+	initialize_stack(&stack);
+
 	struct InterruptionTable int_table;
 	make_all_interruption_table_undefined(&int_table);
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list))) {
+		if ((error_code = read_block_instruction(&reader, regs, &stack, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list))) {
+			clear_stack(&stack);
 			return error_code;
 		}
 
@@ -1049,6 +1142,7 @@ int read_block(
 		}
 	} while (block->start == block->end);
 
+	clear_stack(&stack);
 	return 0;
 }
 
@@ -1129,6 +1223,10 @@ int find_code_blocks_and_variables(
 				}
 
 				variable->end = end;
+			}
+			else {
+				// TODO: Find a better solution
+				variable->end = code_block_list->sorted_blocks[index]->end;
 			}
 		}
 	}

@@ -115,6 +115,7 @@ unsigned int get_segment_register(struct Registers *regs, unsigned int index);
 void set_byte_register(struct Registers *regs, unsigned int index, const char *where, unsigned char value);
 void set_word_register(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
 void set_word_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
+void mark_word_register_undefined(struct Registers *regs, unsigned int index);
 
 void set_register_al_undefined(struct Registers *regs);
 void set_register_ax_undefined(struct Registers *regs);
@@ -130,6 +131,7 @@ void set_register_cs_relative(struct Registers *regs, const char *where, uint16_
 void set_register_ss_relative(struct Registers *regs, const char *where, uint16_t value);
 void set_register_ds_relative(struct Registers *regs, const char *where, uint16_t value);
 void set_segment_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
+void mark_segment_register_undefined(struct Registers *regs, unsigned int index);
 
 void copy_registers(struct Registers *target_regs, const struct Registers *source_regs);
 void merge_registers(struct Registers *regs, const struct Registers *other_regs);

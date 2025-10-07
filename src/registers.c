@@ -520,6 +520,18 @@ void set_word_register_relative(struct Registers *regs, unsigned int index, cons
     }
 }
 
+void mark_word_register_undefined(struct Registers *regs, unsigned int index) {
+    assert(index < 8);
+
+    if (index < 4) {
+        regs->defined[index * 2] = NULL;
+        regs->defined[index * 2 + 1] = NULL;
+    }
+    else {
+        regs->defined[index + 4] = NULL;
+    }
+}
+
 void set_register_al_undefined(struct Registers *regs) {
     regs->defined[0] = NULL;
 }
@@ -569,6 +581,11 @@ void set_segment_register(struct Registers *regs, unsigned int index, const char
         // Assuming index == 3
         set_register_ds(regs, where, value);
     }
+}
+
+void mark_segment_register_undefined(struct Registers *regs, unsigned int index) {
+    assert(index < 4);
+    regs->defined[index + 12] = NULL;
 }
 
 void set_register_es_relative(struct Registers *regs, const char *where, uint16_t value) {
