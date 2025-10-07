@@ -289,6 +289,9 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
     else if ((value0 & 0xFE) == 0xE8) {
         return move_reader_forward(reader, 2);
     }
+    else if (value0 == 0xEA) {
+        return move_reader_forward(reader, 4);
+    }
     else if (value0 == 0xEB) {
         return move_reader_forward(reader, 1);
     }
@@ -801,6 +804,14 @@ static int dump_instruction(
             print_code_label(print, block->ip + reader->buffer_index + diff, block->relative_cs);
             print("\n");
             return 0;
+        }
+        else if (value0 == 0xEA) {
+            print("jmp ");
+            const int offset = read_next_word(reader);
+            print_literal_hex_word(print, read_next_word(reader));
+            print(":");
+            print_literal_hex_word(print, offset);
+            print("\n");
         }
         else if (value0 == 0xEB) {
             const int value1 = read_next_byte(reader);

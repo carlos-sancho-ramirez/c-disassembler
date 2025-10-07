@@ -820,6 +820,12 @@ static int read_block_instruction_internal(
 		}
 		return 0;
 	}
+	else if (value0 == 0xEA) {
+		read_next_word(reader);
+		read_next_word(reader);
+		block->end = block->start + reader->buffer_index;
+		return 0;
+	}
 	else if (value0 == 0xEB) {
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
