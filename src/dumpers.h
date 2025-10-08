@@ -12,6 +12,8 @@ int dump(
     unsigned int global_variable_count,
     struct Reference **global_variable_references,
     unsigned int global_variable_reference_count,
+    const char **sorted_relocations,
+    unsigned int relocation_count,
     void (*print)(const char *),
     void (*print_error)(const char *),
     void (*print_code_label)(void (*)(const char *), int, int),

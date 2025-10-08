@@ -1,7 +1,7 @@
 .PHONY: clean test
 
-headers = src/code_blocks.h src/dumpers.h src/global_variables.h src/interruption_table.h src/print_utils.h src/reader.h src/refs.h src/registers.h src/stack.h src/version.h
-sources = src/code_blocks.c src/disasm.c src/dumpers.c src/global_variables.c src/interruption_table.c src/print_utils.c src/reader.c src/refs.c src/registers.c src/stack.c build/src/version.c
+headers = src/code_blocks.h src/dumpers.h src/global_variables.h src/interruption_table.h src/print_utils.h src/reader.h src/refs.h src/registers.h src/relocations.h src/stack.h src/version.h
+sources = src/code_blocks.c src/disasm.c src/dumpers.c src/global_variables.c src/interruption_table.c src/print_utils.c src/reader.c src/refs.c src/registers.c src/relocations.c src/stack.c build/src/version.c
 
 build/bin/disasm: build/bin $(sources) $(headers)
 	cc -o $@ $(sources)

@@ -6,6 +6,7 @@
 #include "print_utils.h"
 #include "reader.h"
 #include "registers.h"
+#include "relocations.h"
 #include "stack.h"
 #include "interruption_table.h"
 #include "version.h"
@@ -13,6 +14,7 @@
 struct SegmentReadResult {
 	struct FarPointer *relocation_table;
 	unsigned int relocation_count;
+	const char **sorted_relocations;
 	char *buffer;
 	unsigned int size;
 	int relative_cs;
@@ -98,7 +100,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 			}
 
 			if (fread(result->relocation_table, sizeof(struct FarPointer), header.relocations_count, file) != header.relocations_count) {
-				fprintf(stderr, "Unable to read rlocation table from file\n");
+				fprintf(stderr, "Unable to read relocation table from file\n");
 				free(result->relocation_table);
 				fclose(file);
 				return 1;
@@ -150,6 +152,45 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 		result->ip = header.initial_ip;
 		result->print_code_label = print_dos_address_label;
 		result->print_variable_label = print_dos_variable_label;
+
+		if (header.relocations_count > 0) {
+			result->sorted_relocations = malloc(sizeof(const char *) * header.relocations_count);
+			if (!result->sorted_relocations) {
+				fprintf(stderr, "Unable to allocate memory for the sorted relocations\n");
+				free(result->buffer);
+				free(result->relocation_table);
+				fclose(file);
+				return 1;
+			}
+
+			for (int i = 0; i < header.relocations_count; i++) {
+				struct FarPointer *ptr = result->relocation_table + i;
+				const char *relocation = result->buffer + ptr->segment * 16 + ptr->offset;
+
+				int first = 0;
+				int last = i;
+				while (last > first) {
+					int index = (first + last) / 2;
+					const char *this_relocation = result->sorted_relocations[index];
+					if (this_relocation < relocation) {
+						first = index + 1;
+					}
+					else if (this_relocation > relocation) {
+						last = index;
+					}
+					else {
+						first = index;
+						last = index;
+					}
+				}
+
+				for (unsigned int j = header.relocations_count; j > first; j--) {
+					result->sorted_relocations[j] = result->sorted_relocations[j - 1];
+				}
+
+				result->sorted_relocations[first] = relocation;
+			}
+		}
 	}
 	else {
 		if (fseek(file, 0, SEEK_END)) {
@@ -210,6 +251,8 @@ static int read_block_instruction_internal(
 		struct Stack *stack,
 		struct InterruptionTable *int_table,
 		const char *segment_start,
+		const char **sorted_relocations,
+		unsigned int relocation_count,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
@@ -295,7 +338,7 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
+		return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -675,7 +718,14 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xF0) == 0xB0) {
 		if (value0 & 0x08) {
-			set_word_register(regs, value0 & 0x07, opcode_reference, read_next_word(reader));
+			const char *relocation_query = reader->buffer + reader->buffer_index;
+			int word_value = read_next_word(reader);
+			if (is_relocation_present_in_sorted_relocations(sorted_relocations, relocation_count, relocation_query)) {
+				set_word_register_relative(regs, value0 & 0x07, opcode_reference, word_value);
+			}
+			else {
+				set_word_register(regs, value0 & 0x07, opcode_reference, word_value);
+			}
 		}
 		else {
 			set_byte_register(regs, value0 & 0x07, opcode_reference, read_next_byte(reader));
@@ -1007,13 +1057,15 @@ static int read_block_instruction(
 		struct Stack *stack,
 		struct InterruptionTable *int_table,
 		const char *segment_start,
+		const char **sorted_relocations,
+		unsigned int relocation_count,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
 		struct ReferenceList *reference_list) {
 	const char *instruction = reader->buffer + reader->buffer_index;
-	return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
+	return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
 }
 
 void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
@@ -1133,6 +1185,8 @@ void print_interruption_table(struct InterruptionTable *table) {
 int read_block(
 		struct Registers *regs,
 		const char *segment_start,
+		const char **sorted_relocations,
+		unsigned int relocation_count,
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		unsigned int block_max_size,
@@ -1152,7 +1206,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, &stack, &int_table, segment_start, print_error, block, code_block_list, global_variable_list, reference_list))) {
+		if ((error_code = read_block_instruction(&reader, regs, &stack, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, reference_list))) {
 			clear_stack(&stack);
 			return error_code;
 		}
@@ -1218,7 +1272,7 @@ int find_code_blocks_and_variables(
 				unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
 	
 				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
-				if ((error_code = read_block(&regs, read_result->buffer, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {
+				if ((error_code = read_block(&regs, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {
 					return error_code;
 				}
 
@@ -1359,6 +1413,8 @@ int main(int argc, const char *argv[]) {
 			global_variable_list.variable_count,
 			reference_list.sorted_references,
 			reference_list.reference_count,
+			read_result.sorted_relocations,
+			read_result.relocation_count,
 			print_output,
 			print_error,
 			read_result.print_code_label,
@@ -1370,6 +1426,7 @@ int main(int argc, const char *argv[]) {
 
 	end:
 	if (read_result.relocation_count) {
+		free(read_result.sorted_relocations);
 		free(read_result.relocation_table);
 	}
 

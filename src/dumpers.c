@@ -1,6 +1,7 @@
 #include "dumpers.h"
 #include "print_utils.h"
 #include "reader.h"
+#include "relocations.h"
 
 const char *BYTE_REGISTERS[] = {
 	"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"
@@ -42,6 +43,8 @@ const char *SHIFT_INSTRUCTIONS[] = {
 const char *FF_INSTRUCTIONS[] = {
     "inc", "dec", "call", "call", "jmp", "jmp", "push" /*, NULL */
 };
+
+const char RELOCATION_ADD[] = "relative_cs + ";
 
 #define DUMP_GLOBAL_VARIABLE_UNDEFINED 0xFFFFFFFF
 
@@ -351,7 +354,9 @@ static int dump_instruction(
         unsigned int reference_address,
         unsigned int reference_variable_value,
         struct CodeBlock *reference_block_value,
-        void (*print)(const char *),
+        const char **sorted_relocations,
+		unsigned int relocation_count,
+		void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_code_label)(void (*)(const char *), int, int),
         void (*print_variable_label)(void (*)(const char *), unsigned int)) {
@@ -661,7 +666,12 @@ static int dump_instruction(
             if (value0 & 0x08) {
                 print(WORD_REGISTERS[value0 & 0x07]);
                 print(",");
+                const char *relocation_query = reader->buffer + reader->buffer_index;
                 const int offset_value = read_next_word(reader);
+                if (is_relocation_present_in_sorted_relocations(sorted_relocations, relocation_count, relocation_query)) {
+                    print(RELOCATION_ADD);
+                }
+
                 if (reference_variable_value != DUMP_GLOBAL_VARIABLE_UNDEFINED) {
                     print_variable_label(print, reference_variable_value);
                 }
@@ -1014,6 +1024,8 @@ int dump(
         unsigned int global_variable_count,
         struct Reference **global_variable_references,
         unsigned int global_variable_reference_count,
+        const char **sorted_relocations,
+		unsigned int relocation_count,
         void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_code_label)(void (*)(const char *), int, int),
@@ -1164,7 +1176,7 @@ int dump(
                         global_variable_reference_count--;
                     }
 
-                    unknown_opcode_found_in_block = dump_instruction(&reader, block, global_variable_reference_address, global_variable_reference_value, reference_block_value, print, print_error, print_code_label, print_variable_label);
+                    unknown_opcode_found_in_block = dump_instruction(&reader, block, global_variable_reference_address, global_variable_reference_value, reference_block_value, sorted_relocations, relocation_count, print, print_error, print_code_label, print_variable_label);
                     position = next_position;
                     if (position >= block->end) {
                         unknown_opcode_found_in_block = 0;
