@@ -44,7 +44,7 @@ const char *FF_INSTRUCTIONS[] = {
     "inc", "dec", "call", "call", "jmp", "jmp", "push" /*, NULL */
 };
 
-const char RELOCATION_ADD[] = "relative_cs + ";
+const char RELOCATION_VALUE[] = "base_segment";
 
 #define DUMP_GLOBAL_VARIABLE_UNDEFINED 0xFFFFFFFF
 
@@ -668,18 +668,35 @@ static int dump_instruction(
                 print(",");
                 const char *relocation_query = reader->buffer + reader->buffer_index;
                 const int offset_value = read_next_word(reader);
-                if (is_relocation_present_in_sorted_relocations(sorted_relocations, relocation_count, relocation_query)) {
-                    print(RELOCATION_ADD);
+                int relocation_segment_present = 0;
+                if ((relocation_segment_present = is_relocation_present_in_sorted_relocations(sorted_relocations, relocation_count, relocation_query))) {
+                    print(RELOCATION_VALUE);
                 }
 
                 if (reference_variable_value != DUMP_GLOBAL_VARIABLE_UNDEFINED) {
+                    if (relocation_segment_present) {
+                        print("+");
+                    }
+
                     print_variable_label(print, reference_variable_value);
                 }
                 else if (reference_block_value) {
+                    if (relocation_segment_present) {
+                        print("+");
+                    }
+
                     print_code_label(print, reference_block_value->ip, reference_block_value->relative_cs);
                 }
                 else {
-                    print_literal_hex_word(print, offset_value);
+                    if (relocation_segment_present) {
+                        if (offset_value) {
+                            print("+");
+                            print_literal_hex_word(print, offset_value);
+                        }
+                    }
+                    else {
+                        print_literal_hex_word(print, offset_value);
+                    }
                 }
             }
             else {
