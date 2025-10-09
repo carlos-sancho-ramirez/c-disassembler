@@ -11,6 +11,8 @@
 #include "interruption_table.h"
 #include "version.h"
 
+#define SEGMENT_READ_RESULT_FLAG_DS_MATCHES_CS_AT_START 1
+
 struct SegmentReadResult {
 	struct FarPointer *relocation_table;
 	unsigned int relocation_count;
@@ -19,10 +21,15 @@ struct SegmentReadResult {
 	unsigned int size;
 	int relative_cs;
 	unsigned int ip;
+	unsigned int flags;
 
 	void (*print_code_label)(void (*print)(const char *), int ip, int cs);
 	void (*print_variable_label)(void (*print)(const char *), unsigned int address);
 };
+
+static int ds_should_match_cs_at_segment_start(struct SegmentReadResult *result) {
+	return result->flags & SEGMENT_READ_RESULT_FLAG_DS_MATCHES_CS_AT_START;
+}
 
 static void print_help(const char *executedFile) {
 	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n  -o <filename>     Uses this file as output.\n                    If not defined, the result will be printed in the standard output.\n", executedFile);
@@ -152,6 +159,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 		result->ip = header.initial_ip;
 		result->print_code_label = print_dos_address_label;
 		result->print_variable_label = print_dos_variable_label;
+		result->flags = 0;
 
 		if (header.relocations_count > 0) {
 			result->sorted_relocations = malloc(sizeof(const char *) * header.relocations_count);
@@ -225,6 +233,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 		result->relative_cs = -0x10;
 		result->print_code_label = print_bin_address_label;
 		result->print_variable_label = print_bin_variable_label;
+		result->flags = SEGMENT_READ_RESULT_FLAG_DS_MATCHES_CS_AT_START;
 	}
 	fclose(file);
 	return 0;
@@ -1251,7 +1260,9 @@ int find_code_blocks_and_variables(
 	origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_OS;
 	make_all_registers_undefined(&origin->regs);
 	set_register_cs_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
-	set_register_ds_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
+	if (ds_should_match_cs_at_segment_start(read_result)) {
+		set_register_ds_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
+	}
 
 	int error_code;
 	if ((error_code = insert_sorted_code_block_origin(&first_block->origin_list, origin))) {
