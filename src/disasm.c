@@ -805,29 +805,45 @@ static int read_block_instruction_internal(
 				const char *jump_destination = segment_start + addr;
 				int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 				struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-				if (!potential_container || potential_container->start != jump_destination) {
-					struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
-					if (!new_block) {
+				struct CodeBlock *target_block;
+				if (potential_container && potential_container->start == jump_destination) {
+					target_block = potential_container;
+				}
+				else {
+					target_block = prepare_new_code_block(code_block_list);
+					if (!target_block) {
 						return 1;
 					}
 
-					new_block->relative_cs = target_relative_cs;
-					new_block->ip = target_ip;
-					new_block->start = jump_destination;
-					new_block->end = jump_destination;
-					new_block->flags = 0;
-					initialize_code_block_origin_list(&new_block->origin_list);
-					if ((result = add_code_block_origin(new_block, CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION, CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION, regs))) {
+					target_block->relative_cs = target_relative_cs;
+					target_block->ip = target_ip;
+					target_block->start = jump_destination;
+					target_block->end = jump_destination;
+					target_block->flags = 0;
+					initialize_code_block_origin_list(&target_block->origin_list);
+					if ((result = add_code_block_origin(target_block, CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION, CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION, regs))) {
 						return result;
 					}
 
-					if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+					if ((result = insert_sorted_code_block(code_block_list, target_block))) {
 						return result;
 					}
 
 					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
 						potential_container->end = jump_destination;
 						invalidate_code_block_check(potential_container);
+					}
+				}
+
+				const char *instruction = where_register_dx_defined(regs);
+				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
+					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
+						struct Reference *new_ref = prepare_new_reference(reference_list);
+						new_ref->instruction = instruction;
+						new_ref->address = NULL;
+						new_ref->variable_value = NULL;
+						new_ref->block_value = target_block;
+						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
 			}
