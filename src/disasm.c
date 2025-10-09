@@ -486,87 +486,24 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
-			int can_resolve_address = 0;
-			int result_address;
-			const int rm = value1 & 0x07;
-			if ((value1 & 0xC0) == 0) {
-				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_si(regs)) & 0xFFFF;
+			if ((value1 & 0xC7) == 6) {
+				int result_address = read_next_word(reader);
+				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+					segment_index = SEGMENT_INDEX_DS;
 				}
-				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_di(regs)) & 0xFFFF;
-				}
-				else if (rm == 4 && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = get_register_si(regs) & 0xFFFF;
-				}
-				else if (rm == 5 && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = get_register_di(regs) & 0xFFFF;
-				}
-				else if (rm == 6) {
-					can_resolve_address = 1;
-					result_address = read_next_word(reader);
-				}
-				else if (rm == 7 && is_register_bx_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = get_register_bx(regs) & 0xFFFF;
+
+				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+					return error_code;
 				}
 			}
 			else if ((value1 & 0xC0) == 0x40) {
 				const int raw_value = read_next_byte(reader);
-				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 4 && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 5 && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 7 && is_register_bx_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
-				}
 			}
 			else if ((value1 & 0xC0) == 0x80) {
 				const int raw_value = read_next_word(reader);
-				if (rm == 0 && is_register_bx_defined(regs) && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_si(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 1 && is_register_bx_defined(regs) && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + get_register_di(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 4 && is_register_si_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_si(regs) + raw_value) & 0xFFFF;
-				}
-				else if (rm == 5 && is_register_di_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_di(regs) + raw_value) & 0xFFFF;
-				}
-				else if ((value1 & 0xC7) == 6) {
-					can_resolve_address = 1;
-					result_address = raw_value;
-				}
-				else if (rm == 7 && is_register_bx_defined(regs)) {
-					can_resolve_address = 1;
-					result_address = (get_register_bx(regs) + raw_value) & 0xFFFF;
-				}
 			}
-			else {
-				// Assuming (value1 & 0xC0) == 0xC0
+			else if (value1 >= 0xC0) {
+				const int rm = value1 & 0x07;
 				const int index = (value1 >> 3) & 0x03;
 				if ((value0 & 2) && is_word_register_defined(regs, rm)) {
 					const uint16_t value = get_word_register(regs, rm);
@@ -585,19 +522,6 @@ static int read_block_instruction_internal(
 					else {
 						set_word_register(regs, rm, opcode_reference, value);
 					}
-				}
-			}
-
-			if (can_resolve_address && is_register_ds_defined_and_relative(regs)) {
-				unsigned int relative_address = (get_register_ds(regs) * 16 + result_address) & 0xFFFF;
-				const char *target = segment_start + relative_address;
-				if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
-					struct GlobalVariable *new_var = prepare_new_global_variable(global_variable_list);
-					new_var->start = target;
-					new_var->end = target + 2;
-					new_var->relative_address = relative_address;
-					new_var->var_type = GLOBAL_VARIABLE_TYPE_WORD;
-					insert_sorted_global_variable(global_variable_list, new_var);
 				}
 			}
 
