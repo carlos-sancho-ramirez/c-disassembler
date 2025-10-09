@@ -1015,7 +1015,23 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
-			read_block_instruction_address(reader, value1);
+			if ((value1 & 0xC7) == 0x06) {
+				int result_address = read_next_word(reader);
+				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+					segment_index = SEGMENT_INDEX_DS;
+				}
+
+				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+					return error_code;
+				}
+			}
+			else if ((value1 & 0xC0) == 0x80) {
+				read_next_word(reader);
+			}
+			else if ((value1 & 0xC0) == 0x40) {
+				read_next_byte(reader);
+			}
+
 			if ((value1 & 0x30) == 0x20) {
 				block->end = block->start + reader->buffer_index;
 			}
