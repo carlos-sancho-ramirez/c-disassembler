@@ -782,8 +782,9 @@ static int read_block_instruction_internal(
 		if (interruption_number == 0x20) {
 			block->end = block->start + reader->buffer_index;
 		}
-		else if (interruption_number == 0x21) {
-			if (get_register_ah(regs) == 0x09 && is_register_ds_defined_and_relative(regs) && is_register_dx_defined(regs)) {
+		else if (interruption_number == 0x21 && is_register_ah_defined(regs)) {
+			const unsigned int ah_value = get_register_ah(regs);
+			if (ah_value == 0x09 && is_register_ds_defined_and_relative(regs) && is_register_dx_defined(regs)) {
 				unsigned int relative_address = (get_register_ds(regs) * 16 + get_register_dx(regs)) & 0xFFFF;
 				const char *target = segment_start + relative_address;
 				struct GlobalVariable *var;
@@ -812,6 +813,9 @@ static int read_block_instruction_internal(
 						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
+			}
+			else if (ah_value == 0x4C) {
+				block->end = block->start + reader->buffer_index;
 			}
 		}
 		return 0;
