@@ -989,8 +989,23 @@ static int valid_char_for_string_literal(char ch) {
     return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == ' ' || ch == '!' || ch == '$';
 }
 
+static int should_display_global_variable_as_string_literal(const struct GlobalVariable *variable) {
+    if (variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+        for (const char *position = variable->start; position < variable->end; position++) {
+            if (!valid_char_for_string_literal(*position)) {
+                return 0;
+            }
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
+
 static int dump_variable(
         const struct GlobalVariable *variable,
+        const unsigned int variable_print_length,
         void (*print)(const char *),
         void (*print_error)(const char *),
         void (*print_variable_label)(void (*)(const char *), unsigned int)) {
@@ -998,18 +1013,7 @@ static int dump_variable(
     print_variable_label(print, variable->relative_address);
     print(":\n");
 
-    int should_display_string_literal = 0;
-    if (variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
-        should_display_string_literal = 1;
-        for (const char *position = variable->start; position < variable->end; position++) {
-            if (!valid_char_for_string_literal(*position)) {
-                should_display_string_literal = 0;
-                break;
-            }
-        }
-    }
-
-    if (should_display_string_literal) {
+    if (should_display_global_variable_as_string_literal(variable)) {
         print("db '");
         char str[] = "x";
         for (const char *position = variable->start; position < variable->end; position++) {
@@ -1018,13 +1022,21 @@ static int dump_variable(
         }
         print("'\n");
     }
-    else if (variable->var_type == GLOBAL_VARIABLE_TYPE_WORD && variable->start + 2 == variable->end) {
+    else if (variable->var_type == GLOBAL_VARIABLE_TYPE_WORD && variable->start + 2 == variable->end ||
+            variable->var_type == GLOBAL_VARIABLE_TYPE_FAR_POINTER && variable_print_length == 2) {
         print("dw ");
         print_literal_hex_word(print, *((const uint16_t *) variable->start));
         print("\n");
     }
+    else if (variable->var_type == GLOBAL_VARIABLE_TYPE_FAR_POINTER && variable->start + 4 == variable->end) {
+        print("dw ");
+        print_literal_hex_word(print, *((const uint16_t *) variable->start));
+        print("\ndw ");
+        print_literal_hex_word(print, *((const uint16_t *) variable->start + 2));
+        print("\n");
+    }
     else {
-        for (const char *position = variable->start; position < variable->end; position++) {
+        for (const char *position = variable->start; position < (variable->start + variable_print_length); position++) {
             print("db ");
             print_literal_hex_byte(print, *position);
             print("\n");
@@ -1078,11 +1090,14 @@ int dump(
         int position_in_variable = variable && variable->start <= position && position < variable->end;
 
         if (position_in_variable && !position_in_block && (!block || block->start >= variable->end)) {
-            if ((error_code = dump_variable(variable, print, print_error, print_variable_label))) {
+            struct GlobalVariable *next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
+            unsigned int variable_print_length = ((next_variable && next_variable->start < variable->end)? next_variable->start : variable->end) - variable->start;
+            if ((error_code = dump_variable(variable, variable_print_length, print, print_error, print_variable_label))) {
                 return error_code;
             }
 
-            variable = (++global_variable_index < global_variable_count)? sorted_variables[global_variable_index] : NULL;
+            ++global_variable_index;
+            variable = next_variable;
 
             if (block && variable) {
                 position = (block->start < variable->start)? block->start : variable->start;
@@ -1222,13 +1237,16 @@ int dump(
                 print(":\n");
             }
 
-            if ((error_code = dump_variable(variable, print, print_error, print_variable_label))) {
+            struct GlobalVariable *next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
+            unsigned int variable_print_length = ((next_variable && next_variable->start < variable->end)? next_variable->start : variable->end) - variable->start;
+            if ((error_code = dump_variable(variable, variable_print_length, print, print_error, print_variable_label))) {
                 return error_code;
             }
 
             const char *current_variable_end = variable->end;
             unsigned int current_variable_size = variable->end - variable->start;
-            variable = (++global_variable_index < global_variable_count)? sorted_variables[global_variable_index] : NULL;
+            ++global_variable_index;
+            variable = next_variable;
 
             if (unknown_opcode_found_in_block) {
                 position += current_variable_size;

@@ -54,3 +54,51 @@ int add_global_variable_reference(
 
     return 0;
 }
+
+int add_far_pointer_global_variable_reference(
+        struct GlobalVariableList *global_variable_list,
+        struct ReferenceList *reference_list,
+        struct Registers *regs,
+        int segment_index,
+        int result_address,
+        const char *segment_start,
+        const char *opcode_reference) {
+    if (is_segment_register_defined_and_relative(regs, segment_index)) {
+        int error_code;
+        unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
+        const char *target = segment_start + relative_address;
+        const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+        struct GlobalVariable *var;
+        if (var_index >= 0) {
+            var = global_variable_list->sorted_variables[var_index];
+            if (var->var_type == GLOBAL_VARIABLE_TYPE_WORD) {
+                var->end += 2;
+                var->var_type = GLOBAL_VARIABLE_TYPE_FAR_POINTER;
+            }
+        }
+        else {
+            var = prepare_new_global_variable(global_variable_list);
+            var->start = target;
+            var->relative_address = relative_address;
+            var->end = target + 4;
+            var->var_type = GLOBAL_VARIABLE_TYPE_FAR_POINTER;
+
+            if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
+                return error_code;
+            }
+        }
+
+        if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
+            struct Reference *new_ref = prepare_new_reference(reference_list);
+            new_ref->instruction = opcode_reference;
+            new_ref->address = var;
+            new_ref->variable_value = NULL;
+            new_ref->block_value = NULL;
+            if ((error_code = insert_sorted_reference(reference_list, new_ref))) {
+                return error_code;
+            }
+        }
+    }
+
+    return 0;
+}

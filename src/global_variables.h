@@ -7,6 +7,7 @@
 #define GLOBAL_VARIABLE_TYPE_BYTE 1
 #define GLOBAL_VARIABLE_TYPE_WORD 2
 #define GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING 5
+#define GLOBAL_VARIABLE_TYPE_FAR_POINTER 9
 
 #define GLOBAL_VARIABLE_FLAG_READ 1
 #define GLOBAL_VARIABLE_FLAG_WRITE 2
@@ -33,6 +34,15 @@ int add_global_variable_reference(
         int result_address,
         const char *segment_start,
         const int value0,
+        const char *opcode_reference);
+
+int add_far_pointer_global_variable_reference(
+        struct GlobalVariableList *global_variable_list,
+        struct ReferenceList *reference_list,
+        struct Registers *regs,
+        int segment_index,
+        int result_address,
+        const char *segment_start,
         const char *opcode_reference);
 
 #endif // _GLOBAL_VARIABLES_H_
