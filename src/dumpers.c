@@ -1252,20 +1252,17 @@ int dump(
                 }
             }
             else {
-                const char *next_position;
+                const char *next_position = position;
                 do {
-                    reader.buffer = position;
+                    reader.buffer = next_position;
                     reader.buffer_index = 0;
-                    reader.buffer_size = block->end - position;
+                    reader.buffer_size = block->end - next_position;
                     error_code = move_reader_forward_for_instruction_length(&reader);
-                    next_position = position + reader.buffer_index;
-                    if (next_position < current_variable_end) {
-                        position = next_position;
-                    }
+                    next_position += reader.buffer_index;
                 }
-                while (error_code == 0 && position < current_variable_end);
+                while (error_code == 0 && next_position < current_variable_end);
 
-                for (; position < next_position; position++) {
+                for (position = current_variable_end; position < next_position; position++) {
                     reader.buffer = position;
                     reader.buffer_index = 0;
                     reader.buffer_size = 1;
