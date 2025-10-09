@@ -77,19 +77,19 @@ int is_register_di_defined(struct Registers *regs) {
 }
 
 int is_register_ax_defined_and_absolute(struct Registers *regs) {
-    return regs->defined[0] != NULL && regs->defined[4] != NULL && (regs->relative & 0x10) == 0;
+    return regs->defined[0] != NULL && regs->defined[1] != NULL && (regs->relative & 0x10) == 0;
 }
 
 int is_register_cx_defined_and_absolute(struct Registers *regs) {
-    return regs->defined[1] != NULL && regs->defined[5] != NULL && (regs->relative & 0x20) == 0;
+    return regs->defined[2] != NULL && regs->defined[3] != NULL && (regs->relative & 0x20) == 0;
 }
 
 int is_register_dx_defined_and_absolute(struct Registers *regs) {
-    return regs->defined[2] != NULL && regs->defined[6] != NULL && (regs->relative & 0x40) == 0;
+    return regs->defined[4] != NULL && regs->defined[5] != NULL && (regs->relative & 0x40) == 0;
 }
 
 int is_register_bx_defined_and_absolute(struct Registers *regs) {
-    return regs->defined[3] != NULL && regs->defined[7] != NULL && (regs->relative & 0x80) == 0;
+    return regs->defined[6] != NULL && regs->defined[7] != NULL && (regs->relative & 0x80) == 0;
 }
 
 int is_register_sp_defined_and_absolute(struct Registers *regs) {
