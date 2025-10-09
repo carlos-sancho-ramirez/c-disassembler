@@ -796,6 +796,41 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
+			else if (ah_value == 0x25 && is_register_ds_defined_and_relative(regs) && is_register_dx_defined_and_absolute(regs)) { // Set interruption vector. DS:DX point to the handler code
+				uint16_t target_relative_cs = get_register_ds(regs);
+				uint16_t target_ip = get_register_dx(regs);
+				unsigned int addr = target_relative_cs;
+				addr = (addr * 16 + target_ip) & 0xFFFFF;
+
+				const char *jump_destination = segment_start + addr;
+				int result = index_of_code_block_containing_position(code_block_list, jump_destination);
+				struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+				if (!potential_container || potential_container->start != jump_destination) {
+					struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+					if (!new_block) {
+						return 1;
+					}
+
+					new_block->relative_cs = target_relative_cs;
+					new_block->ip = target_ip;
+					new_block->start = jump_destination;
+					new_block->end = jump_destination;
+					new_block->flags = 0;
+					initialize_code_block_origin_list(&new_block->origin_list);
+					if ((result = add_code_block_origin(new_block, CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION, CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION, regs))) {
+						return result;
+					}
+
+					if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+						return result;
+					}
+
+					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+						potential_container->end = jump_destination;
+						invalidate_code_block_check(potential_container);
+					}
+				}
+			}
 			else if (ah_value == 0x4C) {
 				block->end = block->start + reader->buffer_index;
 			}
