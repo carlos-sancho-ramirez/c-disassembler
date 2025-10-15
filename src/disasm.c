@@ -492,7 +492,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, 1, opcode_reference))) {
 					return error_code;
 				}
 
