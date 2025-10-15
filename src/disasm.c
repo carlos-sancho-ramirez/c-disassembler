@@ -495,6 +495,10 @@ static int read_block_instruction_internal(
 				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
+
+				if (value0 & 2) {
+					mark_segment_register_undefined(regs, (value1 >> 3) & 0x03);
+				}
 			}
 			else if ((value1 & 0xC0) == 0x40) {
 				const int raw_value = read_next_byte(reader);
