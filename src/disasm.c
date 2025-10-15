@@ -9,6 +9,7 @@
 #include "relocations.h"
 #include "stack.h"
 #include "interruption_table.h"
+#include "segments.h"
 #include "version.h"
 
 #define SEGMENT_READ_RESULT_FLAG_DS_MATCHES_CS_AT_START 1
@@ -266,6 +267,7 @@ static int read_block_instruction_internal(
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
+		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list,
 		int segment_index,
 		const char *opcode_reference) {
@@ -280,7 +282,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -347,7 +349,7 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
+		return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -427,7 +429,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 				return error_code;
 			}
 		}
@@ -462,7 +464,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 				return error_code;
 			}
 		}
@@ -492,7 +494,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, 1, opcode_reference))) {
+				if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, 1, opcode_reference))) {
 					return error_code;
 				}
 
@@ -568,7 +570,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -743,7 +745,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -1076,7 +1078,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_global_variable_reference(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -1120,9 +1122,10 @@ static int read_block_instruction(
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
+		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	const char *instruction = reader->buffer + reader->buffer_index;
-	return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
+	return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
 }
 
 void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
@@ -1249,6 +1252,7 @@ int read_block(
 		unsigned int block_max_size,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
+		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct Reader reader;
 	reader.buffer = block->start;
@@ -1263,7 +1267,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, &stack, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, reference_list))) {
+		if ((error_code = read_block_instruction(&reader, regs, &stack, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list))) {
 			clear_stack(&stack);
 			return error_code;
 		}
@@ -1286,6 +1290,7 @@ int find_code_blocks_and_variables(
 		void (*print_error)(const char *),
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
+		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
 	if (!first_block) {
@@ -1331,7 +1336,7 @@ int find_code_blocks_and_variables(
 				unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
 	
 				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
-				if ((error_code = read_block(&regs, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, reference_list))) {
+				if ((error_code = read_block(&regs, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, segment_start_list, reference_list))) {
 					return error_code;
 				}
 
@@ -1443,10 +1448,13 @@ int main(int argc, const char *argv[]) {
 	struct GlobalVariableList global_variable_list;
 	initialize_global_variable_list(&global_variable_list);
 
+	struct SegmentStartList segment_start_list;
+	initialize_segment_start_list(&segment_start_list);
+
 	struct ReferenceList reference_list;
 	initialize_reference_list(&reference_list);
 
-	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, &global_variable_list, &reference_list))) {
+	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, &global_variable_list, &segment_start_list, &reference_list))) {
 		goto end;
 	}
 
@@ -1460,22 +1468,28 @@ int main(int argc, const char *argv[]) {
 	else {
 		print_output_file = stdout;
 	}
+	buffer_start = read_result.buffer;
 
 	if (!strcmp(format, "bin")) {
 		print_output("org 0x100\n");
 	}
 
 	error_code = dump(
+			read_result.buffer,
+			read_result.relative_cs? 0x100 : 0,
 			code_block_list.sorted_blocks,
 			code_block_list.block_count,
 			global_variable_list.sorted_variables,
 			global_variable_list.variable_count,
+			segment_start_list.start,
+			segment_start_list.count,
 			reference_list.sorted_references,
 			reference_list.reference_count,
 			read_result.sorted_relocations,
 			read_result.relocation_count,
 			print_output,
 			print_error,
+			print_segment_start_label,
 			read_result.print_code_label,
 			read_result.print_variable_label);
 
@@ -1490,6 +1504,7 @@ int main(int argc, const char *argv[]) {
 	}
 
 	clear_reference_list(&reference_list);
+	clear_segment_start_list(&segment_start_list);
 	clear_global_variable_list(&global_variable_list);
 	clear_code_block_list(&code_block_list);
 	free(read_result.buffer);

@@ -6,7 +6,8 @@ DEFINE_STRUCT_LIST_METHODS(GlobalVariable, global_variable, variable, start, 8, 
 
 int add_global_variable_reference(
         struct GlobalVariableList *global_variable_list,
-        struct ReferenceList *reference_list,
+        struct SegmentStartList *segment_start_list,
+		struct ReferenceList *reference_list,
         struct Registers *regs,
         int segment_index,
         int result_address,
@@ -15,7 +16,8 @@ int add_global_variable_reference(
         const char *opcode_reference) {
     if (is_segment_register_defined_and_relative(regs, segment_index)) {
         int error_code;
-        unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
+        unsigned int segment_value = get_segment_register(regs, segment_index);
+        unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
         const char *target = segment_start + relative_address;
         const int var_index = index_of_global_variable_with_start(global_variable_list, target);
         struct GlobalVariable *var;
@@ -37,6 +39,15 @@ int add_global_variable_reference(
 
             if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
                 return error_code;
+            }
+        }
+
+        if (segment_value && segment_value != 0xFFF0) {
+            const char *target_segment_start = segment_start + segment_value * 16;
+            if (!contains_segment_start(segment_start_list, target_segment_start)) {
+                if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+                    return error_code;
+                }
             }
         }
 

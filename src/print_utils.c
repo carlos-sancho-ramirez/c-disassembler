@@ -4,6 +4,8 @@ const char HEX_CHAR[16] = {
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 };
 
+const char *buffer_start;
+
 void print_literal_hex_byte(void (*print)(const char *), int value) {
 	char number[] = "0x00";
 	number[3] = HEX_CHAR[value & 0x0F];
@@ -85,4 +87,16 @@ void print_dos_address_label(void (*print)(const char *), int ip, int cs) {
 void print_dos_variable_label(void (*print)(const char *), unsigned int address) {
 	print("var");
 	print_literal_hex_20bit_value_no_prefix(print, address);
+}
+
+void print_segment_start_label(void (*print)(const char *), const char *start) {
+	print("seg");
+	int diff = start - buffer_start;
+	print_literal_hex_word_no_prefix(print, diff >> 4);
+
+	if (diff & 0xF) {
+		char suffix[] = "_X";
+		suffix[1] = HEX_CHAR[diff & 0xF];
+		print(suffix);
+	}
 }
