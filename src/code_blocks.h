@@ -5,6 +5,7 @@
 #include "struct_list_macros.h"
 #include "registers.h"
 #include "interruption_table.h"
+#include "global_variables.h"
 
 /**
  * Denotes that this block is accessed directly by the OS. This is mainly saying that this block is the starting point of our executable.
@@ -51,6 +52,11 @@ struct CodeBlockOrigin {
 	 * State of the registers when the block is accessed by this origin.
 	 */
 	struct Registers regs;
+
+	/**
+	 * State of all known global variables when the block is accessed by this origin.
+	 */
+	struct GlobalVariableWordValueMap var_values;
 };
 
 /**
@@ -97,7 +103,8 @@ DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, code_block, block, start);
 
 void accumulate_registers_from_code_block_origin_list(struct Registers *regs, struct CodeBlockOriginList *origin_list);
-int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Registers *regs);
-int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs);
+int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
+int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
 
+int accumulate_global_variable_word_values_from_code_block_origin_list(struct GlobalVariableWordValueMap *map, struct CodeBlockOriginList *origin_list);
 #endif // _CODE_BLOCKS_H_

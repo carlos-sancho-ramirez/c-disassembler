@@ -259,6 +259,7 @@ static int read_block_instruction_internal(
 		struct Reader *reader,
 		struct Registers *regs,
 		struct Stack *stack,
+		struct GlobalVariableWordValueMap *var_values,
 		struct InterruptionTable *int_table,
 		const char *segment_start,
 		const char **sorted_relocations,
@@ -349,7 +350,7 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
+		return read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -405,7 +406,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs))) {
+			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs, var_values))) {
 				return result;
 			}
 
@@ -467,6 +468,49 @@ static int read_block_instruction_internal(
 			if ((error_code = add_global_variable_reference(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 				return error_code;
 			}
+
+			if ((value0 & 0xFD) == 0x89 && is_segment_register_defined_and_relative(regs, segment_index)) {
+				// All this logic comes from add_global_variable_reference method. We should find a way to centralise this
+				unsigned int segment_value = get_segment_register(regs, segment_index);
+        		unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+        		const char *target = segment_start + relative_address;
+        		const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+				if (var_index >= 0) {
+					const int reg_index = (value1 >> 3) & 7;
+					if (value0 == 0x89) {
+						if (is_word_register_defined_and_relative(regs, reg_index)) {
+							if ((error_code = put_global_variable_in_word_value_map_relative(var_values, target, get_word_register(regs, reg_index)))) {
+								return error_code;
+							}
+						}
+						else if (is_word_register_defined(regs, reg_index)) {
+							if ((error_code = put_global_variable_in_word_value_map(var_values, target, get_word_register(regs, reg_index)))) {
+								return error_code;
+							}
+						}
+						else {
+							if ((error_code = remove_global_variable_word_value_with_start(var_values, target))) {
+								return error_code;
+							}
+						}
+					}
+					else { // value == 0x8B
+						const int var_index_in_map = index_of_global_variable_in_word_value_map_with_start(var_values, target);
+						if (var_index_in_map >= 0) {
+							uint16_t var_value = get_global_variable_word_value_at_index(var_values, var_index_in_map);
+							if (is_global_variable_word_value_relative_at_index(var_values, var_index_in_map)) {
+								set_word_register_relative(regs, reg_index, opcode_reference, var_value);
+							}
+							else {
+								set_word_register(regs, reg_index, opcode_reference, var_value);
+							}
+						}
+						else {
+							mark_word_register_undefined(regs, reg_index);
+						}
+					}
+				}
+			}
 		}
 		else if ((value1 & 0xC0) == 0x80) {
 			read_next_word(reader);
@@ -498,8 +542,30 @@ static int read_block_instruction_internal(
 					return error_code;
 				}
 
-				if (value0 & 2) {
-					mark_segment_register_undefined(regs, (value1 >> 3) & 0x03);
+				if (value0 == 0x8E) {
+					const int reg_index = (value1 >> 3) & 3;
+					if (is_segment_register_defined_and_relative(regs, segment_index)) {
+						// All this logic comes from add_global_variable_reference method. We should find a way to centralise this
+						unsigned int segment_value = get_segment_register(regs, segment_index);
+						unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+						const char *target = segment_start + relative_address;
+						const int var_value_index = index_of_global_variable_in_word_value_map_with_start(var_values, target);
+						if (var_value_index >= 0) {
+							uint16_t var_value = get_global_variable_word_value_at_index(var_values, var_value_index);
+							if (is_global_variable_word_value_relative_at_index(var_values, var_value_index)) {
+								set_segment_register_relative(regs, reg_index, opcode_reference, var_value);
+							}
+							else {
+								set_segment_register(regs, reg_index, opcode_reference, var_value);
+							}
+						}
+						else {
+							mark_segment_register_undefined(regs, reg_index);
+						}
+					}
+					else {
+						mark_segment_register_undefined(regs, reg_index);
+					}
 				}
 			}
 			else if ((value1 & 0xC0) == 0x40) {
@@ -731,8 +797,9 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
+			int result_address;
 			if (value1 == 0x06) {
-				int result_address = read_next_word(reader);
+				result_address = read_next_word(reader);
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
 				}
@@ -749,7 +816,17 @@ static int read_block_instruction_internal(
 			}
 
 			if (value0 & 1) {
-				read_next_word(reader);
+				int immediate_value = read_next_word(reader);
+				if (value1 == 0x06 && is_segment_register_defined_and_relative(regs, segment_index)) {
+					// All this logic comes from add_global_variable_reference method. We should find a way to centralise this
+					unsigned int segment_value = get_segment_register(regs, segment_index);
+					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+					const char *target = segment_start + relative_address;
+					if (index_of_global_variable_with_start(global_variable_list, target) >= 0 &&
+							(error_code = put_global_variable_in_word_value_map(var_values, target, immediate_value))) {
+						return error_code;
+					}
+				}
 			}
 			else {
 				read_next_byte(reader);
@@ -817,7 +894,7 @@ static int read_block_instruction_internal(
 					target_block->end = jump_destination;
 					target_block->flags = 0;
 					initialize_code_block_origin_list(&target_block->origin_list);
-					if ((result = add_interruption_type_code_block_origin(target_block, regs))) {
+					if ((result = add_interruption_type_code_block_origin(target_block, regs, var_values))) {
 						return result;
 					}
 
@@ -918,7 +995,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs))) {
+			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs, var_values))) {
 				return result;
 			}
 
@@ -937,6 +1014,7 @@ static int read_block_instruction_internal(
 		}
 		else {
 			make_all_registers_undefined_except_cs(regs);
+			clear_global_variable_word_value_map(var_values);
 		}
 
 		return 0;
@@ -965,7 +1043,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs))) {
+			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs, var_values))) {
 				return result;
 			}
 
@@ -1045,7 +1123,7 @@ static int read_block_instruction_internal(
 					struct Registers int_regs;
 					make_all_registers_undefined(&int_regs);
 					set_register_cs_relative(&int_regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
-					if ((result = add_interruption_type_code_block_origin(target_block, &int_regs))) {
+					if ((result = add_interruption_type_code_block_origin(target_block, &int_regs, var_values))) {
 						return result;
 					}
 
@@ -1139,6 +1217,7 @@ static int read_block_instruction(
 		struct Reader *reader,
 		struct Registers *regs,
 		struct Stack *stack,
+		struct GlobalVariableWordValueMap *var_values,
 		struct InterruptionTable *int_table,
 		const char *segment_start,
 		const char **sorted_relocations,
@@ -1150,7 +1229,7 @@ static int read_block_instruction(
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	const char *instruction = reader->buffer + reader->buffer_index;
-	return read_block_instruction_internal(reader, regs, stack, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
+	return read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction);
 }
 
 void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
@@ -1238,6 +1317,24 @@ void print_stack(struct Stack *stack) {
 	fprintf(stderr, ")");
 }
 
+void print_global_variable_word_value_map(const struct GlobalVariableWordValueMap *map, const char *buffer) {
+	fprintf(stderr, " Vars(");
+	for (int i = 0; i < map->entry_count; i++) {
+		if (i > 0) {
+			fprintf(stderr, ", ");
+		}
+
+		fprintf(stderr, "%lx->", map->keys[i] - buffer);
+		if (is_global_variable_word_value_relative_at_index(map, i)) {
+			fprintf(stderr, "+");
+		}
+
+		fprintf(stderr, "%x", map->values[i]);
+	}
+
+	fprintf(stderr, ")");
+}
+
 void print_interruption_table(struct InterruptionTable *table) {
 	fprintf(stderr, " IntTable(");
 	for (int i = 0; i < 256; i++) {
@@ -1269,6 +1366,7 @@ void print_interruption_table(struct InterruptionTable *table) {
 
 int read_block(
 		struct Registers *regs,
+		struct GlobalVariableWordValueMap *var_values,
 		const char *segment_start,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
@@ -1292,7 +1390,7 @@ int read_block(
 
 	int error_code;
 	do {
-		if ((error_code = read_block_instruction(&reader, regs, &stack, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list))) {
+		if ((error_code = read_block_instruction(&reader, regs, &stack, var_values, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list))) {
 			clear_stack(&stack);
 			return error_code;
 		}
@@ -1336,6 +1434,7 @@ int find_code_blocks_and_variables(
 	if (ds_should_match_cs_at_segment_start(read_result)) {
 		set_register_ds_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
 	}
+	initialize_global_variable_word_value_map(&origin->var_values);
 
 	int error_code;
 	if ((error_code = insert_sorted_code_block_origin(&first_block->origin_list, origin))) {
@@ -1360,10 +1459,16 @@ int find_code_blocks_and_variables(
 				unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
 	
 				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
-				if ((error_code = read_block(&regs, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, segment_start_list, reference_list))) {
+
+				struct GlobalVariableWordValueMap var_values;
+				initialize_global_variable_word_value_map(&var_values);
+				accumulate_global_variable_word_values_from_code_block_origin_list(&var_values, &block->origin_list);
+
+				if ((error_code = read_block(&regs, &var_values, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, segment_start_list, reference_list))) {
 					return error_code;
 				}
 
+				clear_global_variable_word_value_map(&var_values);
 				mark_code_block_as_evaluated(block);
 			}
 		}
@@ -1525,6 +1630,14 @@ int main(int argc, const char *argv[]) {
 	if (read_result.relocation_count) {
 		free(read_result.sorted_relocations);
 		free(read_result.relocation_table);
+	}
+
+	for (int i = 0; i < code_block_list.block_count; i++) {
+		struct CodeBlockOriginList *origin_list = &code_block_list.sorted_blocks[i]->origin_list;
+		for (int j = 0; j < origin_list->origin_count; j++) {
+			clear_global_variable_word_value_map(&origin_list->sorted_origins[j]->var_values);
+		}
+		clear_code_block_origin_list(origin_list);
 	}
 
 	clear_reference_list(&reference_list);

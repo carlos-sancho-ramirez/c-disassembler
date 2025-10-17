@@ -1,4 +1,5 @@
 #include "code_blocks.h"
+#include "global_variables.h"
 #include <assert.h>
 
 #define CODE_BLOCK_FLAG_EVALUATED_AT_LEAST_ONCE 1
@@ -49,24 +50,44 @@ void accumulate_registers_from_code_block_origin_list(struct Registers *regs, st
     }
 }
 
-int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Registers *regs) {
+int accumulate_global_variable_word_values_from_code_block_origin_list(struct GlobalVariableWordValueMap *map, struct CodeBlockOriginList *origin_list) {
+    if (origin_list->origin_count) {
+        int error_code;
+        if ((error_code = copy_global_variable_word_values_map(map, &origin_list->sorted_origins[0]->var_values))) {
+            return error_code;
+        }
+
+        for (int i = 0; i < origin_list->origin_count; i++) {
+            if ((error_code = merge_global_variable_word_values_map(map, &origin_list->sorted_origins[i]->var_values))) {
+                return error_code;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values) {
     int error_code;
     struct CodeBlockOriginList *origin_list = &block->origin_list;
     int index = index_of_code_block_origin_with_instruction(origin_list, CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION);
     if (index < 0) {
         struct Registers accumulated_regs;
+        struct GlobalVariableWordValueMap accumulated_var_values;
         if (origin_list->origin_count) {
             accumulate_registers_from_code_block_origin_list(&accumulated_regs, origin_list);
+            accumulate_global_variable_word_values_from_code_block_origin_list(&accumulated_var_values, origin_list);
         }
 
         struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
         new_origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION;
         copy_registers(&new_origin->regs, regs);
+        copy_global_variable_word_values_map(&new_origin->var_values, var_values);
         if ((error_code = insert_sorted_code_block_origin(origin_list, new_origin))) {
             return error_code;
         }
 
-        if (origin_list->origin_count > 1 && changes_on_merging_registers(&accumulated_regs, regs)) {
+        if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_global_variable_word_values_map(&accumulated_var_values, var_values))) {
             invalidate_code_block_check(block);
         }
     }
@@ -81,7 +102,7 @@ int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Regi
     return 0;
 }
 
-int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs) {
+int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values) {
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE);
@@ -91,18 +112,21 @@ int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_
     int index = index_of_code_block_origin_with_instruction(origin_list, origin_instruction);
     if (index < 0) {
         struct Registers accumulated_regs;
+        struct GlobalVariableWordValueMap accumulated_var_values;
         if (origin_list->origin_count) {
             accumulate_registers_from_code_block_origin_list(&accumulated_regs, origin_list);
+            accumulate_global_variable_word_values_from_code_block_origin_list(&accumulated_var_values, origin_list);
         }
 
         struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
         new_origin->instruction = origin_instruction;
         copy_registers(&new_origin->regs, regs);
+        copy_global_variable_word_values_map(&new_origin->var_values, var_values);
         if ((error_code = insert_sorted_code_block_origin(origin_list, new_origin))) {
             return error_code;
         }
 
-        if (origin_list->origin_count > 1 && changes_on_merging_registers(&accumulated_regs, regs)) {
+        if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_global_variable_word_values_map(&accumulated_var_values, var_values))) {
             invalidate_code_block_check(block);
         } 
     }
