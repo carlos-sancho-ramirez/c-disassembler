@@ -6,17 +6,64 @@
 #include "registers.h"
 #include "interruption_table.h"
 
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_OS NULL
-#define CODE_BLOCK_ORIGIN_BLOCK_OS NULL
+/**
+ * Denotes that this block is accessed directly by the OS. This is mainly saying that this block is the starting point of our executable.
+ *
+ * When the type is selected. value in instruction should be ignored.
+ */
+#define CODE_BLOCK_ORIGIN_TYPE_OS 0
 
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION NULL
-#define CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION NULL
+/**
+ * Denotes that this block is accessed as a interruption handler.
+ *
+ * When the type is selected. value in instruction should be ignored.
+ */
+#define CODE_BLOCK_ORIGIN_TYPE_INTERRUPTION 1
 
+/**
+ * Denotes that thsi block is accessed as the continuation of the previous one, without any kind of jmp or call instruction.
+ *
+ * When this type is selected. value in instruction should be ignored.
+ * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
+ */
+#define CODE_BLOCK_ORIGIN_TYPE_CONTINUE 2
+
+/**
+ * Denotes that this block is accessed using a jmp or call instruction, or any of its variants, in any of our code instructions.
+ *
+ * When the type is selected. instruction and regs fields are also available and valid.
+ */
+#define CODE_BLOCK_ORIGIN_TYPE_JUMP 3
+
+/**
+ * Provide information regarding how the linked block is reached.
+ */
 struct CodeBlockOrigin {
+	/**
+	 * Instruction that performs the jump or call to this block.
+	 *
+	 * The value in this field is only valid if this code block origin has type JUMP.
+	 * Call get_code_block_origin_type method to determine the correct type before accessing this field.
+	 */
 	const char *instruction;
-	struct CodeBlock *block;
+
+	/**
+	 * State of the registers when the block is accessed by this origin.
+	 */
 	struct Registers regs;
 };
+
+/**
+ * Return the type of code block origin. They can be any of the values represented by CODE_BLOCK_ORIGIN_TYPE_*.
+ */
+int get_code_block_origin_type(struct CodeBlockOrigin *origin);
+
+/**
+ * Set the OS type to the given code block origin.
+ *
+ * This will replace any previous set type.
+ */
+void set_os_type_in_code_block_origin(struct CodeBlockOrigin *origin);
 
 DEFINE_STRUCT_LIST(CodeBlockOrigin, origin);
 DECLARE_STRUCT_LIST_METHODS(CodeBlockOrigin, code_block_origin, origin, instruction);
@@ -50,6 +97,7 @@ DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, code_block, block, start);
 
 void accumulate_registers_from_code_block_origin_list(struct Registers *regs, struct CodeBlockOriginList *origin_list);
-int add_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct CodeBlock *origin_block, struct Registers *regs);
+int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Registers *regs);
+int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs);
 
 #endif // _CODE_BLOCKS_H_

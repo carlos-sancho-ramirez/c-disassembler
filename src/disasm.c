@@ -405,7 +405,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
+			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs))) {
 				return result;
 			}
 
@@ -817,7 +817,7 @@ static int read_block_instruction_internal(
 					target_block->end = jump_destination;
 					target_block->flags = 0;
 					initialize_code_block_origin_list(&target_block->origin_list);
-					if ((result = add_code_block_origin(target_block, CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION, CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION, regs))) {
+					if ((result = add_interruption_type_code_block_origin(target_block, regs))) {
 						return result;
 					}
 
@@ -883,7 +883,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
+			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs))) {
 				return result;
 			}
 
@@ -926,7 +926,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_code_block_origin(new_block, opcode_reference, block, regs))) {
+			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs))) {
 				return result;
 			}
 
@@ -1006,7 +1006,7 @@ static int read_block_instruction_internal(
 					struct Registers int_regs;
 					make_all_registers_undefined(&int_regs);
 					set_register_cs_relative(&int_regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
-					if ((result = add_code_block_origin(target_block, CODE_BLOCK_ORIGIN_INSTRUCTION_INTERRUPTION, CODE_BLOCK_ORIGIN_BLOCK_INTERRUPTION, &int_regs))) {
+					if ((result = add_interruption_type_code_block_origin(target_block, &int_regs))) {
 						return result;
 					}
 
@@ -1291,8 +1291,7 @@ int find_code_blocks_and_variables(
 	initialize_code_block_origin_list(&first_block->origin_list);
 
 	struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&first_block->origin_list);
-	origin->block = CODE_BLOCK_ORIGIN_BLOCK_OS;
-	origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_OS;
+	set_os_type_in_code_block_origin(origin);
 	make_all_registers_undefined(&origin->regs);
 	set_register_cs_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
 	if (ds_should_match_cs_at_segment_start(read_result)) {
