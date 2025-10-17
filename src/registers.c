@@ -520,6 +520,21 @@ void set_word_register_relative(struct Registers *regs, unsigned int index, cons
     }
 }
 
+void mark_register_ax_undefined(struct Registers *regs) {
+    regs->defined[0] = NULL;
+    regs->defined[1] = NULL;
+}
+
+void mark_register_cx_undefined(struct Registers *regs) {
+    regs->defined[2] = NULL;
+    regs->defined[3] = NULL;
+}
+
+void mark_register_bx_undefined(struct Registers *regs) {
+    regs->defined[6] = NULL;
+    regs->defined[7] = NULL;
+}
+
 void mark_word_register_undefined(struct Registers *regs, unsigned int index) {
     assert(index < 8);
 

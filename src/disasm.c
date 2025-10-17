@@ -841,6 +841,11 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
+			else if (ah_value == 0x30) { // Get DOS version number
+				mark_register_ax_undefined(regs);
+				mark_register_cx_undefined(regs);
+				mark_register_bx_undefined(regs);
+			}
 			else if (ah_value == 0x4C) {
 				block->end = block->start + reader->buffer_index;
 			}
