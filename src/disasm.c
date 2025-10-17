@@ -639,17 +639,9 @@ static int read_block_instruction_internal(
 			if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
 				struct Reference *new_ref = prepare_new_reference(reference_list);
 				new_ref->instruction = opcode_reference;
-				new_ref->address = var;
-				new_ref->variable_value = NULL;
-				new_ref->block_value = NULL;
+				set_global_variable_reference_from_instruction_address(new_ref, var);
+				new_ref->flags |= (value0 & 2)? REFERENCE_FLAG_ACCESS_WRITE : REFERENCE_FLAG_ACCESS_READ;
 				insert_sorted_reference(reference_list, new_ref);
-			}
-
-			if (value0 & 2) {
-				var->flags |= GLOBAL_VARIABLE_FLAG_WRITE;
-			}
-			else {
-				var->flags |= GLOBAL_VARIABLE_FLAG_READ;
 			}
 		}
 
@@ -795,9 +787,7 @@ static int read_block_instruction_internal(
 					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
 						struct Reference *new_ref = prepare_new_reference(reference_list);
 						new_ref->instruction = instruction;
-						new_ref->address = NULL;
-						new_ref->variable_value = var;
-						new_ref->block_value = NULL;
+						set_global_variable_reference_from_instruction_immediate_value(new_ref, var);
 						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
@@ -846,9 +836,7 @@ static int read_block_instruction_internal(
 					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
 						struct Reference *new_ref = prepare_new_reference(reference_list);
 						new_ref->instruction = instruction;
-						new_ref->address = NULL;
-						new_ref->variable_value = NULL;
-						new_ref->block_value = target_block;
+						set_code_block_reference_from_instruction_immediate_value(new_ref, target_block);
 						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
@@ -1032,9 +1020,7 @@ static int read_block_instruction_internal(
 					if (index_of_reference_with_instruction(reference_list, where_offset) < 0) {
 						struct Reference *new_ref = prepare_new_reference(reference_list);
 						new_ref->instruction = where_offset;
-						new_ref->address = NULL;
-						new_ref->variable_value = NULL;
-						new_ref->block_value = target_block;
+						set_code_block_reference_from_instruction_immediate_value(new_ref, target_block);
 						insert_sorted_reference(reference_list, new_ref);
 					}
 				}

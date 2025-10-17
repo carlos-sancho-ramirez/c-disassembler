@@ -54,9 +54,7 @@ int add_global_variable_reference(
         if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
             struct Reference *new_ref = prepare_new_reference(reference_list);
             new_ref->instruction = opcode_reference;
-            new_ref->address = var;
-            new_ref->variable_value = NULL;
-            new_ref->block_value = NULL;
+            set_global_variable_reference_from_instruction_address(new_ref, var);
             if ((error_code = insert_sorted_reference(reference_list, new_ref))) {
                 return error_code;
             }
@@ -102,9 +100,7 @@ int add_far_pointer_global_variable_reference(
         if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
             struct Reference *new_ref = prepare_new_reference(reference_list);
             new_ref->instruction = opcode_reference;
-            new_ref->address = var;
-            new_ref->variable_value = NULL;
-            new_ref->block_value = NULL;
+            set_global_variable_reference_from_instruction_address(new_ref, var);
             if ((error_code = insert_sorted_reference(reference_list, new_ref))) {
                 return error_code;
             }

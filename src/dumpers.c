@@ -1245,15 +1245,23 @@ int dump(
                     struct CodeBlock *reference_block_value = NULL;
                     if (global_variable_reference_count > 0 && global_variable_references[0]->instruction == position) {
                         struct Reference *reference = global_variable_references[0];
-                        if (reference->address) {
-                            global_variable_reference_address = reference->address->relative_address;
+                        struct GlobalVariable *var;
+                        if ((var = get_global_variable_from_reference_target(reference))) {
+                            unsigned int relative_address = var->relative_address;
+                            if ((reference->flags & REFERENCE_FLAG_WHERE_IN_INSTRUCTION_MASK) == REFERENCE_FLAG_IN_INSTRUCTION_ADDRESS) {
+                                global_variable_reference_address = relative_address;
+                            }
+                            else {
+                                global_variable_reference_value = relative_address;
+                            }
+                        }
+                        else {
+                            struct CodeBlock *block;
+                            if ((block = get_code_block_from_reference_target(reference))) {
+                                reference_block_value = block;
+                            }
                         }
 
-                        if (reference->variable_value) {
-                            global_variable_reference_value = reference->variable_value->relative_address;
-                        }
-
-                        reference_block_value = reference->block_value;
                         global_variable_references++;
                         global_variable_reference_count--;
                     }
