@@ -1026,9 +1026,27 @@ static int valid_char_for_string_literal(char ch) {
 }
 
 static int should_display_global_variable_as_string_literal(const struct GlobalVariable *variable) {
-    if (variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+    if (variable->var_type == GLOBAL_VARIABLE_TYPE_STRING || variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
         for (const char *position = variable->start; position < variable->end; position++) {
             if (!valid_char_for_string_literal(*position)) {
+                return 0;
+            }
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
+
+static int valid_char_for_string_with_backquotes(char ch) {
+    return valid_char_for_string_literal(ch) || ch == '\r' || ch == '\n';
+}
+
+static int should_display_global_variable_as_string_with_backquotes(const struct GlobalVariable *variable) {
+    if (variable->var_type == GLOBAL_VARIABLE_TYPE_STRING || variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+        for (const char *position = variable->start; position < variable->end; position++) {
+            if (!valid_char_for_string_with_backquotes(*position)) {
                 return 0;
             }
         }
@@ -1057,6 +1075,32 @@ static int dump_variable(
             print(str);
         }
         print("'\n");
+    }
+    else if (should_display_global_variable_as_string_with_backquotes(variable)) {
+        int start_required = 1;
+        char str[] = "x";
+        for (const char *position = variable->start; position < variable->end; position++) {
+            if (start_required) {
+                print("db `");
+                start_required = 0;
+            }
+
+            if (*position == '\r') {
+                print("\\r");
+            }
+            else if (*position == '\n') {
+                print("\\n`\n");
+                start_required = 1;
+            }
+            else {
+                str[0] = *position;
+                print(str);
+            }
+        }
+
+        if (!start_required) {
+            print("`\n");
+        }
     }
     else if (variable->var_type == GLOBAL_VARIABLE_TYPE_WORD && variable->start + 2 == variable->end ||
             variable->var_type == GLOBAL_VARIABLE_TYPE_FAR_POINTER && variable_print_length == 2) {

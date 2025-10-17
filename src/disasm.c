@@ -846,6 +846,36 @@ static int read_block_instruction_internal(
 				mark_register_cx_undefined(regs);
 				mark_register_bx_undefined(regs);
 			}
+			else if (ah_value == 0x40) { // Write to file using handle
+				unsigned int length;
+				if (is_register_ds_defined_and_relative(regs) && is_register_dx_defined_and_absolute(regs) && is_register_cx_defined_and_absolute(regs) && (length = get_register_cx(regs)) > 0) {
+					int error_code;
+					unsigned int segment_value = get_register_ds(regs);
+					unsigned int relative_address = (segment_value * 16 + get_register_dx(regs)) & 0xFFFF;
+					const char *target = segment_start + relative_address;
+					if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
+						struct GlobalVariable *var = prepare_new_global_variable(global_variable_list);
+						var->start = target;
+						var->relative_address = relative_address;
+						var->end = target + length;
+						var->var_type = GLOBAL_VARIABLE_TYPE_STRING;
+			
+						if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
+							return error_code;
+						}
+					}
+			
+					if (segment_value && segment_value != 0xFFF0) {
+						const char *target_segment_start = segment_start + segment_value * 16;
+						if (!contains_segment_start(segment_start_list, target_segment_start)) {
+							if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+								return error_code;
+							}
+						}
+					}
+				}
+				mark_register_ax_undefined(regs);
+			}
 			else if (ah_value == 0x4C) {
 				block->end = block->start + reader->buffer_index;
 			}
