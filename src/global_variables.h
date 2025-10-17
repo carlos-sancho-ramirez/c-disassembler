@@ -1,6 +1,7 @@
 #ifndef _GLOBAL_VARIABLES_H_
 #define _GLOBAL_VARIABLES_H_
 
+#include <stdint.h>
 #include <stdlib.h>
 #include "struct_list_macros.h"
 
