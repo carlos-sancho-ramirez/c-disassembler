@@ -905,6 +905,10 @@ static int read_block_instruction_internal(
 		if (value0 & 1) {
 			block->end = block->start + reader->buffer_index;
 		}
+		else {
+			make_all_registers_undefined_except_cs(regs);
+		}
+
 		return 0;
 	}
 	else if (value0 == 0xEA) {

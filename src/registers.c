@@ -869,3 +869,11 @@ void make_all_registers_undefined(struct Registers *regs) {
         regs->defined[i] = NULL;
     }
 }
+
+void make_all_registers_undefined_except_cs(struct Registers *regs) {
+    for (int i = 0; i < 16; i++) {
+        if (i != 13) {
+            regs->defined[i] = NULL;
+        }
+    }
+}
