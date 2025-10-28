@@ -1009,12 +1009,36 @@ static int read_block_instruction_internal(
 			}
 		}
 
-		if (value0 & 1) {
-			block->end = block->start + reader->buffer_index;
-		}
-		else {
-			make_all_registers_undefined_except_cs(regs);
-			clear_global_variable_word_value_map(var_values);
+		block->end = block->start + reader->buffer_index;
+		if (value0 == 0xE8) {
+			result = index_of_code_block_with_start(code_block_list, block->end);
+			if (result < 0) {
+				struct CodeBlock *next_block = prepare_new_code_block(code_block_list);
+				if (!next_block) {
+					return 1;
+				}
+
+				next_block->relative_cs = block->relative_cs;
+				next_block->ip = block->ip + reader->buffer_index;
+				next_block->start = block->end;
+				next_block->end = block->end;
+				next_block->flags = 0;
+				initialize_code_block_origin_list(&next_block->origin_list);
+				if ((result = add_call_three_behind_type_code_block_origin(next_block))) {
+					return result;
+				}
+
+				if ((result = insert_sorted_code_block(code_block_list, next_block))) {
+					return result;
+				}
+			}
+			else {
+				struct CodeBlock *next_block = code_block_list->sorted_blocks[result];
+				struct CodeBlockOriginList *origin_list = &next_block->origin_list;
+				if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0 && (result = add_call_three_behind_type_code_block_origin(next_block))) {
+					return result;
+				}
+			}
 		}
 
 		return 0;
@@ -1175,8 +1199,10 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
+			int instruction_length = 2;
 			if ((value1 & 0xC7) == 0x06) {
 				int result_address = read_next_word(reader);
+				instruction_length = 4;
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
 				}
@@ -1187,12 +1213,71 @@ static int read_block_instruction_internal(
 			}
 			else if ((value1 & 0xC0) == 0x80) {
 				read_next_word(reader);
+				instruction_length = 4;
 			}
 			else if ((value1 & 0xC0) == 0x40) {
 				read_next_byte(reader);
+				instruction_length = 3;
 			}
 
-			if ((value1 & 0x30) == 0x20) {
+			if ((value1 & 0x30) == 0x10) {
+				block->end = block->start + reader->buffer_index;
+				int result = index_of_code_block_with_start(code_block_list, block->end);
+				if (result < 0) {
+					struct CodeBlock *next_block = prepare_new_code_block(code_block_list);
+					if (!next_block) {
+						return 1;
+					}
+
+					next_block->relative_cs = block->relative_cs;
+					next_block->ip = block->ip + reader->buffer_index;
+					next_block->start = block->end;
+					next_block->end = block->end;
+					next_block->flags = 0;
+					initialize_code_block_origin_list(&next_block->origin_list);
+					if (instruction_length == 2) {
+						if ((result = add_call_two_behind_type_code_block_origin(next_block))) {
+							return result;
+						}
+					}
+					else if (instruction_length == 3) {
+						if ((result = add_call_three_behind_type_code_block_origin(next_block))) {
+							return result;
+						}
+					}
+					else {
+						// Assuming instruction_length == 4
+						if ((result = add_call_four_behind_type_code_block_origin(next_block))) {
+							return result;
+						}
+					}
+
+					if ((result = insert_sorted_code_block(code_block_list, next_block))) {
+						return result;
+					}
+				}
+				else {
+					struct CodeBlock *next_block = code_block_list->sorted_blocks[result];
+					struct CodeBlockOriginList *origin_list = &next_block->origin_list;
+					if (instruction_length == 2) {
+						if (index_of_code_block_origin_of_type_call_two_behind(origin_list) < 0 && (result = add_call_two_behind_type_code_block_origin(next_block))) {
+							return result;
+						}
+					}
+					else if (instruction_length == 3) {
+						if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0 && (result = add_call_three_behind_type_code_block_origin(next_block))) {
+							return result;
+						}
+					}
+					else {
+						// Assuming instruction_length == 4
+						if (index_of_code_block_origin_of_type_call_four_behind(origin_list) < 0 && (result = add_call_four_behind_type_code_block_origin(next_block))) {
+							return result;
+						}
+					}
+				}
+			}
+			else if ((value1 & 0x30) == 0x20) {
 				block->end = block->start + reader->buffer_index;
 			}
 			return 0;

@@ -9,6 +9,9 @@
 #define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS ((const char *) CODE_BLOCK_ORIGIN_TYPE_OS)
 #define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION ((const char *) CODE_BLOCK_ORIGIN_TYPE_INTERRUPTION)
 #define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE ((const char *) CODE_BLOCK_ORIGIN_TYPE_CONTINUE)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_TWO_BEHIND)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_THREE_BEHIND)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_FOUR_BEHIND)
 
 int code_block_requires_evaluation(struct CodeBlock *block) {
     return !(block->flags & CODE_BLOCK_FLAG_VALID_EVALUATION);
@@ -32,6 +35,9 @@ int get_code_block_origin_type(struct CodeBlockOrigin *origin) {
     return (instruction == CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS)? CODE_BLOCK_ORIGIN_TYPE_OS :
             (instruction == CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION)? CODE_BLOCK_ORIGIN_TYPE_INTERRUPTION :
             (instruction == CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE)? CODE_BLOCK_ORIGIN_TYPE_CONTINUE :
+            (instruction == CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND)? CODE_BLOCK_ORIGIN_TYPE_CALL_TWO_BEHIND :
+            (instruction == CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND)? CODE_BLOCK_ORIGIN_TYPE_CALL_THREE_BEHIND :
+            (instruction == CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND)? CODE_BLOCK_ORIGIN_TYPE_CALL_FOUR_BEHIND :
             CODE_BLOCK_ORIGIN_TYPE_JUMP;
 }
 
@@ -102,10 +108,73 @@ int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Regi
     return 0;
 }
 
+int add_call_two_behind_type_code_block_origin(struct CodeBlock *block) {
+    int error_code;
+    struct CodeBlockOriginList *origin_list = &block->origin_list;
+    if (index_of_code_block_origin_of_type_call_two_behind(origin_list) < 0) {
+        struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
+        if (!new_origin) {
+            return 1;
+        }
+
+        new_origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND;
+        make_all_registers_undefined(&new_origin->regs);
+        initialize_global_variable_word_value_map(&new_origin->var_values);
+        if ((error_code = insert_sorted_code_block_origin(origin_list, new_origin))) {
+            return error_code;
+        }
+    }
+
+    return 0;
+}
+
+int add_call_three_behind_type_code_block_origin(struct CodeBlock *block) {
+    int error_code;
+    struct CodeBlockOriginList *origin_list = &block->origin_list;
+    if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0) {
+        struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
+        if (!new_origin) {
+            return 1;
+        }
+
+        new_origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND;
+        make_all_registers_undefined(&new_origin->regs);
+        initialize_global_variable_word_value_map(&new_origin->var_values);
+        if ((error_code = insert_sorted_code_block_origin(origin_list, new_origin))) {
+            return error_code;
+        }
+    }
+
+    return 0;
+}
+
+int add_call_four_behind_type_code_block_origin(struct CodeBlock *block) {
+    int error_code;
+    struct CodeBlockOriginList *origin_list = &block->origin_list;
+    if (index_of_code_block_origin_of_type_call_four_behind(origin_list) < 0) {
+        struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
+        if (!new_origin) {
+            return 1;
+        }
+
+        new_origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND;
+        make_all_registers_undefined(&new_origin->regs);
+        initialize_global_variable_word_value_map(&new_origin->var_values);
+        if ((error_code = insert_sorted_code_block_origin(origin_list, new_origin))) {
+            return error_code;
+        }
+    }
+
+    return 0;
+}
+
 int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values) {
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE);
+    assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND);
+    assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND);
+    assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND);
 
     int error_code;
     struct CodeBlockOriginList *origin_list = &block->origin_list;
@@ -142,3 +211,15 @@ int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_
 }
 
 DEFINE_STRUCT_LIST_METHODS(CodeBlockOrigin, code_block_origin, origin, instruction, 8, 4)
+
+int index_of_code_block_origin_of_type_call_two_behind(struct CodeBlockOriginList *list) {
+    return index_of_code_block_origin_with_instruction(list, CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND);
+}
+
+int index_of_code_block_origin_of_type_call_three_behind(struct CodeBlockOriginList *list) {
+    return index_of_code_block_origin_with_instruction(list, CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND);
+}
+
+int index_of_code_block_origin_of_type_call_four_behind(struct CodeBlockOriginList *list) {
+    return index_of_code_block_origin_with_instruction(list, CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND);
+}
