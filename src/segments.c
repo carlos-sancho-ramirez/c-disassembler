@@ -29,16 +29,18 @@ int contains_segment_start(struct SegmentStartList *list, const char *start) {
 }
 
 int insert_segment_start(struct SegmentStartList *list, const char *new_start) {
-    if ((list->count % SEGMENT_START_LIST_GRANULARITY) == 0) {
+    int first = 0;
+	int last = list->count;
+	int i;
+
+	if ((list->count % SEGMENT_START_LIST_GRANULARITY) == 0) {
         list->start = realloc(list->start, list->count + SEGMENT_START_LIST_GRANULARITY);
         if (!list->start) {
             return 1;
         }
     }
 
-    int first = 0;
-	int last = list->count;
-	while (last > first) {
+    while (last > first) {
 		int index = (first + last) / 2;
 		const char *this_start = list->start[index];
 		if (this_start < new_start) {
@@ -52,7 +54,7 @@ int insert_segment_start(struct SegmentStartList *list, const char *new_start) {
 		}
 	}
 
-	for (int i = list->count; i > last; i--) {
+	for (i = list->count; i > last; i--) {
 		list->start[i] = list->start[i - 1];
 	}
 

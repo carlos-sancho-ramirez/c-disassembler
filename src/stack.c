@@ -25,6 +25,7 @@ int stack_is_empty(struct Stack *stack) {
 }
 
 int push_undefined_in_stack(struct Stack *stack) {
+    const unsigned int index = stack->word_count >> 3;
     if (stack->word_count == stack->allocated_word_count) {
         stack->allocated_word_count += STACK_VALUES_GRANULARITY;
         stack->values = realloc(stack->values, stack->allocated_word_count);
@@ -34,13 +35,13 @@ int push_undefined_in_stack(struct Stack *stack) {
         }
     }
 
-    const unsigned int index = stack->word_count >> 3;
     stack->defined_and_relative[index] &= ~(1 << ((stack->word_count & 0x07) * 2));
     stack->word_count++;
     return 0;
 }
 
 int push_in_stack(struct Stack *stack, uint16_t value) {
+    const unsigned int index = stack->word_count >> 3;
     if (stack->word_count == stack->allocated_word_count) {
         stack->allocated_word_count += STACK_VALUES_GRANULARITY;
         stack->values = realloc(stack->values, stack->allocated_word_count);
@@ -50,7 +51,6 @@ int push_in_stack(struct Stack *stack, uint16_t value) {
         }
     }
 
-    const unsigned int index = stack->word_count >> 3;
     stack->values[stack->word_count] = value;
     stack->defined_and_relative[index] |= 1 << ((stack->word_count & 0x07) * 2);
     stack->defined_and_relative[index] &= ~(1 << ((stack->word_count & 0x07) * 2 + 1));
@@ -59,6 +59,7 @@ int push_in_stack(struct Stack *stack, uint16_t value) {
 }
 
 int push_relative_in_stack(struct Stack *stack, uint16_t value) {
+    const unsigned int index = stack->word_count >> 3;
     if (stack->word_count == stack->allocated_word_count) {
         stack->allocated_word_count += STACK_VALUES_GRANULARITY;
         stack->values = realloc(stack->values, stack->allocated_word_count);
@@ -68,7 +69,6 @@ int push_relative_in_stack(struct Stack *stack, uint16_t value) {
         }
     }
 
-    const unsigned int index = stack->word_count >> 3;
     stack->values[stack->word_count] = value;
     stack->defined_and_relative[index] |= 3 << ((stack->word_count & 0x07) * 2);
     stack->word_count++;

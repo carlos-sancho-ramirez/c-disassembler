@@ -144,4 +144,4 @@ int add_call_four_behind_type_code_block_origin(struct CodeBlock *block);
 int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
 
 int accumulate_global_variable_word_values_from_code_block_origin_list(struct GlobalVariableWordValueMap *map, struct CodeBlockOriginList *origin_list);
-#endif // _CODE_BLOCKS_H_
+#endif

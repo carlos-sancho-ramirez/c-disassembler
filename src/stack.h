@@ -21,4 +21,4 @@ uint16_t pop_from_stack(struct Stack *stack);
 int top_is_defined_in_stack(struct Stack *stack);
 int top_is_defined_and_relative_in_stack(struct Stack *stack);
 
-#endif // _STACK_H_
+#endif

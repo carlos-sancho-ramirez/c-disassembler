@@ -49,8 +49,9 @@ DEFINE_STRUCT_LIST_METHODS(CodeBlock, code_block, block, start, 8, 64)
 
 void accumulate_registers_from_code_block_origin_list(struct Registers *regs, struct CodeBlockOriginList *origin_list) {
     if (origin_list->origin_count) {
+        int i;
         copy_registers(regs, &origin_list->sorted_origins[0]->regs);
-        for (int i = 0; i < origin_list->origin_count; i++) {
+        for (i = 0; i < origin_list->origin_count; i++) {
             merge_registers(regs, &origin_list->sorted_origins[i]->regs);
         }
     }
@@ -59,11 +60,12 @@ void accumulate_registers_from_code_block_origin_list(struct Registers *regs, st
 int accumulate_global_variable_word_values_from_code_block_origin_list(struct GlobalVariableWordValueMap *map, struct CodeBlockOriginList *origin_list) {
     if (origin_list->origin_count) {
         int error_code;
+        int i;
         if ((error_code = copy_global_variable_word_values_map(map, &origin_list->sorted_origins[0]->var_values))) {
             return error_code;
         }
 
-        for (int i = 0; i < origin_list->origin_count; i++) {
+        for (i = 0; i < origin_list->origin_count; i++) {
             if ((error_code = merge_global_variable_word_values_map(map, &origin_list->sorted_origins[i]->var_values))) {
                 return error_code;
             }
@@ -79,13 +81,14 @@ int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Regi
     int index = index_of_code_block_origin_with_instruction(origin_list, CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION);
     if (index < 0) {
         struct Registers accumulated_regs;
+        struct CodeBlockOrigin *new_origin;
         struct GlobalVariableWordValueMap accumulated_var_values;
         if (origin_list->origin_count) {
             accumulate_registers_from_code_block_origin_list(&accumulated_regs, origin_list);
             accumulate_global_variable_word_values_from_code_block_origin_list(&accumulated_var_values, origin_list);
         }
 
-        struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
+        new_origin = prepare_new_code_block_origin(origin_list);
         new_origin->instruction = CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION;
         copy_registers(&new_origin->regs, regs);
         copy_global_variable_word_values_map(&new_origin->var_values, var_values);
@@ -169,6 +172,10 @@ int add_call_four_behind_type_code_block_origin(struct CodeBlock *block) {
 }
 
 int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values) {
+    int error_code;
+    struct CodeBlockOriginList *origin_list;
+    int index;
+
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE);
@@ -176,18 +183,18 @@ int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND);
     assert(origin_instruction != CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND);
 
-    int error_code;
-    struct CodeBlockOriginList *origin_list = &block->origin_list;
-    int index = index_of_code_block_origin_with_instruction(origin_list, origin_instruction);
+    origin_list = &block->origin_list;
+    index = index_of_code_block_origin_with_instruction(origin_list, origin_instruction);
     if (index < 0) {
         struct Registers accumulated_regs;
         struct GlobalVariableWordValueMap accumulated_var_values;
+        struct CodeBlockOrigin *new_origin;
         if (origin_list->origin_count) {
             accumulate_registers_from_code_block_origin_list(&accumulated_regs, origin_list);
             accumulate_global_variable_word_values_from_code_block_origin_list(&accumulated_var_values, origin_list);
         }
 
-        struct CodeBlockOrigin *new_origin = prepare_new_code_block_origin(origin_list);
+        new_origin = prepare_new_code_block_origin(origin_list);
         new_origin->instruction = origin_instruction;
         copy_registers(&new_origin->regs, regs);
         copy_global_variable_word_values_map(&new_origin->var_values, var_values);

@@ -47,7 +47,7 @@ static void print_error(const char *str) {
 }
 
 struct dos_header {
-	uint16_t magic; // Must be "MZ"
+	uint16_t magic; /* Must be "MZ" */
 	uint16_t bytes_in_last_page;
 	uint16_t pages_count;
 	uint16_t relocations_count;
@@ -63,20 +63,24 @@ struct dos_header {
 };
 
 static int read_file(struct SegmentReadResult *result, const char *filename, const char *format) {
+	FILE *file;
 	if (strcmp(format, "bin") && strcmp(format, "dos")) {
 		fprintf(stderr, "Undefined format '%s'. It must be 'bin' or 'dos'\n", format);
 		return 1;
 	}
 
-	FILE *file = fopen(filename, "r");
+	file = fopen(filename, "r");
 	if (!file) {
 		fprintf(stderr, "Unable to open file\n");
 		return 1;
 	}
 
 	if (!strcmp(format, "dos")) {
+		unsigned int header_size;
 		struct dos_header header;
-		// This is assuming that the processor running this is also little endian
+		unsigned int file_size;
+
+		/* This is assuming that the processor running this is also little endian */
 		if (fread(&header, 1, sizeof(header), file) < sizeof(header)) {
 			fprintf(stderr, "Unexpected end of file\n");
 			fclose(file);
@@ -115,8 +119,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 			}
 		}
 
-		const unsigned int header_size = header.header_paragraphs * 16;
-		unsigned int file_size;
+		header_size = header.header_paragraphs * 16;
 		if (header.bytes_in_last_page) {
 			file_size = (header.pages_count - 1) * 512 + header.bytes_in_last_page;
 		}
@@ -163,6 +166,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 		result->flags = 0;
 
 		if (header.relocations_count > 0) {
+			int i;
 			result->sorted_relocations = malloc(sizeof(const char *) * header.relocations_count);
 			if (!result->sorted_relocations) {
 				fprintf(stderr, "Unable to allocate memory for the sorted relocations\n");
@@ -172,12 +176,14 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 				return 1;
 			}
 
-			for (int i = 0; i < header.relocations_count; i++) {
+			for (i = 0; i < header.relocations_count; i++) {
 				struct FarPointer *ptr = result->relocation_table + i;
 				const char *relocation = result->buffer + ptr->segment * 16 + ptr->offset;
 
 				int first = 0;
 				int last = i;
+				unsigned int j;
+
 				while (last > first) {
 					int index = (first + last) / 2;
 					const char *this_relocation = result->sorted_relocations[index];
@@ -193,7 +199,7 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 					}
 				}
 
-				for (unsigned int j = header.relocations_count; j > first; j--) {
+				for (j = header.relocations_count; j > first; j--) {
 					result->sorted_relocations[j] = result->sorted_relocations[j - 1];
 				}
 
@@ -294,7 +300,7 @@ static int read_block_instruction_internal(
 				const int raw_value = read_next_word(reader);
 			}
 			else if (value1 >= 0xC0) {
-				if ((value0 & 0x38) == 0x30 && (((value1 >> 3) & 0x07) == (value1 & 0x07))) { // XOR
+				if ((value0 & 0x38) == 0x30 && (((value1 >> 3) & 0x07) == (value1 & 0x07))) { /* XOR */
 					if (value0 & 1) {
 						set_word_register(regs, value1 & 0x07, opcode_reference, 0);
 					}
@@ -311,7 +317,7 @@ static int read_block_instruction_internal(
 			return 0;
 		}
 		else {
-			// Assuming (value0 & 0x07) == 0x05
+			/* Assuming (value0 & 0x07) == 0x05 */
 			read_next_word(reader);
 			return 0;
 		}
@@ -470,7 +476,7 @@ static int read_block_instruction_internal(
 			}
 
 			if ((value0 & 0xFD) == 0x89 && is_segment_register_defined_and_relative(regs, segment_index)) {
-				// All this logic comes from add_global_variable_reference method. We should find a way to centralise this
+				/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
 				unsigned int segment_value = get_segment_register(regs, segment_index);
         		unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
         		const char *target = segment_start + relative_address;
@@ -494,7 +500,7 @@ static int read_block_instruction_internal(
 							}
 						}
 					}
-					else { // value == 0x8B
+					else { /* value == 0x8B */
 						const int var_index_in_map = index_of_global_variable_in_word_value_map_with_start(var_values, target);
 						if (var_index_in_map >= 0) {
 							uint16_t var_value = get_global_variable_word_value_at_index(var_values, var_index_in_map);
@@ -545,7 +551,7 @@ static int read_block_instruction_internal(
 				if (value0 == 0x8E) {
 					const int reg_index = (value1 >> 3) & 3;
 					if (is_segment_register_defined_and_relative(regs, segment_index)) {
-						// All this logic comes from add_global_variable_reference method. We should find a way to centralise this
+						/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
 						unsigned int segment_value = get_segment_register(regs, segment_index);
 						unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 						const char *target = segment_start + relative_address;
@@ -650,10 +656,12 @@ static int read_block_instruction_internal(
 			return 0;
 		}
 	}
-	else if ((value0 & 0xF8) == 0x90) { // xchg
+	else if ((value0 & 0xF8) == 0x90) { /* xchg */
 		return 0;
 	}
 	else if ((value0 & 0xFC) == 0xA0) {
+		int offset;
+		unsigned int current_segment_index;
 		if ((value0 & 0xFE) == 0xA0) {
 			if (value0 & 1) {
 				set_register_ax_undefined(regs);
@@ -663,8 +671,8 @@ static int read_block_instruction_internal(
 			}
 		}
 
-		const int offset = read_next_word(reader);
-		const unsigned int current_segment_index = (segment_index >= 0)? segment_index : SEGMENT_INDEX_DS;
+		offset = read_next_word(reader);
+		current_segment_index = (segment_index >= 0)? segment_index : SEGMENT_INDEX_DS;
 		if (value0 == 0xA3 && is_register_ax_defined(regs) && is_segment_register_defined_and_absolute(regs, current_segment_index)) {
 			unsigned int addr = get_segment_register(regs, current_segment_index);
 			addr = addr * 16 + offset;
@@ -818,7 +826,7 @@ static int read_block_instruction_internal(
 			if (value0 & 1) {
 				int immediate_value = read_next_word(reader);
 				if (value1 == 0x06 && is_segment_register_defined_and_relative(regs, segment_index)) {
-					// All this logic comes from add_global_variable_reference method. We should find a way to centralise this
+					/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
 					unsigned int segment_value = get_segment_register(regs, segment_index);
 					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 					const char *target = segment_start + relative_address;
@@ -845,6 +853,7 @@ static int read_block_instruction_internal(
 				unsigned int relative_address = (get_register_ds(regs) * 16 + get_register_dx(regs)) & 0xFFFF;
 				const char *target = segment_start + relative_address;
 				struct GlobalVariable *var;
+				const char *instruction;
 				int index = index_of_global_variable_with_start(global_variable_list, target);
 				if (index < 0) {
 					var = prepare_new_global_variable(global_variable_list);
@@ -857,9 +866,9 @@ static int read_block_instruction_internal(
 				else {
 					var = global_variable_list->sorted_variables[index];
 				}
-				// What should we do if the variable is present, but its type does not match? Not sure.
+				/* What should we do if the variable is present, but its type does not match? Not sure. */
 
-				const char *instruction = where_register_dx_defined(regs);
+				instruction = where_register_dx_defined(regs);
 				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
 					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
 						struct Reference *new_ref = prepare_new_reference(reference_list);
@@ -869,16 +878,20 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
-			else if (ah_value == 0x25 && is_register_ds_defined_and_relative(regs) && is_register_dx_defined_and_absolute(regs)) { // Set interruption vector. DS:DX point to the handler code
+			else if (ah_value == 0x25 && is_register_ds_defined_and_relative(regs) && is_register_dx_defined_and_absolute(regs)) { /* Set interruption vector. DS:DX point to the handler code */
 				uint16_t target_relative_cs = get_register_ds(regs);
 				uint16_t target_ip = get_register_dx(regs);
+				const char *jump_destination;
+				int result;
+				struct CodeBlock *potential_container;
+				struct CodeBlock *target_block;
+				const char *instruction;
 				unsigned int addr = target_relative_cs;
 				addr = (addr * 16 + target_ip) & 0xFFFFF;
 
-				const char *jump_destination = segment_start + addr;
-				int result = index_of_code_block_containing_position(code_block_list, jump_destination);
-				struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-				struct CodeBlock *target_block;
+				jump_destination = segment_start + addr;
+				result = index_of_code_block_containing_position(code_block_list, jump_destination);
+				potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 				if (potential_container && potential_container->start == jump_destination) {
 					target_block = potential_container;
 				}
@@ -908,7 +921,7 @@ static int read_block_instruction_internal(
 					}
 				}
 
-				const char *instruction = where_register_dx_defined(regs);
+				instruction = where_register_dx_defined(regs);
 				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
 					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
 						struct Reference *new_ref = prepare_new_reference(reference_list);
@@ -918,12 +931,12 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
-			else if (ah_value == 0x30) { // Get DOS version number
+			else if (ah_value == 0x30) { /* Get DOS version number */
 				mark_register_ax_undefined(regs);
 				mark_register_cx_undefined(regs);
 				mark_register_bx_undefined(regs);
 			}
-			else if (ah_value == 0x40) { // Write to file using handle
+			else if (ah_value == 0x40) { /* Write to file using handle */
 				unsigned int length;
 				if (is_register_ds_defined_and_relative(regs) && is_register_dx_defined_and_absolute(regs) && is_register_cx_defined_and_absolute(regs) && (length = get_register_cx(regs)) > 0) {
 					int error_code;
@@ -975,14 +988,17 @@ static int read_block_instruction_internal(
 		}
 	}
 	else if ((value0 & 0xFE) == 0xE8) {
+		const char *jump_destination;
+		int result;
+		struct CodeBlock *potential_container;
 		int diff = read_next_word(reader);
 		if (block->ip + reader->buffer_index + diff >= 0x10000) {
 			diff -= 0x10000;
 		}
 
-		const char *jump_destination = block->start + reader->buffer_index + diff;
-		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
-		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+		jump_destination = block->start + reader->buffer_index + diff;
+		result = index_of_code_block_containing_position(code_block_list, jump_destination);
+		potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
@@ -1112,22 +1128,28 @@ static int read_block_instruction_internal(
 			return 0;
 		}
 	}
-	else if (value0 == 0xFB) { // sti
-		for (int i = 0; i < 256; i++) {
+	else if (value0 == 0xFB) { /* sti */
+		int i;
+		for (i = 0; i < 256; i++) {
 			if (is_interruption_defined_and_relative_in_table(int_table, i)) {
 				uint16_t target_relative_cs = get_interruption_table_relative_segment(int_table, i);
 				uint16_t target_ip = get_interruption_table_offset(int_table, i);
+				const char *jump_destination;
+				int result;
+				struct CodeBlock *potential_container;
+				struct CodeBlock *target_block;
+				const char *where_offset;
 				unsigned int addr = target_relative_cs;
 				addr = (addr * 16 + target_ip) & 0xFFFFF;
 
-				const char *jump_destination = segment_start + addr;
-				int result = index_of_code_block_containing_position(code_block_list, jump_destination);
-				struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-				struct CodeBlock *target_block;
+				jump_destination = segment_start + addr;
+				result = index_of_code_block_containing_position(code_block_list, jump_destination);
+				potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 				if (potential_container && potential_container->start == jump_destination) {
 					target_block = potential_container;
 				}
 				else {
+					struct Registers int_regs;
 					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
 						potential_container->end = jump_destination;
 					}
@@ -1144,7 +1166,6 @@ static int read_block_instruction_internal(
 					target_block->flags = 0;
 					initialize_code_block_origin_list(&target_block->origin_list);
 
-					struct Registers int_regs;
 					make_all_registers_undefined(&int_regs);
 					set_register_cs_relative(&int_regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
 					if ((result = add_interruption_type_code_block_origin(target_block, &int_regs, var_values))) {
@@ -1156,7 +1177,7 @@ static int read_block_instruction_internal(
 					}
 				}
 
-				const char *where_offset = where_interruption_offset_defined_in_table(int_table, i);
+				where_offset = where_interruption_offset_defined_in_table(int_table, i);
 				if (where_offset && where_offset != REGISTER_DEFINED_OUTSIDE && (((unsigned int) *where_offset) & 0xF8) == 0xB8) {
 					if (index_of_reference_with_instruction(reference_list, where_offset) < 0) {
 						struct Reference *new_ref = prepare_new_reference(reference_list);
@@ -1221,8 +1242,9 @@ static int read_block_instruction_internal(
 			}
 
 			if ((value1 & 0x30) == 0x10) {
+				int result;
 				block->end = block->start + reader->buffer_index;
-				int result = index_of_code_block_with_start(code_block_list, block->end);
+				result = index_of_code_block_with_start(code_block_list, block->end);
 				if (result < 0) {
 					struct CodeBlock *next_block = prepare_new_code_block(code_block_list);
 					if (!next_block) {
@@ -1246,7 +1268,7 @@ static int read_block_instruction_internal(
 						}
 					}
 					else {
-						// Assuming instruction_length == 4
+						/* instruction_length == 4 */
 						if ((result = add_call_four_behind_type_code_block_origin(next_block))) {
 							return result;
 						}
@@ -1270,7 +1292,7 @@ static int read_block_instruction_internal(
 						}
 					}
 					else {
-						// Assuming instruction_length == 4
+						/* instruction_length == 4 */
 						if (index_of_code_block_origin_of_type_call_four_behind(origin_list) < 0 && (result = add_call_four_behind_type_code_block_origin(next_block))) {
 							return result;
 						}
@@ -1381,13 +1403,14 @@ void print_regs(struct Registers *regs) {
 }
 
 void print_stack(struct Stack *stack) {
+	int i;
 	fprintf(stderr, " Stack(");
-	for (int i = 0; i < stack->word_count; i++) {
+	for (i = 0; i < stack->word_count; i++) {
+		const unsigned int definition = stack->defined_and_relative[i >> 3] >> ((i & 7) * 2);
 		if (i > 0) {
 			fprintf(stderr, ", ");
 		}
 
-		const unsigned int definition = stack->defined_and_relative[i >> 3] >> ((i & 7) * 2);
 		if ((definition & 1) == 0) {
 			fprintf(stderr, "?");
 		}
@@ -1403,8 +1426,9 @@ void print_stack(struct Stack *stack) {
 }
 
 void print_global_variable_word_value_map(const struct GlobalVariableWordValueMap *map, const char *buffer) {
+	int i;
 	fprintf(stderr, " Vars(");
-	for (int i = 0; i < map->entry_count; i++) {
+	for (i = 0; i < map->entry_count; i++) {
 		if (i > 0) {
 			fprintf(stderr, ", ");
 		}
@@ -1421,8 +1445,9 @@ void print_global_variable_word_value_map(const struct GlobalVariableWordValueMa
 }
 
 void print_interruption_table(struct InterruptionTable *table) {
+	int i;
 	fprintf(stderr, " IntTable(");
-	for (int i = 0; i < 256; i++) {
+	for (i = 0; i < 256; i++) {
 		const char *offset_defined = table->offset_defined[i];
 		const char *segment_defined = table->segment_defined[i];
 		if (offset_defined && segment_defined) {
@@ -1463,24 +1488,25 @@ int read_block(
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct Reader reader;
+	struct Stack stack;
+	struct InterruptionTable int_table;
+	int error_code;
+
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
 	reader.buffer_size = block_max_size;
 
-	struct Stack stack;
 	initialize_stack(&stack);
-
-	struct InterruptionTable int_table;
 	make_all_interruption_table_undefined(&int_table);
 
-	int error_code;
 	do {
+		int index;
 		if ((error_code = read_block_instruction(&reader, regs, &stack, var_values, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list))) {
 			clear_stack(&stack);
 			return error_code;
 		}
 
-		const int index = index_of_code_block_with_start(code_block_list, block->start);
+		index = index_of_code_block_with_start(code_block_list, block->start);
 		if (index + 1 < code_block_list->block_count) {
 			const char *next_start = code_block_list->sorted_blocks[index + 1]->start;
 			if (block->start + reader.buffer_index >= next_start) {
@@ -1500,7 +1526,12 @@ int find_code_blocks_and_variables(
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
+	struct CodeBlockOrigin *origin;
 	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
+	int error_code;
+	int any_evaluated;
+	int variable_index;
+
 	if (!first_block) {
 		return 1;
 	}
@@ -1512,7 +1543,7 @@ int find_code_blocks_and_variables(
 	first_block->flags = 0;
 	initialize_code_block_origin_list(&first_block->origin_list);
 
-	struct CodeBlockOrigin *origin = prepare_new_code_block_origin(&first_block->origin_list);
+	origin = prepare_new_code_block_origin(&first_block->origin_list);
 	set_os_type_in_code_block_origin(origin);
 	make_all_registers_undefined(&origin->regs);
 	set_register_cs_relative(&origin->regs, REGISTER_DEFINED_OUTSIDE, read_result->relative_cs);
@@ -1521,7 +1552,6 @@ int find_code_blocks_and_variables(
 	}
 	initialize_global_variable_word_value_map(&origin->var_values);
 
-	int error_code;
 	if ((error_code = insert_sorted_code_block_origin(&first_block->origin_list, origin))) {
 		return error_code;
 	}
@@ -1530,22 +1560,24 @@ int find_code_blocks_and_variables(
 		return error_code;
 	}
 
-	int any_evaluated;
 	do {
+		int block_index;
 		any_evaluated = 0;
 
-		for (int block_index = 0; block_index < code_block_list->block_count; block_index++) {
+		for (block_index = 0; block_index < code_block_list->block_count; block_index++) {
 			struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
 			if (code_block_requires_evaluation(block)) {
+				struct Registers regs;
+				unsigned int block_max_size;
+				struct GlobalVariableWordValueMap var_values;
+
 				any_evaluated = 1;
 				mark_code_block_as_being_evaluated(block);
 
-				struct Registers regs;
-				unsigned int block_max_size = read_result->size - (block->start - read_result->buffer);
+				block_max_size = read_result->size - (block->start - read_result->buffer);
 	
 				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
 
-				struct GlobalVariableWordValueMap var_values;
 				initialize_global_variable_word_value_map(&var_values);
 				accumulate_global_variable_word_values_from_code_block_origin_list(&var_values, &block->origin_list);
 
@@ -1560,17 +1592,18 @@ int find_code_blocks_and_variables(
 	}
 	while (any_evaluated);
 
-	for (int variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
+	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
 		if (variable->start == variable->end && variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
 			const int index = index_of_code_block_containing_position(code_block_list, variable->start);
 			if (index < 0 || code_block_list->sorted_blocks[index]->end <= variable->start) {
 				const char *potential_end = read_result->buffer + read_result->size;
+				const char *end;
+
 				if (index + 1 < code_block_list->block_count) {
 					potential_end = code_block_list->sorted_blocks[index + 1]->start;
 				}
 
-				const char *end;
 				for (end = variable->start; end < potential_end; end++) {
 					if (*end == '$') {
 						end++;
@@ -1581,7 +1614,7 @@ int find_code_blocks_and_variables(
 				variable->end = end;
 			}
 			else {
-				// TODO: Find a better solution
+				/* TODO: Find a better solution */
 				variable->end = code_block_list->sorted_blocks[index]->end;
 			}
 		}
@@ -1590,13 +1623,20 @@ int find_code_blocks_and_variables(
 }
 
 int main(int argc, const char *argv[]) {
-	printf("%s", application_name_and_version);
-
 	const char *filename = NULL;
 	const char *format = NULL;
 	const char *out_filename = NULL;
+	int i;
+	struct SegmentReadResult read_result;
+	int error_code;
+	struct CodeBlockList code_block_list;
+	struct GlobalVariableList global_variable_list;
+	struct SegmentStartList segment_start_list;
+	struct ReferenceList reference_list;
 
-	for (int i = 1; i < argc; i++) {
+	printf("%s", application_name_and_version);
+
+	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--format")) {
 			if (++i < argc) {
 				format = argv[i];
@@ -1650,22 +1690,13 @@ int main(int argc, const char *argv[]) {
 		return 1;
 	}
 
-	struct SegmentReadResult read_result;
-	int error_code;
 	if ((error_code = read_file(&read_result, filename, format))) {
 		return error_code;
 	}
 
-	struct CodeBlockList code_block_list;
 	initialize_code_block_list(&code_block_list);
-
-	struct GlobalVariableList global_variable_list;
 	initialize_global_variable_list(&global_variable_list);
-
-	struct SegmentStartList segment_start_list;
 	initialize_segment_start_list(&segment_start_list);
-
-	struct ReferenceList reference_list;
 	initialize_reference_list(&reference_list);
 
 	if ((error_code = find_code_blocks_and_variables(&read_result, print_error, &code_block_list, &global_variable_list, &segment_start_list, &reference_list))) {
@@ -1717,9 +1748,10 @@ int main(int argc, const char *argv[]) {
 		free(read_result.relocation_table);
 	}
 
-	for (int i = 0; i < code_block_list.block_count; i++) {
+	for (i = 0; i < code_block_list.block_count; i++) {
 		struct CodeBlockOriginList *origin_list = &code_block_list.sorted_blocks[i]->origin_list;
-		for (int j = 0; j < origin_list->origin_count; j++) {
+		int j;
+		for (j = 0; j < origin_list->origin_count; j++) {
 			clear_global_variable_word_value_map(&origin_list->sorted_origins[j]->var_values);
 		}
 		clear_code_block_origin_list(origin_list);

@@ -24,4 +24,4 @@ int dump(
     void (*print_code_label)(void (*)(const char *), int, int),
     void (*print_variable_label)(void (*)(const char *), unsigned int));
 
-#endif // _DUMPERS_H_
+#endif

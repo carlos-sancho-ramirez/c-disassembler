@@ -14,4 +14,4 @@ void print_dos_address_label(void (*print)(const char *), int ip, int cs);
 void print_bin_variable_label(void (*print)(const char *), unsigned int address);
 void print_dos_variable_label(void (*print)(const char *), unsigned int address);
 
-#endif // _PRINTERS_H_
+#endif

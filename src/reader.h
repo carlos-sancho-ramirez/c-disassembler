@@ -10,4 +10,4 @@ struct Reader {
 int read_next_byte(struct Reader *reader);
 int read_next_word(struct Reader *reader);
 
-#endif // _READER_H_
+#endif

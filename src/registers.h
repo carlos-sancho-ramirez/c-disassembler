@@ -141,4 +141,4 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
 int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs);
 void make_all_registers_undefined(struct Registers *regs);
 void make_all_registers_undefined_except_cs(struct Registers *regs);
-#endif // _REGISTERS_H_
+#endif

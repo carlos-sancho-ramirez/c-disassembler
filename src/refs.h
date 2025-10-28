@@ -71,4 +71,4 @@ void set_code_block_reference_from_instruction_immediate_value(struct Reference 
 DEFINE_STRUCT_LIST(Reference, reference);
 DECLARE_STRUCT_LIST_METHODS(Reference, reference, reference, instruction);
 
-#endif // _GLOBAL_VARIABLE_REFERENCES_H_
+#endif

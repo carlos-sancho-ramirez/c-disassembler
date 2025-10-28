@@ -39,4 +39,4 @@ void set_interruption_table_segment(struct InterruptionTable *table, uint8_t ind
 void set_interruption_table_segment_relative(struct InterruptionTable *table, uint8_t index, const char *where, uint16_t value);
 void make_all_interruption_table_undefined(struct InterruptionTable *table);
 
-#endif // _INTERRUPTION_TABLE_H_
+#endif

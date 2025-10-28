@@ -148,25 +148,27 @@ static int move_reader_forward_for_address_length(struct Reader *reader, int val
 }
 
 static int move_reader_forward_for_instruction_length(struct Reader *reader) {
+    int value0;
     if (reader->buffer_index >= reader->buffer_size) {
         return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
     }
-    const int value0 = read_next_byte(reader);
+    value0 = read_next_byte(reader);
 
     if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
         if ((value0 & 0x04) == 0x00) {
+            int value1;
             if (reader->buffer_index >= reader->buffer_size) {
                 return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
             }
-            const int value1 = read_next_byte(reader);
 
+            value1 = read_next_byte(reader);
             return move_reader_forward_for_address_length(reader, value1);
         }
         else if ((value0 & 0x07) == 0x04) {
             return move_reader_forward(reader, 1);
         }
         else {
-            // Assuming (value0 & 0x07) == 0x05
+            /* (value0 & 0x07) == 0x05 */
             return move_reader_forward(reader, 2);
         }
     }
@@ -186,10 +188,11 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         return move_reader_forward(reader, 1);
     }
     else if ((value0 & 0xFE) == 0x80) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+        value1 = read_next_byte(reader);
         if (move_reader_forward_for_address_length(reader, value1)) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
@@ -197,43 +200,48 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         return move_reader_forward(reader, (value0 & 1) + 1);
     }
     else if (value0 == 0x83) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+        value1 = read_next_byte(reader);
         if (move_reader_forward_for_address_length(reader, value1)) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
         return move_reader_forward(reader, 1);
     }
     else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+        value1 = read_next_byte(reader);
         return move_reader_forward_for_address_length(reader, value1);
     }
     else if ((value0 & 0xFD) == 0x8C) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+        value1 = read_next_byte(reader);
         return (value1 & 0x20)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
                 move_reader_forward_for_address_length(reader, value1);
     }
     else if (value0 == 0x8D) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+        value1 = read_next_byte(reader);
         return (value1 >= 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
                 move_reader_forward_for_address_length(reader, value1);
     }
     else if (value0 == 0x8F) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+        value1 = read_next_byte(reader);
         return (value1 & 0x38 || value1 >= 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
                 move_reader_forward_for_address_length(reader, value1);
     }
@@ -265,18 +273,22 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         return 0;
     }
     else if ((value0 & 0xFE) == 0xC4) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+
+        value1 = read_next_byte(reader);
         return ((value1 & 0xC0) == 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
                 move_reader_forward_for_address_length(reader, value1);
     }
     else if ((value0 & 0xFE) == 0xC6) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+
+        value1 = read_next_byte(reader);
         if (value1 & 0x38) {
             return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
         }
@@ -294,10 +306,12 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         return move_reader_forward(reader, 1);
     }
     else if ((value0 & 0xFC) == 0xD0) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+
+        value1 = read_next_byte(reader);
         return ((value1 & 0x38) == 0x30)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
                 move_reader_forward_for_address_length(reader, value1);
     }
@@ -317,10 +331,12 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         return 0;
     }
     else if ((value0 & 0xFE) == 0xF6) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+
+        value1 = read_next_byte(reader);
         if ((value1 & 0x38) == 0x08) {
             return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
         }
@@ -335,10 +351,12 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         return 0;
     }
     else if (value0 == 0xFE) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+
+        value1 = read_next_byte(reader);
         if (value1 & 0x30) {
             return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
         }
@@ -347,10 +365,12 @@ static int move_reader_forward_for_instruction_length(struct Reader *reader) {
         }
     }
     else if (value0 == 0xFF) {
+        int value1;
         if (reader->buffer_index >= reader->buffer_size) {
             return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
         }
-        const int value1 = read_next_byte(reader);
+
+        value1 = read_next_byte(reader);
         if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
             return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
         }
@@ -386,6 +406,7 @@ static int dump_instruction(
             print(" ");
             if ((value0 & 0x04) == 0x00) {
                 const char **registers;
+                int value1;
                 if (value0 & 0x01) {
                     registers = WORD_REGISTERS;
                 }
@@ -393,7 +414,7 @@ static int dump_instruction(
                     registers = BYTE_REGISTERS;
                 }
 
-                const int value1 = read_next_byte(reader);
+                value1 = read_next_byte(reader);
                 dump_address_register_combination(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
                 print("\n");
                 return 0;
@@ -406,7 +427,7 @@ static int dump_instruction(
                 return 0;
             }
             else {
-                // Assuming (value0 & 0x07) == 0x05
+                /* (value0 & 0x07) == 0x05 */
                 print(WORD_REGISTERS[0]);
                 print(",");
                 print_literal_hex_word(print, read_next_word(reader));
@@ -460,6 +481,7 @@ static int dump_instruction(
             return 0;
         }
         else if ((value0 & 0xFE) == 0x80) {
+            const char **registers;
             const int value1 = read_next_byte(reader);
             print(INSTRUCTION[(value1 >> 3) & 0x07]);
             if ((value1 & 0xC0) != 0xC0) {
@@ -474,7 +496,7 @@ static int dump_instruction(
                 print(" ");
             }
 
-            const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
+            registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
             dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, registers);
             print(",");
             if (value0 & 1) {
@@ -579,8 +601,9 @@ static int dump_instruction(
             return 0;
         }
         else if ((value0 & 0xFC) == 0xA0) {
-            print("mov ");
             const char **registers;
+            int addr_value;
+            print("mov ");
             if (value0 & 1) {
                 registers = WORD_REGISTERS;
             }
@@ -588,7 +611,7 @@ static int dump_instruction(
                 registers = BYTE_REGISTERS;
             }
 
-            const int addr_value = read_next_word(reader);
+            addr_value = read_next_word(reader);
             if ((value0 & 0xFE) == 0xA0) {
                 print(registers[0]);
                 print(",[");
@@ -700,11 +723,14 @@ static int dump_instruction(
         else if ((value0 & 0xF0) == 0xB0) {
             print("mov ");
             if (value0 & 0x08) {
+                const char *relocation_query;
+                int offset_value;
+                int relocation_segment_present = 0;
+
                 print(WORD_REGISTERS[value0 & 0x07]);
                 print(",");
-                const char *relocation_query = reader->buffer + reader->buffer_index;
-                const int offset_value = read_next_word(reader);
-                int relocation_segment_present = 0;
+                relocation_query = reader->buffer + reader->buffer_index;
+                offset_value = read_next_word(reader);
                 if ((relocation_segment_present = is_relocation_present_in_sorted_relocations(sorted_relocations, relocation_count, relocation_query))) {
                     print(RELOCATION_VALUE);
                 }
@@ -831,6 +857,7 @@ static int dump_instruction(
                 return 1;
             }
             else {
+                const char **registers;
                 print(SHIFT_INSTRUCTIONS[(value1 >> 3) & 0x07]);
                 if ((value0 & 0xC0) == 0xC0) {
                     print(" ");
@@ -842,7 +869,7 @@ static int dump_instruction(
                     print(" byte ");
                 }
 
-                const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
+                registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
                 dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, registers);
 
                 if (value0 & 2) {
@@ -881,8 +908,8 @@ static int dump_instruction(
             return 0;
         }
         else if (value0 == 0xEA) {
-            print("jmp ");
             const int offset = read_next_word(reader);
+            print("jmp ");
             print_literal_hex_word(print, read_next_word(reader));
             print(":");
             print_literal_hex_word(print, offset);
@@ -915,6 +942,7 @@ static int dump_instruction(
                 return 1;
             }
             else {
+                const char **registers;
                 print(MATH_INSTRUCTION[(value1 >> 3) & 0x07]);
                 if ((value1 & 0xC0) != 0xC0) {
                     if (value0 & 1) {
@@ -928,7 +956,7 @@ static int dump_instruction(
                     print(" ");
                 }
 
-                const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
+                registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
                 dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, registers);
                 if ((value0 & 0x38) == 0) {
                     print(",");
@@ -1021,13 +1049,14 @@ static int dump_instruction(
 }
 
 static int valid_char_for_string_literal(char ch) {
-    // More can be added when required. Avoid adding quotes, as it may conflict
+    /* More can be added when required. Avoid adding quotes, as it may conflict */
     return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == ' ' || ch == '!' || ch == '$';
 }
 
 static int should_display_global_variable_as_string_literal(const struct GlobalVariable *variable) {
     if (variable->var_type == GLOBAL_VARIABLE_TYPE_STRING || variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
-        for (const char *position = variable->start; position < variable->end; position++) {
+        const char *position;
+        for (position = variable->start; position < variable->end; position++) {
             if (!valid_char_for_string_literal(*position)) {
                 return 0;
             }
@@ -1045,7 +1074,8 @@ static int valid_char_for_string_with_backquotes(char ch) {
 
 static int should_display_global_variable_as_string_with_backquotes(const struct GlobalVariable *variable) {
     if (variable->var_type == GLOBAL_VARIABLE_TYPE_STRING || variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
-        for (const char *position = variable->start; position < variable->end; position++) {
+        const char *position;
+        for (position = variable->start; position < variable->end; position++) {
             if (!valid_char_for_string_with_backquotes(*position)) {
                 return 0;
             }
@@ -1068,9 +1098,11 @@ static int dump_variable(
     print(":\n");
 
     if (should_display_global_variable_as_string_literal(variable)) {
-        print("db '");
+        const char *position;
         char str[] = "x";
-        for (const char *position = variable->start; position < variable->end; position++) {
+
+        print("db '");
+        for (position = variable->start; position < variable->end; position++) {
             str[0] = *position;
             print(str);
         }
@@ -1079,7 +1111,9 @@ static int dump_variable(
     else if (should_display_global_variable_as_string_with_backquotes(variable)) {
         int start_required = 1;
         char str[] = "x";
-        for (const char *position = variable->start; position < variable->end; position++) {
+        const char *position;
+
+        for (position = variable->start; position < variable->end; position++) {
             if (start_required) {
                 print("db `");
                 start_required = 0;
@@ -1116,7 +1150,8 @@ static int dump_variable(
         print("\n");
     }
     else {
-        for (const char *position = variable->start; position < (variable->start + variable_print_length); position++) {
+        const char *position;
+        for (position = variable->start; position < (variable->start + variable_print_length); position++) {
             print("db ");
             print_literal_hex_byte(print, *position);
             print("\n");
@@ -1196,6 +1231,9 @@ int dump(
     position = determine_position(segment_start, block, variable);
 
     while (position) {
+        int position_in_block;
+        int position_in_variable;
+
         while (segment_start_index < segment_start_count && segment_starts[segment_start_index] < position) {
             segment_start_index++;
         }
@@ -1213,8 +1251,8 @@ int dump(
             segment_start = segment_starts[segment_start_index];
         }
 
-        int position_in_block = block && block->start <= position && position < block->end;
-        int position_in_variable = variable && variable->start <= position && position < variable->end;
+        position_in_block = block && block->start <= position && position < block->end;
+        position_in_variable = variable && variable->start <= position && position < variable->end;
 
         if (!position_in_block && !position_in_variable) {
             position = determine_position(segment_start, block, variable);
@@ -1254,11 +1292,12 @@ int dump(
                 }
             }
             else {
+                const char *next_position;
                 reader.buffer = position;
                 reader.buffer_index = 0;
                 reader.buffer_size = block->end - position;
                 error_code = move_reader_forward_for_instruction_length(&reader);
-                const char *next_position = position + reader.buffer_index;
+                next_position = position + reader.buffer_index;
 
                 if (error_code || variable && next_position > variable->start) {
                     unknown_opcode_found_in_block = 1;
@@ -1275,6 +1314,10 @@ int dump(
                     }
                 }
                 else {
+                    unsigned int global_variable_reference_address;
+                    unsigned int global_variable_reference_value;
+                    struct CodeBlock *reference_block_value = NULL;
+
                     reader.buffer = block->start;
                     reader.buffer_index = position - block->start;
                     reader.buffer_size = block->end - block->start;
@@ -1284,9 +1327,8 @@ int dump(
                         global_variable_reference_count--;
                     }
 
-                    unsigned int global_variable_reference_address = DUMP_GLOBAL_VARIABLE_UNDEFINED;
-                    unsigned int global_variable_reference_value = DUMP_GLOBAL_VARIABLE_UNDEFINED;
-                    struct CodeBlock *reference_block_value = NULL;
+                    global_variable_reference_address = DUMP_GLOBAL_VARIABLE_UNDEFINED;
+                    global_variable_reference_value = DUMP_GLOBAL_VARIABLE_UNDEFINED;
                     if (global_variable_reference_count > 0 && global_variable_references[0]->instruction == position) {
                         struct Reference *reference = global_variable_references[0];
                         struct GlobalVariable *var;
@@ -1321,20 +1363,25 @@ int dump(
             }
         }
         else {
+            struct GlobalVariable *next_variable;
+            unsigned int variable_print_length;
+            const char *current_variable_end;
+            unsigned int current_variable_size;
+
             if (block->start == position) {
                 print("\n");
                 print_code_label(print, block->ip, block->relative_cs);
                 print(":\n");
             }
 
-            struct GlobalVariable *next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
-            unsigned int variable_print_length = ((next_variable && next_variable->start < variable->end)? next_variable->start : variable->end) - variable->start;
+            next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
+            variable_print_length = ((next_variable && next_variable->start < variable->end)? next_variable->start : variable->end) - variable->start;
             if ((error_code = dump_variable(variable, variable_print_length, print, print_error, print_variable_label))) {
                 return error_code;
             }
 
-            const char *current_variable_end = variable->end;
-            unsigned int current_variable_size = variable->end - variable->start;
+            current_variable_end = variable->end;
+            current_variable_size = variable->end - variable->start;
             ++global_variable_index;
             variable = next_variable;
 

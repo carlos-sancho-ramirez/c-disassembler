@@ -39,7 +39,8 @@ void set_interruption_table_segment_relative(struct InterruptionTable *table, ui
 }
 
 void make_all_interruption_table_undefined(struct InterruptionTable *table) {
-    for (int i = 0; i < 256; i++) {
+    int i;
+    for (i = 0; i < 256; i++) {
         table->offset_defined[i] = NULL;
         table->segment_defined[i] = NULL;
     }

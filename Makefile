@@ -4,7 +4,7 @@ headers = src/code_blocks.h src/dumpers.h src/global_variables.h src/interruptio
 sources = src/code_blocks.c src/disasm.c src/dumpers.c src/global_variables.c src/interruption_table.c src/print_utils.c src/reader.c src/refs.c src/registers.c src/relocations.c src/segments.c src/stack.c build/src/version.c
 
 build/bin/disasm: build/bin $(sources) $(headers)
-	cc -o $@ $(sources)
+	cc -std=c89 -pedantic -o $@ $(sources)
 
 build/src/version.c: build/src .git/HEAD
 	echo "#include \"../../src/version.h\"" > $@

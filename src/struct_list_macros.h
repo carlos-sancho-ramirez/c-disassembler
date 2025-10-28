@@ -140,6 +140,7 @@ int index_of_##struct_name_snake##_containing_position(const struct struct_name#
 \
 struct struct_name *prepare_new_##struct_name_snake(struct struct_name##List *list) { \
 	if ((list->short_item_name##_count % list->short_item_name##s_per_page) == 0) { \
+		struct struct_name *new_page; \
 		if ((list->short_item_name##_count % (list->short_item_name##s_per_page * list->page_array_granularity)) == 0) { \
 			const int new_page_array_length = (list->short_item_name##_count / (list->short_item_name##s_per_page * list->page_array_granularity)) + list->page_array_granularity; \
 			list->page_array = realloc(list->page_array, new_page_array_length * sizeof(struct struct_name *)); \
@@ -153,7 +154,7 @@ struct struct_name *prepare_new_##struct_name_snake(struct struct_name##List *li
 			} \
 		} \
 \
-		struct struct_name *new_page = malloc(list->short_item_name##s_per_page * sizeof(struct struct_name)); \
+		new_page = malloc(list->short_item_name##s_per_page * sizeof(struct struct_name)); \
 		if (!new_page) { \
 			return NULL; \
 		} \
@@ -167,6 +168,7 @@ struct struct_name *prepare_new_##struct_name_snake(struct struct_name##List *li
 int insert_sorted_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name) { \
 	int first = 0; \
 	int last = list->short_item_name##_count; \
+	int i; \
 	while (last > first) { \
 		int index = (first + last) / 2; \
 		const char *this_##sorted_property = list->sorted_##short_item_name##s[index]->sorted_property; \
@@ -181,7 +183,7 @@ int insert_sorted_##struct_name_snake(struct struct_name##List *list, struct str
 		} \
 	} \
 \
-	for (int i = list->short_item_name##_count; i > last; i--) { \
+	for (i = list->short_item_name##_count; i > last; i--) { \
 		list->sorted_##short_item_name##s[i] = list->sorted_##short_item_name##s[i - 1]; \
 	} \
 \
@@ -194,7 +196,8 @@ int insert_sorted_##struct_name_snake(struct struct_name##List *list, struct str
 void clear_##struct_name_snake##_list(struct struct_name##List *list) { \
 	if (list->short_item_name##_count > 0) { \
 		const int allocated_pages = (list->short_item_name##_count + list->short_item_name##s_per_page - 1) / list->short_item_name##s_per_page; \
-		for (int i = allocated_pages - 1; i >= 0; i--) { \
+		int i; \
+		for (i = allocated_pages - 1; i >= 0; i--) { \
 			free(list->page_array[i]); \
 		} \
 \
@@ -206,4 +209,4 @@ void clear_##struct_name_snake##_list(struct struct_name##List *list) { \
 	} \
 }
 
-#endif // _STRUCT_LIST_MACROS_H_
+#endif

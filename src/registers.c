@@ -312,7 +312,7 @@ unsigned int get_byte_register(struct Registers *regs, unsigned int index) {
         return regs->dh;
     }
     else {
-        // Assuming index == 7
+        /* Assuming index == 7 */
         return regs->bh;
     }
 }
@@ -342,7 +342,7 @@ unsigned int get_word_register(struct Registers *regs, unsigned int index) {
         return regs->si;
     }
     else {
-        // Assuming index == 7
+        /* Assuming index == 7 */
         return regs->di;
     }
 }
@@ -360,7 +360,7 @@ unsigned int get_segment_register(struct Registers *regs, unsigned int index) {
         return get_register_ss(regs);
     }
     else {
-        // Assuming index == 3
+        /* Assuming index == 3 */
         return get_register_ds(regs);
     }
 }
@@ -368,9 +368,12 @@ unsigned int get_segment_register(struct Registers *regs, unsigned int index) {
 void set_byte_register(struct Registers *regs, unsigned int index, const char *where, unsigned char value) {
     assert(index < 8);
 
-    // This should be optimised using the regs pointer plus index to determinate the byte within
-    // the struct to change. But for now I implement it in a way that I can ensure it works in any
-    // architecture.
+    /*
+        This should be optimised using the regs pointer plus index to determinate the byte within
+        the struct to change. But for now I implement it in a way that I can ensure it works in any
+        architecture.
+    */
+
     if (index == 0) {
         regs->al = value;
         regs->defined[0] = where;
@@ -400,7 +403,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *w
         regs->defined[5] = where;
     }
     else {
-        // Assuming index == 7
+        /* Assuming index == 7 */
         regs->bh = value;
         regs->defined[7] = where;
     }
@@ -409,9 +412,12 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *w
 void set_word_register(struct Registers *regs, unsigned int index, const char *where, uint16_t value) {
     assert(index < 8);
 
-    // This should be optimised using the regs pointer plus index to determinate the byte within
-    // the struct to change. But for now I implement it in a way that I can ensure it works in any
-    // architecture.
+    /*
+        This should be optimised using the regs pointer plus index to determinate the byte within
+        the struct to change. But for now I implement it in a way that I can ensure it works in any
+        architecture.
+    */
+
     if (index == 0) {
         regs->al = value & 0xFF;
         regs->ah = (value >> 8) & 0xFF;
@@ -456,7 +462,7 @@ void set_word_register(struct Registers *regs, unsigned int index, const char *w
         regs->relative &= ~0x400;
     }
     else {
-        // Assuming index == 7
+        /* Assuming index == 7 */
         regs->di = value;
         regs->defined[11] = where;
         regs->relative &= ~0x800;
@@ -466,9 +472,12 @@ void set_word_register(struct Registers *regs, unsigned int index, const char *w
 void set_word_register_relative(struct Registers *regs, unsigned int index, const char * where, uint16_t value) {
     assert(index < 8);
 
-    // This should be optimised using the regs pointer plus index to determinate the byte within
-    // the struct to change. But for now I implement it in a way that I can ensure it works in any
-    // architecture.
+    /*
+        This should be optimised using the regs pointer plus index to determinate the byte within
+        the struct to change. But for now I implement it in a way that I can ensure it works in any
+        architecture.
+    */
+
     if (index == 0) {
         regs->al = value & 0xFF;
         regs->ah = (value >> 8) & 0xFF;
@@ -513,7 +522,7 @@ void set_word_register_relative(struct Registers *regs, unsigned int index, cons
         regs->relative |= 0x400;
     }
     else {
-        // Assuming index == 7
+        /* Assuming index == 7 */
         regs->di = value;
         regs->defined[11] = where;
         regs->relative |= 0x800;
@@ -593,7 +602,7 @@ void set_segment_register(struct Registers *regs, unsigned int index, const char
         set_register_ss(regs, where, value);
     }
     else {
-        // Assuming index == 3
+        /* Assuming index == 3 */
         set_register_ds(regs, where, value);
     }
 }
@@ -640,13 +649,15 @@ void set_segment_register_relative(struct Registers *regs, unsigned int index, c
         set_register_ss_relative(regs, where, value);
     }
     else {
-        // Assuming index == 3
+        /* Assuming index == 3 */
         set_register_ds_relative(regs, where, value);
     }
 }
 
 void copy_registers(struct Registers *target_regs, const struct Registers *source_regs) {
-    // TODO: Optimise this copy
+    int i;
+
+    /* TODO: Optimise this copy */
     target_regs->al = source_regs->al;
     target_regs->ah = source_regs->ah;
     target_regs->cl = source_regs->cl;
@@ -665,13 +676,13 @@ void copy_registers(struct Registers *target_regs, const struct Registers *sourc
     target_regs->ds = source_regs->ds;
     target_regs->relative = source_regs->relative;
 
-    for (int i = 0; i < 16; i++) {
+    for (i = 0; i < 16; i++) {
         target_regs->defined[i] = source_regs->defined[i];
     }
 }
 
 void merge_registers(struct Registers *regs, const struct Registers *other_regs) {
-    // AX
+    /* AX */
     if (regs->defined[0] && (!other_regs->defined[0] || regs->al != other_regs->al)) {
         regs->defined[0] = NULL;
     }
@@ -685,7 +696,7 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
         regs->defined[1] = NULL;
     }
 
-    // CX
+    /* CX */
     if (regs->defined[2] && (!other_regs->defined[2] || regs->cl != other_regs->cl)) {
         regs->defined[2] = NULL;
     }
@@ -699,7 +710,7 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
         regs->defined[3] = NULL;
     }
 
-    // DX
+    /* DX */
     if (regs->defined[4] && (!other_regs->defined[4] || regs->dl != other_regs->dl)) {
         regs->defined[4] = NULL;
     }
@@ -713,7 +724,7 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
         regs->defined[5] = NULL;
     }
 
-    // BX
+    /* BX */
     if (regs->defined[6] && (!other_regs->defined[6] || regs->bl != other_regs->bl)) {
         regs->defined[6] = NULL;
     }
@@ -727,49 +738,49 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
         regs->defined[7] = NULL;
     }
 
-    // SP
+    /* SP */
     if (regs->defined[8] && (!other_regs->defined[8] || regs->sp != other_regs->sp || (regs->relative & 0x100) != (other_regs->relative & 0x100))) {
         regs->defined[8] = NULL;
     }
 
-    // BP
+    /* BP */
     if (regs->defined[9] && (!other_regs->defined[9] || regs->bp != other_regs->bp || (regs->relative & 0x200) != (other_regs->relative & 0x200))) {
         regs->defined[9] = NULL;
     }
 
-    // SI
+    /* SI */
     if (regs->defined[10] && (!other_regs->defined[10] || regs->si != other_regs->si || (regs->relative & 0x400) != (other_regs->relative & 0x400))) {
         regs->defined[10] = NULL;
     }
 
-    // DI
+    /* DI */
     if (regs->defined[11] && (!other_regs->defined[11] || regs->di != other_regs->di || (regs->relative & 0x800) != (other_regs->relative & 0x800))) {
         regs->defined[11] = NULL;
     }
 
-    // ES
+    /* ES */
     if (regs->defined[12] && (!other_regs->defined[12] || regs->es != other_regs->es || (regs->relative & 0x1000) != (other_regs->relative & 0x1000))) {
         regs->defined[12] = NULL;
     }
 
-    // CS
+    /* CS */
     if (regs->defined[13] && (!other_regs->defined[13] || regs->cs != other_regs->cs || (regs->relative & 0x2000) != (other_regs->relative & 0x2000))) {
         regs->defined[13] = NULL;
     }
 
-    // SS
+    /* SS */
     if (regs->defined[14] && (!other_regs->defined[14] || regs->ss != other_regs->ss || (regs->relative & 0x4000) != (other_regs->relative & 0x4000))) {
         regs->defined[14] = NULL;
     }
 
-    // DS
+    /* DS */
     if (regs->defined[15] && (!other_regs->defined[15] || regs->ds != other_regs->ds || (regs->relative & 0x8000) != (other_regs->relative & 0x8000))) {
         regs->defined[15] = NULL;
     }
 }
 
 int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs) {
-    // AX
+    /* AX */
     if (regs->defined[0] && (!other_regs->defined[0] || regs->al != other_regs->al)) {
         return 1;
     }
@@ -782,7 +793,7 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
         return 1;
     }
 
-    // CX
+    /* CX */
     if (regs->defined[2] && (!other_regs->defined[2] || regs->cl != other_regs->cl)) {
         return 1;
     }
@@ -795,7 +806,7 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
         return 1;
     }
 
-    // DX
+    /* DX */
     if (regs->defined[4] && (!other_regs->defined[4] || regs->dl != other_regs->dl)) {
         return 1;
     }
@@ -808,7 +819,7 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
         return 1;
     }
 
-    // BX
+    /* BX */
     if (regs->defined[6] && (!other_regs->defined[6] || regs->bl != other_regs->bl)) {
         return 1;
     }
@@ -821,42 +832,42 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
         return 1;
     }
 
-    // SP
+    /* SP */
     if (regs->defined[8] && (!other_regs->defined[8] || regs->sp != other_regs->sp || (regs->relative & 0x100) != (other_regs->relative & 0x100))) {
         return 1;
     }
 
-    // BP
+    /* BP */
     if (regs->defined[9] && (!other_regs->defined[9] || regs->bp != other_regs->bp || (regs->relative & 0x200) != (other_regs->relative & 0x200))) {
         return 1;
     }
 
-    // SI
+    /* SI */
     if (regs->defined[10] && (!other_regs->defined[10] || regs->si != other_regs->si || (regs->relative & 0x400) != (other_regs->relative & 0x400))) {
         return 1;
     }
 
-    // DI
+    /* DI */
     if (regs->defined[11] && (!other_regs->defined[11] || regs->di != other_regs->di || (regs->relative & 0x800) != (other_regs->relative & 0x800))) {
         return 1;
     }
 
-    // ES
+    /* ES */
     if (regs->defined[12] && (!other_regs->defined[12] || regs->es != other_regs->es || (regs->relative & 0x1000) != (other_regs->relative & 0x1000))) {
         return 1;
     }
 
-    // CS
+    /* CS */
     if (regs->defined[13] && (!other_regs->defined[13] || regs->cs != other_regs->cs || (regs->relative & 0x2000) != (other_regs->relative & 0x2000))) {
         return 1;
     }
 
-    // SS
+    /* SS */
     if (regs->defined[14] && (!other_regs->defined[14] || regs->ss != other_regs->ss || (regs->relative & 0x4000) != (other_regs->relative & 0x4000))) {
         return 1;
     }
 
-    // DS
+    /* DS */
     if (regs->defined[15] && (!other_regs->defined[15] || regs->ds != other_regs->ds || (regs->relative & 0x8000) != (other_regs->relative & 0x8000))) {
         return 1;
     }
@@ -865,13 +876,15 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
 }
 
 void make_all_registers_undefined(struct Registers *regs) {
-    for (int i = 0; i < 16; i++) {
+    int i;
+    for (i = 0; i < 16; i++) {
         regs->defined[i] = NULL;
     }
 }
 
 void make_all_registers_undefined_except_cs(struct Registers *regs) {
-    for (int i = 0; i < 16; i++) {
+    int i;
+    for (i = 0; i < 16; i++) {
         if (i != 13) {
             regs->defined[i] = NULL;
         }

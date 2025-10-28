@@ -90,8 +90,9 @@ void print_dos_variable_label(void (*print)(const char *), unsigned int address)
 }
 
 void print_segment_start_label(void (*print)(const char *), const char *start) {
-	print("seg");
 	int diff = start - buffer_start;
+
+	print("seg");
 	print_literal_hex_word_no_prefix(print, diff >> 4);
 
 	if (diff & 0xF) {

@@ -44,6 +44,8 @@ int index_of_global_variable_in_word_value_map_with_start(const struct GlobalVar
 int put_global_variable_in_word_value_map(struct GlobalVariableWordValueMap *map, const char *key, uint16_t value) {
     int first = 0;
 	int last = map->entry_count;
+    int i;
+
     while (last > first) {
 		int index = (first + last) / 2;
 		const char *this_start = map->keys[index];
@@ -71,12 +73,13 @@ int put_global_variable_in_word_value_map(struct GlobalVariableWordValueMap *map
         }
     }
 
-	for (int i = map->entry_count; i > last; i--) {
-		map->keys[i] = map->keys[i - 1];
+	for (i = map->entry_count; i > last; i--) {
+		const int target_index = i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
+        const int mask = 1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+
+        map->keys[i] = map->keys[i - 1];
         map->values[i] = map->values[i - 1];
 
-        const int target_index = i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
-        const int mask = 1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
         if (map->relative[(i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD))) {
             map->relative[target_index] |= mask;
         }
@@ -96,6 +99,8 @@ int put_global_variable_in_word_value_map(struct GlobalVariableWordValueMap *map
 int put_global_variable_in_word_value_map_relative(struct GlobalVariableWordValueMap *map, const char *key, uint16_t value) {
     int first = 0;
 	int last = map->entry_count;
+    int i;
+
     while (last > first) {
 		int index = (first + last) / 2;
 		const char *this_start = map->keys[index];
@@ -123,12 +128,13 @@ int put_global_variable_in_word_value_map_relative(struct GlobalVariableWordValu
         }
     }
 
-	for (int i = map->entry_count; i > last; i--) {
-		map->keys[i] = map->keys[i - 1];
+	for (i = map->entry_count; i > last; i--) {
+		const int target_index = i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
+        const int mask = 1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+
+        map->keys[i] = map->keys[i - 1];
         map->values[i] = map->values[i - 1];
 
-        const int target_index = i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
-        const int mask = 1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
         if (map->relative[(i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD))) {
             map->relative[target_index] |= mask;
         }
@@ -158,12 +164,14 @@ int remove_global_variable_word_value_with_start(struct GlobalVariableWordValueM
 			last = index;
 		}
 		else {
-			for (int i = index + 1; i < map->entry_count; i++) {
+            int i;
+			for (i = index + 1; i < map->entry_count; i++) {
+                const int target_index = (i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
+                const int mask = 1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+
                 map->keys[i - 1] = map->keys[i];
                 map->values[i - 1] = map->values[i];
         
-                const int target_index = (i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
-                const int mask = 1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
                 if (map->relative[i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD))) {
                     map->relative[target_index] |= mask;
                 }
@@ -205,6 +213,9 @@ void clear_global_variable_word_value_map(struct GlobalVariableWordValueMap *map
 }
 
 int copy_global_variable_word_values_map(struct GlobalVariableWordValueMap *target_map, const struct GlobalVariableWordValueMap *source_map) {
+    const unsigned int count = source_map->entry_count;
+    const unsigned int allocated_count = ((count + GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) * GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY;
+
     if (target_map->keys) {
         free(target_map->keys);
     }
@@ -217,23 +228,22 @@ int copy_global_variable_word_values_map(struct GlobalVariableWordValueMap *targ
         free(target_map->relative);
     }
 
-    const unsigned int count = source_map->entry_count;
-    const unsigned int allocated_count = ((count + GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) * GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY;
     if (allocated_count) {
+        const int relative_allocated_count = allocated_count / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
+        int i;
         target_map->keys = malloc(allocated_count * sizeof(const char *));
         target_map->values = malloc(allocated_count * sizeof(uint16_t));
-        const int relative_allocated_count = allocated_count / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
         target_map->relative = malloc(relative_allocated_count * sizeof(unsigned int));
         if (!target_map->keys || !target_map->values || !target_map->relative) {
             return 1;
         }
 
-        for (int i = 0; i < count; i++) {
+        for (i = 0; i < count; i++) {
             target_map->keys[i] = source_map->keys[i];
             target_map->values[i] = source_map->values[i];
         }
 
-        for (int i = 0; i < count; i++) {
+        for (i = 0; i < count; i++) {
             target_map->relative[i] = source_map->relative[i];
         }
     }
@@ -251,7 +261,8 @@ int merge_global_variable_word_values_map(struct GlobalVariableWordValueMap *map
     const char *key;
     int index;
     int error_code;
-    for (int i = 0; i < map->entry_count; i++) {
+    int i;
+    for (i = 0; i < map->entry_count; i++) {
         key = map->keys[i];
         index = index_of_global_variable_in_word_value_map_with_start(other_map, key);
         if (index < 0 || map->values[i] != other_map->values[i] || is_global_variable_word_value_relative_at_index(map, i) != is_global_variable_word_value_relative_at_index(other_map, index)) {
@@ -269,7 +280,8 @@ int changes_on_merging_global_variable_word_values_map(const struct GlobalVariab
     const char *key;
     int index;
     int error_code;
-    for (int i = 0; i < map->entry_count; i++) {
+    int i;
+    for (i = 0; i < map->entry_count; i++) {
         key = map->keys[i];
         index = index_of_global_variable_in_word_value_map_with_start(other_map, key);
         if (index < 0 || map->values[i] != other_map->values[i] || is_global_variable_word_value_relative_at_index(map, i) != is_global_variable_word_value_relative_at_index(other_map, index)) {

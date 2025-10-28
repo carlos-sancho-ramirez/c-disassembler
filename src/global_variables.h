@@ -8,7 +8,7 @@
 #define GLOBAL_VARIABLE_TYPE_BYTE 1
 #define GLOBAL_VARIABLE_TYPE_WORD 2
 
-// Raw array of characters without any charater as end
+/* Raw array of characters without any charater as end */
 #define GLOBAL_VARIABLE_TYPE_STRING 5
 #define GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING 6
 #define GLOBAL_VARIABLE_TYPE_FAR_POINTER 9
@@ -67,4 +67,4 @@ int add_far_pointer_global_variable_reference(
         const char *segment_start,
         const char *opcode_reference);
 
-#endif // _GLOBAL_VARIABLES_H_
+#endif
