@@ -791,6 +791,15 @@ static int read_block_instruction_internal(
 				read_next_byte(reader);
 			}
 
+			mark_word_register_undefined(regs, (value1 >> 3) & 7);
+			if (value0 == 0xC4) {
+				mark_register_es_undefined(regs);
+			}
+			else {
+				/* Assuming value0 == 0xC5 */
+				mark_register_ds_undefined(regs);
+			}
+
 			return 0;
 		}
 	}

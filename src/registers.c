@@ -544,6 +544,14 @@ void mark_register_bx_undefined(struct Registers *regs) {
 	regs->defined[7] = NULL;
 }
 
+void mark_register_es_undefined(struct Registers *regs) {
+	regs->defined[12] = NULL;
+}
+
+void mark_register_ds_undefined(struct Registers *regs) {
+	regs->defined[15] = NULL;
+}
+
 void mark_word_register_undefined(struct Registers *regs, unsigned int index) {
 	assert(index < 8);
 
