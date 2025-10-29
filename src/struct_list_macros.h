@@ -16,23 +16,23 @@ struct struct_name ## List { \
 	 * This parameter should be adjusted according to the environment where this executable should run. \
 	 */ \
 	unsigned int page_array_granularity; \
-    \
-    /** \
+	\
+	/** \
 	 * Number of structs in each page. \
 	 * The bigger, the more we will avoid calling realloc for each new inserted struct and the less \
 	 * the page_array will grow, improving its performance. \
 	 * This parameter should be adjusted according to the environment where this executable should run. \
 	 */ \
 	unsigned int short_item_name##s_per_page; \
-    \
-    /** \
+	\
+	/** \
 	 * Array holding all allocated pages in the order they have been allocated. \
 	 * The allocated size of this array can be calculated combining the values in short_item_name##_count, \
 	 * short_item_name##s_per_page and page_array_granularity. \
 	 * This will be NULL when short_item_name##_count is 0. \
 	 */ \
 	struct struct_name **page_array; \
-    \
+	\
 	/** \
 	 * Array pointing to all structs, sorted by its pointer. \
 	 * The allocated size of this array can be calculated combining the values in short_item_name##_count, \
@@ -40,8 +40,8 @@ struct struct_name ## List { \
 	 * This will be NULL when reference_count is 0. \
 	 */ \
 	struct struct_name **sorted_##short_item_name##s; \
-    \
-    /** \
+	\
+	/** \
 	 * Number of structs already inserted. \
 	 * Note that this value is most of the times lower than the actual capacity allocated in memory \
 	 * to hold all of them. \

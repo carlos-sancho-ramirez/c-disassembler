@@ -4,10 +4,10 @@
 #include <stdint.h>
 
 struct Stack {
-    unsigned int allocated_word_count;
-    unsigned int word_count;
-    uint16_t *values;
-    uint16_t *defined_and_relative;
+	unsigned int allocated_word_count;
+	unsigned int word_count;
+	uint16_t *values;
+	uint16_t *defined_and_relative;
 };
 
 void initialize_stack(struct Stack *stack);

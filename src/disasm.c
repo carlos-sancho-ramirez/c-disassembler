@@ -478,9 +478,9 @@ static int read_block_instruction_internal(
 			if ((value0 & 0xFD) == 0x89 && is_segment_register_defined_and_relative(regs, segment_index)) {
 				/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
 				unsigned int segment_value = get_segment_register(regs, segment_index);
-        		unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
-        		const char *target = segment_start + relative_address;
-        		const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+				unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+				const char *target = segment_start + relative_address;
+				const int var_index = index_of_global_variable_with_start(global_variable_list, target);
 				if (var_index >= 0) {
 					const int reg_index = (value1 >> 3) & 7;
 					if (value0 == 0x89) {
@@ -949,12 +949,12 @@ static int read_block_instruction_internal(
 						var->relative_address = relative_address;
 						var->end = target + length;
 						var->var_type = GLOBAL_VARIABLE_TYPE_STRING;
-			
+
 						if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
 							return error_code;
 						}
 					}
-			
+
 					if (segment_value && segment_value != 0xFFF0) {
 						const char *target_segment_start = segment_start + segment_value * 16;
 						if (!contains_segment_start(segment_start_list, target_segment_start)) {
@@ -1575,7 +1575,7 @@ int find_code_blocks_and_variables(
 				mark_code_block_as_being_evaluated(block);
 
 				block_max_size = read_result->size - (block->start - read_result->buffer);
-	
+
 				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
 
 				initialize_global_variable_word_value_map(&var_values);

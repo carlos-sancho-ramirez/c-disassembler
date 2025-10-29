@@ -1,4 +1,4 @@
-.PHONY: clean test
+.PHONY: clean check test
 
 headers = src/code_blocks.h src/dumpers.h src/global_variables.h src/interruption_table.h src/print_utils.h src/reader.h src/refs.h src/registers.h src/relocations.h src/segments.h src/stack.h src/version.h
 sources = src/code_blocks.c src/disasm.c src/dumpers.c src/global_variables.c src/interruption_table.c src/print_utils.c src/reader.c src/refs.c src/registers.c src/relocations.c src/segments.c src/stack.c build/src/version.c
@@ -31,6 +31,9 @@ build/test: build
 
 build:
 	mkdir -p $@
+
+check: $(sources) $(headers)
+	editorconfig-checker
 
 test: build/test/samples/bin/hello.asm build/test/samples/bin/timer.asm
 	cmp test/samples/bin/hello.asm build/test/samples/bin/hello.asm

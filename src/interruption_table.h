@@ -3,28 +3,28 @@
 #include <stdint.h>
 
 struct FarPointer {
-    uint16_t offset;
-    uint16_t segment;
+	uint16_t offset;
+	uint16_t segment;
 };
 
 struct InterruptionTable {
-    struct FarPointer pointers[256];
+	struct FarPointer pointers[256];
 
-    /**
+	/**
 	 * Points to the last instruction where the offset was assigned to a register.
 	 * NULL if the offset is not defined.
 	 * REGISTER_DEFINED_OUTSIDE if the offset comes registered by the OS.
 	 */
 	const char *offset_defined[256];
 
-    /**
+	/**
 	 * Points to the last instruction where the segment was assigned to a register.
 	 * NULL if the segment is not defined.
 	 * REGISTER_DEFINED_OUTSIDE if the segment comes registered by the OS.
 	 */
 	const char *segment_defined[256];
 
-    char relative[32];
+	char relative[32];
 };
 
 int is_interruption_defined_and_relative_in_table(struct InterruptionTable *table, uint8_t index);

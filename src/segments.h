@@ -2,8 +2,8 @@
 #define _SEGMENTS_H_
 
 struct SegmentStartList {
-    const char **start;
-    unsigned int count;
+	const char **start;
+	unsigned int count;
 };
 
 void initialize_segment_start_list(struct SegmentStartList *list);
