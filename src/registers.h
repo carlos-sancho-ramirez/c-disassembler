@@ -84,6 +84,7 @@ int is_segment_register_defined_and_relative(struct Registers *regs, unsigned in
 
 const char *where_register_ax_defined(struct Registers *regs);
 const char *where_register_dx_defined(struct Registers *regs);
+const char *where_register_sp_defined(struct Registers *regs);
 
 unsigned int get_register_al(struct Registers *regs);
 unsigned int get_register_ah(struct Registers *regs);
@@ -125,6 +126,7 @@ void mark_word_register_undefined(struct Registers *regs, unsigned int index);
 void set_register_al_undefined(struct Registers *regs);
 void set_register_ax_undefined(struct Registers *regs);
 
+void set_register_sp(struct Registers *regs, const char *where, uint16_t value);
 void set_register_es(struct Registers *regs, const char *where, uint16_t value);
 void set_register_cs(struct Registers *regs, const char *where, uint16_t value);
 void set_register_ss(struct Registers *regs, const char *where, uint16_t value);

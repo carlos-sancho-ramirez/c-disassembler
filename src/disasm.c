@@ -257,6 +257,38 @@ static void read_block_instruction_address(
 	}
 }
 
+static int update_call_return_origin(struct CodeBlock *return_block, unsigned int call_return_origin_index, struct Registers *regs, struct GlobalVariableWordValueMap *var_values) {
+	int error_code;
+	struct Registers updated_regs;
+	struct CodeBlockOrigin *call_return_origin = return_block->origin_list.sorted_origins[call_return_origin_index];
+	copy_registers(&updated_regs, regs);
+	if (is_register_sp_defined_and_absolute(regs)) {
+		set_register_sp(&updated_regs, where_register_sp_defined(regs), get_register_sp(regs) + 2);
+	}
+
+	if (is_register_cs_defined(&call_return_origin->regs)) {
+		if (changes_on_merging_registers(&call_return_origin->regs, &updated_regs) || changes_on_merging_global_variable_word_values_map(&call_return_origin->var_values, var_values)) {
+			merge_registers(&call_return_origin->regs, &updated_regs);
+			if ((error_code = merge_global_variable_word_values_map(&call_return_origin->var_values, var_values))) {
+				return error_code;
+			}
+
+			invalidate_code_block_check(return_block);
+		}
+	}
+	else {
+		copy_registers(&call_return_origin->regs, &updated_regs);
+
+		if ((error_code = copy_global_variable_word_values_map(&call_return_origin->var_values, var_values))) {
+			return error_code;
+		}
+
+		invalidate_code_block_check(return_block);
+	}
+
+	return 0;
+}
+
 #define SEGMENT_INDEX_UNDEFINED -1
 #define SEGMENT_INDEX_SS 2
 #define SEGMENT_INDEX_DS 3
@@ -760,7 +792,62 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if (value0 == 0xC3) {
+		struct CodeBlockOriginList *origin_list = &block->origin_list;
+		int index;
 		block->end = block->start + reader->buffer_index;
+		for (index = 0; index < origin_list->origin_count; index++) {
+			struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
+			int origin_type = get_code_block_origin_type(origin);
+			if (origin_type == CODE_BLOCK_ORIGIN_TYPE_JUMP) {
+				const int jmp_opcode0 = ((int) *origin->instruction) & 0xFF;
+				if (jmp_opcode0 == 0xE8) {
+					int return_block_index = index_of_code_block_with_start(code_block_list, origin->instruction + 3);
+					if (return_block_index >= 0) {
+						struct CodeBlock *return_block = code_block_list->sorted_blocks[return_block_index];
+						int call_return_origin_index = index_of_code_block_origin_of_type_call_three_behind(&return_block->origin_list);
+						if (call_return_origin_index >= 0 && (error_code = update_call_return_origin(return_block, call_return_origin_index, regs, var_values))) {
+							return error_code;
+						}
+					}
+				}
+				else if (jmp_opcode0 == 0xFF) {
+					const int jmp_opcode1 = ((int) origin->instruction[1]) & 0xFF;
+					if ((jmp_opcode1 & 0x38) == 0x10) {
+						int return_block_index;
+						int jmp_instruction_length = 2;
+						if (jmp_opcode1 < 0xC0) {
+							if (jmp_opcode1 >= 0x80 || (jmp_opcode1 & 0xC7) == 0x06) {
+								jmp_instruction_length = 4;
+							}
+							else if ((jmp_opcode1 & 0xC0) == 0x40) {
+								jmp_instruction_length = 3;
+							}
+						}
+
+						return_block_index = index_of_code_block_with_start(code_block_list, origin->instruction + jmp_instruction_length);
+						if (return_block_index >= 0) {
+							struct CodeBlock *return_block = code_block_list->sorted_blocks[return_block_index];
+							int call_return_origin_index;
+							if (jmp_instruction_length == 2) {
+								call_return_origin_index = index_of_code_block_origin_of_type_call_two_behind(&return_block->origin_list);
+							}
+							else if (jmp_instruction_length == 3) {
+								call_return_origin_index = index_of_code_block_origin_of_type_call_three_behind(&return_block->origin_list);
+							}
+							else {
+								/* Assuming jmp_instruction_length == 4 */
+								call_return_origin_index = index_of_code_block_origin_of_type_call_four_behind(&return_block->origin_list);
+							}
+
+							if (call_return_origin_index >= 0 && (error_code = update_call_return_origin(return_block, call_return_origin_index, regs, var_values))) {
+								return error_code;
+							}
+						}
+					}
+				}
+			}
+		}
+
 		return 0;
 	}
 	else if ((value0 & 0xFE) == 0xC4) {
@@ -1539,6 +1626,8 @@ int find_code_blocks_and_variables(
 	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
 	int error_code;
 	int any_evaluated;
+	int any_not_ready;
+	int evaluate_all;
 	int variable_index;
 
 	if (!first_block) {
@@ -1569,37 +1658,48 @@ int find_code_blocks_and_variables(
 		return error_code;
 	}
 
+	evaluate_all = 0;
 	do {
 		int block_index;
 		any_evaluated = 0;
+		any_not_ready = 0;
 
 		for (block_index = 0; block_index < code_block_list->block_count; block_index++) {
 			struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
 			if (code_block_requires_evaluation(block)) {
-				struct Registers regs;
-				unsigned int block_max_size;
-				struct GlobalVariableWordValueMap var_values;
+				if (evaluate_all || code_block_ready_to_be_evaluated(block)) {
+					struct Registers regs;
+					unsigned int block_max_size;
+					struct GlobalVariableWordValueMap var_values;
 
-				any_evaluated = 1;
-				mark_code_block_as_being_evaluated(block);
+					any_evaluated = 1;
+					mark_code_block_as_being_evaluated(block);
 
-				block_max_size = read_result->size - (block->start - read_result->buffer);
+					block_max_size = read_result->size - (block->start - read_result->buffer);
 
-				accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
+					accumulate_registers_from_code_block_origin_list(&regs, &block->origin_list);
 
-				initialize_global_variable_word_value_map(&var_values);
-				accumulate_global_variable_word_values_from_code_block_origin_list(&var_values, &block->origin_list);
+					initialize_global_variable_word_value_map(&var_values);
+					accumulate_global_variable_word_values_from_code_block_origin_list(&var_values, &block->origin_list);
 
-				if ((error_code = read_block(&regs, &var_values, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, segment_start_list, reference_list))) {
-					return error_code;
+					if ((error_code = read_block(&regs, &var_values, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, segment_start_list, reference_list))) {
+						return error_code;
+					}
+
+					clear_global_variable_word_value_map(&var_values);
+					mark_code_block_as_evaluated(block);
 				}
-
-				clear_global_variable_word_value_map(&var_values);
-				mark_code_block_as_evaluated(block);
+				else {
+					any_not_ready = 1;
+				}
 			}
 		}
+
+		if (!any_evaluated && any_not_ready) {
+			evaluate_all = 1;
+		}
 	}
-	while (any_evaluated);
+	while (any_evaluated || any_not_ready);
 
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];

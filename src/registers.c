@@ -207,6 +207,10 @@ const char *where_register_dx_defined(struct Registers *regs) {
 	return (dl_defined == regs->defined[5])? dl_defined : NULL;
 }
 
+const char *where_register_sp_defined(struct Registers *regs) {
+	return regs->defined[8];
+}
+
 unsigned int get_register_al(struct Registers *regs) {
 	return regs->al;
 }
@@ -571,6 +575,12 @@ void set_register_al_undefined(struct Registers *regs) {
 void set_register_ax_undefined(struct Registers *regs) {
 	regs->defined[0] = NULL;
 	regs->defined[1] = NULL;
+}
+
+void set_register_sp(struct Registers *regs, const char *where, uint16_t value) {
+	regs->sp = value;
+	regs->defined[8] = where;
+	regs->relative &= ~0x100;
 }
 
 void set_register_es(struct Registers *regs, const char *where, uint16_t value) {

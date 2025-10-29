@@ -129,6 +129,14 @@ struct CodeBlock {
 };
 
 int code_block_requires_evaluation(struct CodeBlock *block);
+
+/**
+ * Return false if the block include a call return origin, and the registers are not yet set.
+ *
+ * If this is returning false, most probably there is another code block that must be evaluated before this one,
+ * and that block will fulfill the missing registers.
+ */
+int code_block_ready_to_be_evaluated(struct CodeBlock *block);
 void mark_code_block_as_being_evaluated(struct CodeBlock *block);
 void mark_code_block_as_evaluated(struct CodeBlock *block);
 void invalidate_code_block_check(struct CodeBlock *block);

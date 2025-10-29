@@ -17,6 +17,25 @@ int code_block_requires_evaluation(struct CodeBlock *block) {
 	return !(block->flags & CODE_BLOCK_FLAG_VALID_EVALUATION);
 }
 
+int code_block_ready_to_be_evaluated(struct CodeBlock *block) {
+	int index = index_of_code_block_origin_of_type_call_two_behind(&block->origin_list);
+	if (index < 0) {
+		index = index_of_code_block_origin_of_type_call_three_behind(&block->origin_list);
+	}
+
+	if (index < 0) {
+		index = index_of_code_block_origin_of_type_call_four_behind(&block->origin_list);
+	}
+
+	if (index >= 0) {
+		struct CodeBlockOrigin *origin = block->origin_list.sorted_origins[index];
+		return is_register_cs_defined(&origin->regs);
+	}
+	else {
+		return 1;
+	}
+}
+
 void mark_code_block_as_being_evaluated(struct CodeBlock *block) {
 	block->flags |= CODE_BLOCK_FLAG_UNDER_EVALUATION | CODE_BLOCK_FLAG_VALID_EVALUATION;
 }
