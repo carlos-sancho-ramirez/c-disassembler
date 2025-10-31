@@ -1,11 +1,6 @@
 #ifndef _INTERRUPTION_TABLE_H_
 #define _INTERRUPTION_TABLE_H_
-#include <stdint.h>
-
-struct FarPointer {
-	uint16_t offset;
-	uint16_t segment;
-};
+#include "fpointer.h"
 
 struct InterruptionTable {
 	struct FarPointer pointers[256];
@@ -39,4 +34,4 @@ void set_interruption_table_segment(struct InterruptionTable *table, uint8_t ind
 void set_interruption_table_segment_relative(struct InterruptionTable *table, uint8_t index, const char *where, uint16_t value);
 void make_all_interruption_table_undefined(struct InterruptionTable *table);
 
-#endif
+#endif /* _INTERRUPTION_TABLE_H_ */

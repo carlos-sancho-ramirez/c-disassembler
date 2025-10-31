@@ -1,5 +1,5 @@
-#ifndef _REGISTERS_H_
-#define _REGISTERS_H_
+#ifndef _REGISTER_H_
+#define _REGISTER_H_
 #include <stdint.h>
 
 #define REGISTER_DEFINED_OUTSIDE ((const char *) 1)
@@ -145,4 +145,5 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
 int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs);
 void make_all_registers_undefined(struct Registers *regs);
 void make_all_registers_undefined_except_cs(struct Registers *regs);
-#endif
+
+#endif /* _REGISTER_H_ */

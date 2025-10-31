@@ -1,8 +1,8 @@
 #ifndef _DUMPERS_H_
 #define _DUMPERS_H_
 
-#include "code_blocks.h"
-#include "global_variables.h"
+#include "cblock.h"
+#include "gvar.h"
 #include "refs.h"
 
 int dump(

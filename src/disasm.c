@@ -1,15 +1,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "code_blocks.h"
+#include "cblist.h"
+#include "gvlist.h"
 #include "dumpers.h"
-#include "print_utils.h"
+#include "printu.h"
 #include "reader.h"
-#include "registers.h"
-#include "relocations.h"
+#include "register.h"
+#include "relocu.h"
 #include "stack.h"
-#include "interruption_table.h"
-#include "segments.h"
+#include "itable.h"
+#include "sslist.h"
 #include "version.h"
 
 #define SEGMENT_READ_RESULT_FLAG_DS_MATCHES_CS_AT_START 1
@@ -444,7 +445,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs, var_values))) {
+			if ((result = add_jump_type_code_block_origin_in_block(new_block, opcode_reference, regs, var_values))) {
 				return result;
 			}
 
@@ -1003,7 +1004,7 @@ static int read_block_instruction_internal(
 					target_block->end = jump_destination;
 					target_block->flags = 0;
 					initialize_code_block_origin_list(&target_block->origin_list);
-					if ((result = add_interruption_type_code_block_origin(target_block, regs, var_values))) {
+					if ((result = add_interruption_type_code_block_origin_in_block(target_block, regs, var_values))) {
 						return result;
 					}
 
@@ -1107,7 +1108,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs, var_values))) {
+			if ((result = add_jump_type_code_block_origin_in_block(new_block, opcode_reference, regs, var_values))) {
 				return result;
 			}
 
@@ -1136,7 +1137,7 @@ static int read_block_instruction_internal(
 				next_block->end = block->end;
 				next_block->flags = 0;
 				initialize_code_block_origin_list(&next_block->origin_list);
-				if ((result = add_call_three_behind_type_code_block_origin(next_block))) {
+				if ((result = add_call_three_behind_type_code_block_origin_in_block(next_block))) {
 					return result;
 				}
 
@@ -1147,7 +1148,7 @@ static int read_block_instruction_internal(
 			else {
 				struct CodeBlock *next_block = code_block_list->sorted_blocks[result];
 				struct CodeBlockOriginList *origin_list = &next_block->origin_list;
-				if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0 && (result = add_call_three_behind_type_code_block_origin(next_block))) {
+				if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0 && (result = add_call_three_behind_type_code_block_origin_in_block(next_block))) {
 					return result;
 				}
 			}
@@ -1179,7 +1180,7 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_code_block_origin_list(&new_block->origin_list);
-			if ((result = add_jump_type_code_block_origin(new_block, opcode_reference, regs, var_values))) {
+			if ((result = add_jump_type_code_block_origin_in_block(new_block, opcode_reference, regs, var_values))) {
 				return result;
 			}
 
@@ -1264,7 +1265,7 @@ static int read_block_instruction_internal(
 
 					make_all_registers_undefined(&int_regs);
 					set_register_cs_relative(&int_regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
-					if ((result = add_interruption_type_code_block_origin(target_block, &int_regs, var_values))) {
+					if ((result = add_interruption_type_code_block_origin_in_block(target_block, &int_regs, var_values))) {
 						return result;
 					}
 
@@ -1354,18 +1355,18 @@ static int read_block_instruction_internal(
 					next_block->flags = 0;
 					initialize_code_block_origin_list(&next_block->origin_list);
 					if (instruction_length == 2) {
-						if ((result = add_call_two_behind_type_code_block_origin(next_block))) {
+						if ((result = add_call_two_behind_type_code_block_origin_in_block(next_block))) {
 							return result;
 						}
 					}
 					else if (instruction_length == 3) {
-						if ((result = add_call_three_behind_type_code_block_origin(next_block))) {
+						if ((result = add_call_three_behind_type_code_block_origin_in_block(next_block))) {
 							return result;
 						}
 					}
 					else {
 						/* instruction_length == 4 */
-						if ((result = add_call_four_behind_type_code_block_origin(next_block))) {
+						if ((result = add_call_four_behind_type_code_block_origin_in_block(next_block))) {
 							return result;
 						}
 					}
@@ -1378,18 +1379,18 @@ static int read_block_instruction_internal(
 					struct CodeBlock *next_block = code_block_list->sorted_blocks[result];
 					struct CodeBlockOriginList *origin_list = &next_block->origin_list;
 					if (instruction_length == 2) {
-						if (index_of_code_block_origin_of_type_call_two_behind(origin_list) < 0 && (result = add_call_two_behind_type_code_block_origin(next_block))) {
+						if (index_of_code_block_origin_of_type_call_two_behind(origin_list) < 0 && (result = add_call_two_behind_type_code_block_origin_in_block(next_block))) {
 							return result;
 						}
 					}
 					else if (instruction_length == 3) {
-						if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0 && (result = add_call_three_behind_type_code_block_origin(next_block))) {
+						if (index_of_code_block_origin_of_type_call_three_behind(origin_list) < 0 && (result = add_call_three_behind_type_code_block_origin_in_block(next_block))) {
 							return result;
 						}
 					}
 					else {
 						/* instruction_length == 4 */
-						if (index_of_code_block_origin_of_type_call_four_behind(origin_list) < 0 && (result = add_call_four_behind_type_code_block_origin(next_block))) {
+						if (index_of_code_block_origin_of_type_call_four_behind(origin_list) < 0 && (result = add_call_four_behind_type_code_block_origin_in_block(next_block))) {
 							return result;
 						}
 					}

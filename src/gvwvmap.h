@@ -1,27 +1,7 @@
-#ifndef _GLOBAL_VARIABLES_H_
-#define _GLOBAL_VARIABLES_H_
+#ifndef _GLOBAL_VARIABLE_WORD_VALUE_MAP_H_
+#define _GLOBAL_VARIABLE_WORD_VALUE_MAP_H_
 
 #include <stdint.h>
-#include <stdlib.h>
-#include "struct_list_macros.h"
-
-#define GLOBAL_VARIABLE_TYPE_BYTE 1
-#define GLOBAL_VARIABLE_TYPE_WORD 2
-
-/* Raw array of characters without any charater as end */
-#define GLOBAL_VARIABLE_TYPE_STRING 5
-#define GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING 6
-#define GLOBAL_VARIABLE_TYPE_FAR_POINTER 9
-
-struct GlobalVariable {
-	const char *start;
-	const char *end;
-	unsigned int relative_address;
-	unsigned int var_type;
-};
-
-DEFINE_STRUCT_LIST(GlobalVariable, variable);
-DECLARE_STRUCT_LIST_METHODS(GlobalVariable, global_variable, variable, start);
 
 struct GlobalVariableWordValueMap {
 		const char **keys;
@@ -43,28 +23,4 @@ int copy_global_variable_word_values_map(struct GlobalVariableWordValueMap *targ
 int merge_global_variable_word_values_map(struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map);
 int changes_on_merging_global_variable_word_values_map(const struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map);
 
-#include "refs.h"
-#include "registers.h"
-#include "segments.h"
-
-int add_global_variable_reference(
-		struct GlobalVariableList *global_variable_list,
-		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list,
-		struct Registers *regs,
-		int segment_index,
-		int result_address,
-		const char *segment_start,
-		const int value0,
-		const char *opcode_reference);
-
-int add_far_pointer_global_variable_reference(
-		struct GlobalVariableList *global_variable_list,
-		struct ReferenceList *reference_list,
-		struct Registers *regs,
-		int segment_index,
-		int result_address,
-		const char *segment_start,
-		const char *opcode_reference);
-
-#endif
+#endif /* _GLOBAL_VARIABLE_WORD_VALUE_MAP_H_ */

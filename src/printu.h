@@ -1,5 +1,5 @@
-#ifndef _PRINTERS_H_
-#define _PRINTERS_H_
+#ifndef _PRINT_UTILS_H_
+#define _PRINT_UTILS_H_
 
 extern const char *buffer_start;
 
@@ -14,4 +14,4 @@ void print_dos_address_label(void (*print)(const char *), int ip, int cs);
 void print_bin_variable_label(void (*print)(const char *), unsigned int address);
 void print_dos_variable_label(void (*print)(const char *), unsigned int address);
 
-#endif
+#endif /* _PRINT_UTILS_H_ */

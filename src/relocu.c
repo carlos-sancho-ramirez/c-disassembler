@@ -1,4 +1,4 @@
-#include "relocations.h"
+#include "relocu.h"
 
 int is_relocation_present_in_sorted_relocations(const char **sorted_relocations, unsigned int relocation_count, const char *relocation_query) {
 	int first = 0;

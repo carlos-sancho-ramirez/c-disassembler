@@ -1,11 +1,8 @@
-#ifndef _CODE_BLOCKS_H_
-#define _CODE_BLOCKS_H_
+#ifndef _CODE_BLOCK_ORIGIN_H_
+#define _CODE_BLOCK_ORIGIN_H_
 
-#include <stdlib.h>
-#include "struct_list_macros.h"
-#include "registers.h"
-#include "interruption_table.h"
-#include "global_variables.h"
+#include "register.h"
+#include "gvwvmap.h"
 
 /**
  * Denotes that this block is accessed directly by the OS. This is mainly saying that this block is the starting point of our executable.
@@ -63,6 +60,14 @@
  */
 #define CODE_BLOCK_ORIGIN_TYPE_JUMP 6
 
+/* These should be internal, but they are used by the its list... */
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS ((const char *) CODE_BLOCK_ORIGIN_TYPE_OS)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION ((const char *) CODE_BLOCK_ORIGIN_TYPE_INTERRUPTION)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE ((const char *) CODE_BLOCK_ORIGIN_TYPE_CONTINUE)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_TWO_BEHIND)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_THREE_BEHIND)
+#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_FOUR_BEHIND)
+
 /**
  * Provide information regarding how the linked block is reached.
  */
@@ -101,55 +106,9 @@ int get_code_block_origin_type(struct CodeBlockOrigin *origin);
  */
 void set_os_type_in_code_block_origin(struct CodeBlockOrigin *origin);
 
-DEFINE_STRUCT_LIST(CodeBlockOrigin, origin);
-DECLARE_STRUCT_LIST_METHODS(CodeBlockOrigin, code_block_origin, origin, instruction);
-
-int index_of_code_block_origin_of_type_call_two_behind(struct CodeBlockOriginList *list);
-int index_of_code_block_origin_of_type_call_three_behind(struct CodeBlockOriginList *list);
-int index_of_code_block_origin_of_type_call_four_behind(struct CodeBlockOriginList *list);
-
 /**
- * Structure reflecting a piece of code that is always executed sequentially, except due to conditional jumps or interruptions.
+ * Returns a value different from 0 if the given instruction value is valid and does not conflict.
  */
-struct CodeBlock {
-	unsigned int relative_cs;
-	unsigned int ip;
-	const char *start;
+int is_valid_instruction_value(const char *instruction);
 
-	/**
-	 * This should always be equals or greater than start.
-	 * This is initially set to match start. If so, it means that this block has not been read yet,
-	 * and then we do not knwo for sure where it ends. Once the block is read, end will be placed
-	 * to the first position outside the block, which may match with the start of another block or not.
-	 */
-	const char *end;
-
-	unsigned int flags;
-	struct CodeBlockOriginList origin_list;
-};
-
-int code_block_requires_evaluation(struct CodeBlock *block);
-
-/**
- * Return false if the block include a call return origin, and the registers are not yet set.
- *
- * If this is returning false, most probably there is another code block that must be evaluated before this one,
- * and that block will fulfill the missing registers.
- */
-int code_block_ready_to_be_evaluated(struct CodeBlock *block);
-void mark_code_block_as_being_evaluated(struct CodeBlock *block);
-void mark_code_block_as_evaluated(struct CodeBlock *block);
-void invalidate_code_block_check(struct CodeBlock *block);
-
-DEFINE_STRUCT_LIST(CodeBlock, block);
-DECLARE_STRUCT_LIST_METHODS(CodeBlock, code_block, block, start);
-
-void accumulate_registers_from_code_block_origin_list(struct Registers *regs, struct CodeBlockOriginList *origin_list);
-int add_interruption_type_code_block_origin(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
-int add_call_two_behind_type_code_block_origin(struct CodeBlock *block);
-int add_call_three_behind_type_code_block_origin(struct CodeBlock *block);
-int add_call_four_behind_type_code_block_origin(struct CodeBlock *block);
-int add_jump_type_code_block_origin(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
-
-int accumulate_global_variable_word_values_from_code_block_origin_list(struct GlobalVariableWordValueMap *map, struct CodeBlockOriginList *origin_list);
-#endif
+#endif /* _CODE_BLOCK_ORIGIN_H_ */

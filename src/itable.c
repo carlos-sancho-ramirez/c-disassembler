@@ -1,4 +1,4 @@
-#include "interruption_table.h"
+#include "itable.h"
 #include <stdlib.h>
 
 int is_interruption_defined_and_relative_in_table(struct InterruptionTable *table, uint8_t index) {

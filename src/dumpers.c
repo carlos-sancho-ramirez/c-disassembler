@@ -1,7 +1,7 @@
 #include "dumpers.h"
-#include "print_utils.h"
+#include "printu.h"
 #include "reader.h"
-#include "relocations.h"
+#include "relocu.h"
 
 const char *BYTE_REGISTERS[] = {
 	"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"

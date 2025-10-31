@@ -4,8 +4,8 @@
 struct Reference;
 struct ReferenceList;
 
-#include "global_variables.h"
-#include "code_blocks.h"
+#include "gvar.h"
+#include "cblock.h"
 
 #define REFERENCE_FLAG_TARGET_TYPE_MASK 1
 #define REFERENCE_FLAG_TARGET_IS_GLOBAL_VARIABLE 0
