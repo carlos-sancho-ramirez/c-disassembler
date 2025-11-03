@@ -1273,7 +1273,7 @@ int dump(
 			position = determine_position(segment_start, block, variable);
 		}
 		else if (position_in_block && !position_in_variable) {
-			if (block->start == position) {
+			if (block->start == position && should_dump_label_for_block(block)) {
 				print("\n");
 				print_code_label(print, block->ip, block->relative_cs);
 				print(":\n");
@@ -1381,7 +1381,7 @@ int dump(
 			const char *current_variable_end;
 			unsigned int current_variable_size;
 
-			if (block->start == position) {
+			if (block->start == position && should_dump_label_for_block(block)) {
 				print("\n");
 				print_code_label(print, block->ip, block->relative_cs);
 				print(":\n");

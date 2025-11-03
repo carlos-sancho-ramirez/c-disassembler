@@ -117,6 +117,13 @@ void set_interruption_type_in_cborigin(struct CodeBlockOrigin *origin);
  */
 void set_call_return_type_in_cborigin(struct CodeBlockOrigin *origin, unsigned int behind_count);
 
+/**
+ * Set the given origin as JUMP type and assigns the given instruction as well.
+ *
+ * This will replace any previous type and instruction set.
+ */
+void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instruction);
+
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin);
 
 #endif /* _CODE_BLOCK_ORIGIN_H_ */

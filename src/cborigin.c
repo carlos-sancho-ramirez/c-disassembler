@@ -66,6 +66,11 @@ void set_call_return_type_in_cborigin(struct CodeBlockOrigin *origin, unsigned i
 	origin->flags = CBORIGIN_TYPE_CALL_RETURN | (behind_count << CBORIGIN_BEHIND_COUNT_SHIFT);
 }
 
+void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instruction) {
+	origin->flags = CBORIGIN_TYPE_JUMP;
+	origin->instruction = instruction;
+}
+
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin) {
 	origin->flags |= CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
 }

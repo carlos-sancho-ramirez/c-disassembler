@@ -45,4 +45,9 @@ int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_
  */
 int should_be_dumped(const struct CodeBlock *block);
 
+/**
+ * Whether this block requires to print its label beofre dumping it.
+ */
+int should_dump_label_for_block(const struct CodeBlock *block);
+
 #endif /* _CODE_BLOCK_H_ */
