@@ -44,7 +44,7 @@ int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin) {
 	return origin->flags & CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
 }
 
-int is_marked_as_never_reached(struct CodeBlockOrigin *origin) {
+int is_marked_as_never_reached(const struct CodeBlockOrigin *origin) {
 	return (origin->flags & (CBORIGIN_TYPE_MASK | CBORIGIN_FLAG_NEVER_REACHED)) == (CBORIGIN_TYPE_CALL_RETURN | CBORIGIN_FLAG_NEVER_REACHED);
 }
 

@@ -86,6 +86,8 @@ int get_cborigin_type(const struct CodeBlockOrigin *origin);
  */
 int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin);
 
+int is_marked_as_never_reached(const struct CodeBlockOrigin *origin);
+
 /**
  * Return the number of bytes that must be substrated to the start of this
  * block in order to find the call instruction that originated this origin.

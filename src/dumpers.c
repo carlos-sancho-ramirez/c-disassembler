@@ -1227,6 +1227,10 @@ int dump(
 
 	segment_start = segment_start_count? segment_starts[0] : NULL;
 	block = code_block_count? sorted_blocks[code_block_index] : NULL;
+	while (block && !should_be_dumped(block)) {
+		block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+	}
+
 	variable = global_variable_count? sorted_variables[global_variable_index] : NULL;
 	position = determine_position(segment_start, block, variable);
 
@@ -1288,6 +1292,9 @@ int dump(
 				if (position >= block->end) {
 					unknown_opcode_found_in_block = 0;
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+					while (block && !should_be_dumped(block)) {
+						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+					}
 					position = determine_position(segment_start, block, variable);
 				}
 			}
@@ -1310,6 +1317,9 @@ int dump(
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+						while (block && !should_be_dumped(block)) {
+							block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+						}
 						position = determine_position(segment_start, block, variable);
 					}
 				}
@@ -1357,6 +1367,9 @@ int dump(
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+						while (block && !should_be_dumped(block)) {
+							block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+						}
 						position = determine_position(segment_start, block, variable);
 					}
 				}
@@ -1391,6 +1404,9 @@ int dump(
 				if (position >= block->end) {
 					unknown_opcode_found_in_block = 0;
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+					while (block && !should_be_dumped(block)) {
+						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+					}
 					position = determine_position(segment_start, block, variable);
 				}
 			}
@@ -1417,6 +1433,9 @@ int dump(
 				if (position >= block->end) {
 					unknown_opcode_found_in_block = 0;
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+					while (block && !should_be_dumped(block)) {
+						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
+					}
 					position = determine_position(segment_start, block, variable);
 				}
 			}

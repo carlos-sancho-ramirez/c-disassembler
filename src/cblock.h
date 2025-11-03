@@ -40,4 +40,9 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Regi
 int add_call_return_type_cborigin_in_block(struct CodeBlock *block, unsigned int behind_count);
 int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
 
+/**
+ * Whether it is valuable to be dumped.
+ */
+int should_be_dumped(const struct CodeBlock *block);
+
 #endif /* _CODE_BLOCK_H_ */
