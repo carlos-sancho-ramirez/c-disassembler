@@ -5,22 +5,22 @@
 #define GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_GRANULARITY 4
 #define GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY (GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_GRANULARITY * GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD)
 
-void initialize_global_variable_word_value_map(struct GlobalVariableWordValueMap *map) {
+void initialize_gvwvmap(struct GlobalVariableWordValueMap *map) {
 	map->entry_count = 0;
 	map->keys = NULL;
 	map->values = NULL;
 	map->relative = NULL;
 }
 
-int is_global_variable_word_value_relative_at_index(const struct GlobalVariableWordValueMap *map, int index) {
+int is_gvwvalue_relative_at_index(const struct GlobalVariableWordValueMap *map, int index) {
 	return map->relative[index / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << (index % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD));
 }
 
-uint16_t get_global_variable_word_value_at_index(const struct GlobalVariableWordValueMap *map, int index) {
+uint16_t get_gvwvalue_at_index(const struct GlobalVariableWordValueMap *map, int index) {
 	return map->values[index];
 }
 
-int index_of_global_variable_in_word_value_map_with_start(const struct GlobalVariableWordValueMap *map, const char *start) {
+int index_of_gvar_in_gvwvmap_with_start(const struct GlobalVariableWordValueMap *map, const char *start) {
 	int first = 0;
 	int last = map->entry_count;
 	while (last > first) {
@@ -40,7 +40,7 @@ int index_of_global_variable_in_word_value_map_with_start(const struct GlobalVar
 	return -1;
 }
 
-int put_global_variable_in_word_value_map(struct GlobalVariableWordValueMap *map, const char *key, uint16_t value) {
+int put_gvar_in_gvwvmap(struct GlobalVariableWordValueMap *map, const char *key, uint16_t value) {
 	int first = 0;
 	int last = map->entry_count;
 	int i;
@@ -95,7 +95,7 @@ int put_global_variable_in_word_value_map(struct GlobalVariableWordValueMap *map
 	return 0;
 }
 
-int put_global_variable_in_word_value_map_relative(struct GlobalVariableWordValueMap *map, const char *key, uint16_t value) {
+int put_gvar_in_gvwvmap_relative(struct GlobalVariableWordValueMap *map, const char *key, uint16_t value) {
 	int first = 0;
 	int last = map->entry_count;
 	int i;
@@ -150,7 +150,7 @@ int put_global_variable_in_word_value_map_relative(struct GlobalVariableWordValu
 	return 0;
 }
 
-int remove_global_variable_word_value_with_start(struct GlobalVariableWordValueMap *map, const char *key) {
+int remove_gvwvalue_with_start(struct GlobalVariableWordValueMap *map, const char *key) {
 	int first = 0;
 	int last = map->entry_count;
 	while (last > first) {
@@ -195,7 +195,7 @@ int remove_global_variable_word_value_with_start(struct GlobalVariableWordValueM
 	return 0;
 }
 
-void clear_global_variable_word_value_map(struct GlobalVariableWordValueMap *map) {
+void clear_gvwvmap(struct GlobalVariableWordValueMap *map) {
 	if (map->keys) {
 		free(map->keys);
 	}
@@ -208,10 +208,10 @@ void clear_global_variable_word_value_map(struct GlobalVariableWordValueMap *map
 		free(map->relative);
 	}
 
-	initialize_global_variable_word_value_map(map);
+	initialize_gvwvmap(map);
 }
 
-int copy_global_variable_word_values_map(struct GlobalVariableWordValueMap *target_map, const struct GlobalVariableWordValueMap *source_map) {
+int copy_gvwvmap(struct GlobalVariableWordValueMap *target_map, const struct GlobalVariableWordValueMap *source_map) {
 	const unsigned int count = source_map->entry_count;
 	const unsigned int allocated_count = ((count + GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) * GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY;
 
@@ -256,16 +256,16 @@ int copy_global_variable_word_values_map(struct GlobalVariableWordValueMap *targ
 	return 0;
 }
 
-int merge_global_variable_word_values_map(struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map) {
+int merge_gvwvmap(struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map) {
 	const char *key;
 	int index;
 	int error_code;
 	int i;
 	for (i = 0; i < map->entry_count; i++) {
 		key = map->keys[i];
-		index = index_of_global_variable_in_word_value_map_with_start(other_map, key);
-		if (index < 0 || map->values[i] != other_map->values[i] || is_global_variable_word_value_relative_at_index(map, i) != is_global_variable_word_value_relative_at_index(other_map, index)) {
-			if ((error_code = remove_global_variable_word_value_with_start(map, key))) {
+		index = index_of_gvar_in_gvwvmap_with_start(other_map, key);
+		if (index < 0 || map->values[i] != other_map->values[i] || is_gvwvalue_relative_at_index(map, i) != is_gvwvalue_relative_at_index(other_map, index)) {
+			if ((error_code = remove_gvwvalue_with_start(map, key))) {
 				return error_code;
 			}
 			--i;
@@ -275,15 +275,15 @@ int merge_global_variable_word_values_map(struct GlobalVariableWordValueMap *map
 	return 0;
 }
 
-int changes_on_merging_global_variable_word_values_map(const struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map) {
+int changes_on_merging_gvwvmap(const struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map) {
 	const char *key;
 	int index;
 	int error_code;
 	int i;
 	for (i = 0; i < map->entry_count; i++) {
 		key = map->keys[i];
-		index = index_of_global_variable_in_word_value_map_with_start(other_map, key);
-		if (index < 0 || map->values[i] != other_map->values[i] || is_global_variable_word_value_relative_at_index(map, i) != is_global_variable_word_value_relative_at_index(other_map, index)) {
+		index = index_of_gvar_in_gvwvmap_with_start(other_map, key);
+		if (index < 0 || map->values[i] != other_map->values[i] || is_gvwvalue_relative_at_index(map, i) != is_gvwvalue_relative_at_index(other_map, index)) {
 			return 1;
 		}
 	}

@@ -9,14 +9,14 @@
  *
  * When the type is selected. value in instruction should be ignored.
  */
-#define CODE_BLOCK_ORIGIN_TYPE_OS 0
+#define CBORIGIN_TYPE_OS 0
 
 /**
  * Denotes that this block is accessed as a interruption handler.
  *
  * When the type is selected. value in instruction should be ignored.
  */
-#define CODE_BLOCK_ORIGIN_TYPE_INTERRUPTION 1
+#define CBORIGIN_TYPE_INTERRUPTION 1
 
 /**
  * Denotes that this block is accessed as the continuation of the previous one, without any kind of jmp or call instruction.
@@ -24,59 +24,39 @@
  * When this type is selected. value in instruction should be ignored.
  * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
  */
-#define CODE_BLOCK_ORIGIN_TYPE_CONTINUE 2
+#define CBORIGIN_TYPE_CONTINUE 2
 
 /**
  * Denotes that this block is accessed as the continuation of the previous one, which is finishing with a call instruction
- * (opcode FF 1X) or any other whose instruction has exactly 2 bytes.
+ * (opcode E8, FF 1X and others).
  *
  * When this type is selected. value in instruction should be ignored.
  * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
  */
-#define CODE_BLOCK_ORIGIN_TYPE_CALL_TWO_BEHIND 3
-
-/**
- * Denotes that this block is accessed as the continuation of the previous one, which is finishing with a call instruction
- * (opcode E8) or any other whose instruction has exactly 3 bytes.
- *
- * When this type is selected. value in instruction should be ignored.
- * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
- */
-#define CODE_BLOCK_ORIGIN_TYPE_CALL_THREE_BEHIND 4
-
-/**
- * Denotes that this block is accessed as the continuation of the previous one, which is finishing with a call instruction
- * (opcode FF XX) or any other whose instruction has exactly 4 bytes.
- *
- * When this type is selected. value in instruction should be ignored.
- * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
- */
-#define CODE_BLOCK_ORIGIN_TYPE_CALL_FOUR_BEHIND 5
+#define CBORIGIN_TYPE_CALL_RETURN 3
 
 /**
  * Denotes that this block is accessed using a jmp or call instruction, or any of its variants, in any of our code instructions.
  *
  * When the type is selected. instruction and regs fields are also available and valid.
  */
-#define CODE_BLOCK_ORIGIN_TYPE_JUMP 6
-
-/* These should be internal, but they are used by the its list... */
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_OS ((const char *) CODE_BLOCK_ORIGIN_TYPE_OS)
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_INTERRUPTION ((const char *) CODE_BLOCK_ORIGIN_TYPE_INTERRUPTION)
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CONTINUE ((const char *) CODE_BLOCK_ORIGIN_TYPE_CONTINUE)
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_TWO_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_TWO_BEHIND)
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_THREE_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_THREE_BEHIND)
-#define CODE_BLOCK_ORIGIN_INSTRUCTION_VALUE_TYPE_CALL_FOUR_BEHIND ((const char *) CODE_BLOCK_ORIGIN_TYPE_CALL_FOUR_BEHIND)
+#define CBORIGIN_TYPE_JUMP 4
 
 /**
  * Provide information regarding how the linked block is reached.
  */
 struct CodeBlockOrigin {
 	/**
+	 * Identifies the type, and holds some type-related properties.
+	 * Depending on the value of these flags, other fields within this struct may be interpreted in a certain way.
+	 */
+	unsigned int flags;
+
+	/**
 	 * Instruction that performs the jump or call to this block.
 	 *
-	 * The value in this field is only valid if this code block origin has type JUMP.
-	 * Call get_code_block_origin_type method to determine the correct type before accessing this field.
+	 * The value in this field is only valid if this origin has type JUMP.
+	 * Call get_cborigin_type method to determine the correct type before relaying on this field.
 	 */
 	const char *instruction;
 
@@ -97,18 +77,44 @@ struct CodeBlockOrigin {
 /**
  * Return the type of code block origin. They can be any of the values represented by CODE_BLOCK_ORIGIN_TYPE_*.
  */
-int get_code_block_origin_type(struct CodeBlockOrigin *origin);
+int get_cborigin_type(const struct CodeBlockOrigin *origin);
+
+/**
+ * Checks if the cborigin is ready to be evaluated.
+ *
+ * This method is only defined if the origin type is CALL RETURN.
+ */
+int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin);
+
+/**
+ * Return the number of bytes that must be substrated to the start of this
+ * block in order to find the call instruction that originated this origin.
+ *
+ * This method is only defined if the origin type is CALL RETURN.
+ */
+int get_cborigin_behind_count(const struct CodeBlockOrigin *origin);
 
 /**
  * Set the OS type to the given code block origin.
  *
  * This will replace any previous set type.
  */
-void set_os_type_in_code_block_origin(struct CodeBlockOrigin *origin);
+void set_os_type_in_cborigin(struct CodeBlockOrigin *origin);
 
 /**
- * Returns a value different from 0 if the given instruction value is valid and does not conflict.
+ * Set the INTERRUPTION type to the given code block origin.
+ *
+ * This will replace any previous set type.
  */
-int is_valid_instruction_value(const char *instruction);
+void set_interruption_type_in_cborigin(struct CodeBlockOrigin *origin);
+
+/**
+ * Set the CALL RETURN type and the given behind count to the given code block origin.
+ *
+ * This will replace any previous set type and count.
+ */
+void set_call_return_type_in_cborigin(struct CodeBlockOrigin *origin, unsigned int behind_count);
+
+void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin);
 
 #endif /* _CODE_BLOCK_ORIGIN_H_ */

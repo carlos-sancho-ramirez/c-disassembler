@@ -23,7 +23,7 @@ struct CodeBlock {
 	struct CodeBlockOriginList origin_list;
 };
 
-int code_block_requires_evaluation(struct CodeBlock *block);
+int cblock_requires_evaluation(struct CodeBlock *block);
 
 /**
  * Return false if the block include a call return origin, and the registers are not yet set.
@@ -31,15 +31,13 @@ int code_block_requires_evaluation(struct CodeBlock *block);
  * If this is returning false, most probably there is another code block that must be evaluated before this one,
  * and that block will fulfill the missing registers.
  */
-int code_block_ready_to_be_evaluated(struct CodeBlock *block);
-void mark_code_block_as_being_evaluated(struct CodeBlock *block);
-void mark_code_block_as_evaluated(struct CodeBlock *block);
-void invalidate_code_block_check(struct CodeBlock *block);
+int cblock_ready_to_be_evaluated(struct CodeBlock *block);
+void mark_cblock_as_being_evaluated(struct CodeBlock *block);
+void mark_cblock_as_evaluated(struct CodeBlock *block);
+void invalidate_cblock_check(struct CodeBlock *block);
 
-int add_interruption_type_code_block_origin_in_block(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
-int add_call_two_behind_type_code_block_origin_in_block(struct CodeBlock *block);
-int add_call_three_behind_type_code_block_origin_in_block(struct CodeBlock *block);
-int add_call_four_behind_type_code_block_origin_in_block(struct CodeBlock *block);
-int add_jump_type_code_block_origin_in_block(struct CodeBlock *block, const char *origin_instruction, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
+int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
+int add_call_return_type_cborigin_in_block(struct CodeBlock *block, unsigned int behind_count);
+int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
 
 #endif /* _CODE_BLOCK_H_ */
