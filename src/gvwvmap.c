@@ -1,9 +1,9 @@
 #include "gvwvmap.h"
 #include <stdlib.h>
 
-#define GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD (sizeof(unsigned int) * 8)
-#define GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_GRANULARITY 4
-#define GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY (GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_GRANULARITY * GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD)
+#define GVWVMAP_RELATIVE_BITS_PER_WORD (sizeof(unsigned int) * 8)
+#define GVWVMAP_RELATIVE_GRANULARITY 4
+#define GVWVMAP_ARRAY_GRANULARITY (GVWVMAP_RELATIVE_GRANULARITY * GVWVMAP_RELATIVE_BITS_PER_WORD)
 
 void initialize_gvwvmap(struct GlobalVariableWordValueMap *map) {
 	map->entry_count = 0;
@@ -13,7 +13,7 @@ void initialize_gvwvmap(struct GlobalVariableWordValueMap *map) {
 }
 
 int is_gvwvalue_relative_at_index(const struct GlobalVariableWordValueMap *map, int index) {
-	return map->relative[index / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << (index % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD));
+	return map->relative[index / GVWVMAP_RELATIVE_BITS_PER_WORD] & (1 << (index % GVWVMAP_RELATIVE_BITS_PER_WORD));
 }
 
 uint16_t get_gvwvalue_at_index(const struct GlobalVariableWordValueMap *map, int index) {
@@ -57,29 +57,29 @@ int put_gvar_in_gvwvmap(struct GlobalVariableWordValueMap *map, const char *key,
 		else {
 			map->keys[index] = key;
 			map->values[index] = value;
-			map->relative[index / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] &= ~(1 << (index % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD));
+			map->relative[index / GVWVMAP_RELATIVE_BITS_PER_WORD] &= ~(1 << (index % GVWVMAP_RELATIVE_BITS_PER_WORD));
 			return 0;
 		}
 	}
 
-	if ((map->entry_count % GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) == 0) {
-		size_t new_size = map->entry_count + GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY;
+	if ((map->entry_count % GVWVMAP_ARRAY_GRANULARITY) == 0) {
+		size_t new_size = map->entry_count + GVWVMAP_ARRAY_GRANULARITY;
 		map->keys = realloc(map->keys, new_size);
 		map->values = realloc(map->values, new_size);
-		map->relative = realloc(map->relative, new_size / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+		map->relative = realloc(map->relative, new_size / GVWVMAP_RELATIVE_BITS_PER_WORD);
 		if (!map->keys || !map->values || !map->relative) {
 			return 1;
 		}
 	}
 
 	for (i = map->entry_count; i > last; i--) {
-		const int target_index = i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
-		const int mask = 1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+		const int target_index = i / GVWVMAP_RELATIVE_BITS_PER_WORD;
+		const int mask = 1 << (i % GVWVMAP_RELATIVE_BITS_PER_WORD);
 
 		map->keys[i] = map->keys[i - 1];
 		map->values[i] = map->values[i - 1];
 
-		if (map->relative[(i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD))) {
+		if (map->relative[(i - 1) / GVWVMAP_RELATIVE_BITS_PER_WORD] & (1 << ((i - 1) % GVWVMAP_RELATIVE_BITS_PER_WORD))) {
 			map->relative[target_index] |= mask;
 		}
 		else {
@@ -89,7 +89,7 @@ int put_gvar_in_gvwvmap(struct GlobalVariableWordValueMap *map, const char *key,
 
 	map->keys[last] = key;
 	map->values[last] = value;
-	map->relative[last / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] &= ~(1 << (last % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD));
+	map->relative[last / GVWVMAP_RELATIVE_BITS_PER_WORD] &= ~(1 << (last % GVWVMAP_RELATIVE_BITS_PER_WORD));
 	map->entry_count++;
 
 	return 0;
@@ -112,29 +112,29 @@ int put_gvar_in_gvwvmap_relative(struct GlobalVariableWordValueMap *map, const c
 		else {
 			map->keys[index] = key;
 			map->values[index] = value;
-			map->relative[index / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] |= 1 << (index % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+			map->relative[index / GVWVMAP_RELATIVE_BITS_PER_WORD] |= 1 << (index % GVWVMAP_RELATIVE_BITS_PER_WORD);
 			return 0;
 		}
 	}
 
-	if ((map->entry_count % GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) == 0) {
-		size_t new_size = map->entry_count + GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY;
+	if ((map->entry_count % GVWVMAP_ARRAY_GRANULARITY) == 0) {
+		size_t new_size = map->entry_count + GVWVMAP_ARRAY_GRANULARITY;
 		map->keys = realloc(map->keys, new_size);
 		map->values = realloc(map->values, new_size);
-		map->relative = realloc(map->relative, new_size / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+		map->relative = realloc(map->relative, new_size / GVWVMAP_RELATIVE_BITS_PER_WORD);
 		if (!map->keys || !map->values || !map->relative) {
 			return 1;
 		}
 	}
 
 	for (i = map->entry_count; i > last; i--) {
-		const int target_index = i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
-		const int mask = 1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+		const int target_index = i / GVWVMAP_RELATIVE_BITS_PER_WORD;
+		const int mask = 1 << (i % GVWVMAP_RELATIVE_BITS_PER_WORD);
 
 		map->keys[i] = map->keys[i - 1];
 		map->values[i] = map->values[i - 1];
 
-		if (map->relative[(i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD))) {
+		if (map->relative[(i - 1) / GVWVMAP_RELATIVE_BITS_PER_WORD] & (1 << ((i - 1) % GVWVMAP_RELATIVE_BITS_PER_WORD))) {
 			map->relative[target_index] |= mask;
 		}
 		else {
@@ -144,7 +144,7 @@ int put_gvar_in_gvwvmap_relative(struct GlobalVariableWordValueMap *map, const c
 
 	map->keys[last] = key;
 	map->values[last] = value;
-	map->relative[last / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] |= 1 << (last % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+	map->relative[last / GVWVMAP_RELATIVE_BITS_PER_WORD] |= 1 << (last % GVWVMAP_RELATIVE_BITS_PER_WORD);
 	map->entry_count++;
 
 	return 0;
@@ -165,13 +165,13 @@ int remove_gvwvalue_with_start(struct GlobalVariableWordValueMap *map, const cha
 		else {
 			int i;
 			for (i = index + 1; i < map->entry_count; i++) {
-				const int target_index = (i - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
-				const int mask = 1 << ((i - 1) % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+				const int target_index = (i - 1) / GVWVMAP_RELATIVE_BITS_PER_WORD;
+				const int mask = 1 << ((i - 1) % GVWVMAP_RELATIVE_BITS_PER_WORD);
 
 				map->keys[i - 1] = map->keys[i];
 				map->values[i - 1] = map->values[i];
 
-				if (map->relative[i / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD] & (1 << (i % GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD))) {
+				if (map->relative[i / GVWVMAP_RELATIVE_BITS_PER_WORD] & (1 << (i % GVWVMAP_RELATIVE_BITS_PER_WORD))) {
 					map->relative[target_index] |= mask;
 				}
 				else {
@@ -179,10 +179,10 @@ int remove_gvwvalue_with_start(struct GlobalVariableWordValueMap *map, const cha
 				}
 			}
 
-			if ((--map->entry_count % GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) == 0) {
+			if ((--map->entry_count % GVWVMAP_ARRAY_GRANULARITY) == 0) {
 				map->keys = realloc(map->keys, map->entry_count);
 				map->values = realloc(map->values, map->entry_count);
-				map->relative = realloc(map->relative, map->entry_count / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD);
+				map->relative = realloc(map->relative, map->entry_count / GVWVMAP_RELATIVE_BITS_PER_WORD);
 				if (!map->keys || !map->values || !map->relative) {
 					return 1;
 				}
@@ -213,7 +213,7 @@ void clear_gvwvmap(struct GlobalVariableWordValueMap *map) {
 
 int copy_gvwvmap(struct GlobalVariableWordValueMap *target_map, const struct GlobalVariableWordValueMap *source_map) {
 	const unsigned int count = source_map->entry_count;
-	const unsigned int allocated_count = ((count + GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY - 1) / GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY) * GLOBAL_VARIABLE_WORD_VALUE_MAP_ARRAY_GRANULARITY;
+	const unsigned int allocated_count = ((count + GVWVMAP_ARRAY_GRANULARITY - 1) / GVWVMAP_ARRAY_GRANULARITY) * GVWVMAP_ARRAY_GRANULARITY;
 
 	if (target_map->keys) {
 		free(target_map->keys);
@@ -228,7 +228,7 @@ int copy_gvwvmap(struct GlobalVariableWordValueMap *target_map, const struct Glo
 	}
 
 	if (allocated_count) {
-		const int relative_allocated_count = allocated_count / GLOBAL_VARIABLE_WORD_VALUE_MAP_RELATIVE_BITS_PER_WORD;
+		const int relative_allocated_count = allocated_count / GVWVMAP_RELATIVE_BITS_PER_WORD;
 		int i;
 		target_map->keys = malloc(allocated_count * sizeof(const char *));
 		target_map->values = malloc(allocated_count * sizeof(uint16_t));

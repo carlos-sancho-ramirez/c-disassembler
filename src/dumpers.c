@@ -1053,8 +1053,8 @@ static int valid_char_for_string_literal(char ch) {
 	return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == ' ' || ch == '!' || ch == '$';
 }
 
-static int should_display_global_variable_as_string_literal(const struct GlobalVariable *variable) {
-	if (variable->var_type == GLOBAL_VARIABLE_TYPE_STRING || variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+static int should_display_string_literal_for_gvar(const struct GlobalVariable *variable) {
+	if (variable->var_type == GVAR_TYPE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 		const char *position;
 		for (position = variable->start; position < variable->end; position++) {
 			if (!valid_char_for_string_literal(*position)) {
@@ -1072,8 +1072,8 @@ static int valid_char_for_string_with_backquotes(char ch) {
 	return valid_char_for_string_literal(ch) || ch == '\r' || ch == '\n';
 }
 
-static int should_display_global_variable_as_string_with_backquotes(const struct GlobalVariable *variable) {
-	if (variable->var_type == GLOBAL_VARIABLE_TYPE_STRING || variable->var_type == GLOBAL_VARIABLE_TYPE_DOLLAR_TERMINATED_STRING) {
+static int should_display_string_with_backquotes_for_gvar(const struct GlobalVariable *variable) {
+	if (variable->var_type == GVAR_TYPE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 		const char *position;
 		for (position = variable->start; position < variable->end; position++) {
 			if (!valid_char_for_string_with_backquotes(*position)) {
@@ -1097,7 +1097,7 @@ static int dump_variable(
 	print_variable_label(print, variable->relative_address);
 	print(":\n");
 
-	if (should_display_global_variable_as_string_literal(variable)) {
+	if (should_display_string_literal_for_gvar(variable)) {
 		const char *position;
 		char str[] = "x";
 
@@ -1108,7 +1108,7 @@ static int dump_variable(
 		}
 		print("'\n");
 	}
-	else if (should_display_global_variable_as_string_with_backquotes(variable)) {
+	else if (should_display_string_with_backquotes_for_gvar(variable)) {
 		int start_required = 1;
 		char str[] = "x";
 		const char *position;
@@ -1136,13 +1136,13 @@ static int dump_variable(
 			print("`\n");
 		}
 	}
-	else if (variable->var_type == GLOBAL_VARIABLE_TYPE_WORD && variable->start + 2 == variable->end ||
-			variable->var_type == GLOBAL_VARIABLE_TYPE_FAR_POINTER && variable_print_length == 2) {
+	else if (variable->var_type == GVAR_TYPE_WORD && variable->start + 2 == variable->end ||
+			variable->var_type == GVAR_TYPE_FAR_POINTER && variable_print_length == 2) {
 		print("dw ");
 		print_literal_hex_word(print, *((const uint16_t *) variable->start));
 		print("\n");
 	}
-	else if (variable->var_type == GLOBAL_VARIABLE_TYPE_FAR_POINTER && variable->start + 4 == variable->end) {
+	else if (variable->var_type == GVAR_TYPE_FAR_POINTER && variable->start + 4 == variable->end) {
 		print("dw ");
 		print_literal_hex_word(print, *((const uint16_t *) variable->start));
 		print("\ndw ");
@@ -1342,9 +1342,9 @@ int dump(
 					if (global_variable_reference_count > 0 && global_variable_references[0]->instruction == position) {
 						struct Reference *reference = global_variable_references[0];
 						struct GlobalVariable *var;
-						if ((var = get_global_variable_from_reference_target(reference))) {
+						if ((var = get_gvar_from_ref_target(reference))) {
 							unsigned int relative_address = var->relative_address;
-							if ((reference->flags & REFERENCE_FLAG_WHERE_IN_INSTRUCTION_MASK) == REFERENCE_FLAG_IN_INSTRUCTION_ADDRESS) {
+							if ((reference->flags & REF_FLAG_WHERE_IN_INSTRUCTION_MASK) == REF_FLAG_IN_INSTRUCTION_ADDRESS) {
 								global_variable_reference_address = relative_address;
 							}
 							else {
@@ -1353,7 +1353,7 @@ int dump(
 						}
 						else {
 							struct CodeBlock *block;
-							if ((block = get_code_block_from_reference_target(reference))) {
+							if ((block = get_cblock_from_ref_target(reference))) {
 								reference_block_value = block;
 							}
 						}

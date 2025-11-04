@@ -76,67 +76,67 @@ int is_register_di_defined(struct Registers *regs) {
 	return regs->defined[11] != NULL;
 }
 
-int is_register_ax_defined_and_absolute(struct Registers *regs) {
+int is_register_ax_defined_absolute(struct Registers *regs) {
 	return regs->defined[0] != NULL && regs->defined[1] != NULL && (regs->relative & 0x10) == 0;
 }
 
-int is_register_cx_defined_and_absolute(struct Registers *regs) {
+int is_register_cx_defined_absolute(struct Registers *regs) {
 	return regs->defined[2] != NULL && regs->defined[3] != NULL && (regs->relative & 0x20) == 0;
 }
 
-int is_register_dx_defined_and_absolute(struct Registers *regs) {
+int is_register_dx_defined_absolute(struct Registers *regs) {
 	return regs->defined[4] != NULL && regs->defined[5] != NULL && (regs->relative & 0x40) == 0;
 }
 
-int is_register_bx_defined_and_absolute(struct Registers *regs) {
+int is_register_bx_defined_absolute(struct Registers *regs) {
 	return regs->defined[6] != NULL && regs->defined[7] != NULL && (regs->relative & 0x80) == 0;
 }
 
-int is_register_sp_defined_and_absolute(struct Registers *regs) {
+int is_register_sp_defined_absolute(struct Registers *regs) {
 	return regs->defined[8] != NULL && (regs->relative & 0x100) == 0;
 }
 
-int is_register_bp_defined_and_absolute(struct Registers *regs) {
+int is_register_bp_defined_absolute(struct Registers *regs) {
 	return regs->defined[9] != NULL && (regs->relative & 0x200) == 0;
 }
 
-int is_register_si_defined_and_absolute(struct Registers *regs) {
+int is_register_si_defined_absolute(struct Registers *regs) {
 	return regs->defined[10] != NULL && (regs->relative & 0x400) == 0;
 }
 
-int is_register_di_defined_and_absolute(struct Registers *regs) {
+int is_register_di_defined_absolute(struct Registers *regs) {
 	return regs->defined[11] != NULL && (regs->relative & 0x800) == 0;
 }
 
-int is_register_ax_defined_and_relative(struct Registers *regs) {
+int is_register_ax_defined_relative(struct Registers *regs) {
 	return regs->defined[0] != NULL && regs->defined[1] != NULL && regs->relative & 0x10;
 }
 
-int is_register_cx_defined_and_relative(struct Registers *regs) {
+int is_register_cx_defined_relative(struct Registers *regs) {
 	return regs->defined[2] != NULL && regs->defined[3] != NULL && regs->relative & 0x20;
 }
 
-int is_register_dx_defined_and_relative(struct Registers *regs) {
+int is_register_dx_defined_relative(struct Registers *regs) {
 	return regs->defined[4] != NULL && regs->defined[5] != NULL && regs->relative & 0x40;
 }
 
-int is_register_bx_defined_and_relative(struct Registers *regs) {
+int is_register_bx_defined_relative(struct Registers *regs) {
 	return regs->defined[6] != NULL && regs->defined[7] != NULL && regs->relative & 0x80;
 }
 
-int is_register_sp_defined_and_relative(struct Registers *regs) {
+int is_register_sp_defined_relative(struct Registers *regs) {
 	return regs->defined[8] != NULL && regs->relative & 0x100;
 }
 
-int is_register_bp_defined_and_relative(struct Registers *regs) {
+int is_register_bp_defined_relative(struct Registers *regs) {
 	return regs->defined[9] != NULL && regs->relative & 0x200;
 }
 
-int is_register_si_defined_and_relative(struct Registers *regs) {
+int is_register_si_defined_relative(struct Registers *regs) {
 	return regs->defined[10] != NULL && regs->relative & 0x400;
 }
 
-int is_register_di_defined_and_relative(struct Registers *regs) {
+int is_register_di_defined_relative(struct Registers *regs) {
 	return regs->defined[11] != NULL && regs->relative & 0x800;
 }
 
@@ -145,7 +145,7 @@ int is_word_register_defined(struct Registers *regs, unsigned int index) {
 	return (index < 4)? regs->defined[index * 2] != NULL && regs->defined[index * 2 + 1] != NULL : regs->defined[index + 4] != NULL;
 }
 
-int is_word_register_defined_and_relative(struct Registers *regs, unsigned int index) {
+int is_word_register_defined_relative(struct Registers *regs, unsigned int index) {
 	assert(index < 8);
 	return regs->relative & (0x10 << index) && is_word_register_defined(regs, index);
 }
@@ -171,28 +171,28 @@ int is_segment_register_defined(struct Registers *regs, unsigned int index) {
 	return regs->defined[index + 12] != NULL;
 }
 
-int is_segment_register_defined_and_absolute(struct Registers *regs, unsigned int index) {
+int is_segment_register_defined_absolute(struct Registers *regs, unsigned int index) {
 	assert(index < 4);
 	return (regs->relative & (0x1000 << index)) == 0 && is_segment_register_defined(regs, index);
 }
 
-int is_register_es_defined_and_relative(struct Registers *regs) {
+int is_register_es_defined_relative(struct Registers *regs) {
 	return regs->relative & 0x1000 && is_register_es_defined(regs);
 }
 
-int is_register_cs_defined_and_relative(struct Registers *regs) {
+int is_register_cs_defined_relative(struct Registers *regs) {
 	return regs->relative & 0x2000 && is_register_cs_defined(regs);
 }
 
-int is_register_ss_defined_and_relative(struct Registers *regs) {
+int is_register_ss_defined_relative(struct Registers *regs) {
 	return regs->relative & 0x4000 && is_register_ss_defined(regs);
 }
 
-int is_register_ds_defined_and_relative(struct Registers *regs) {
+int is_register_ds_defined_relative(struct Registers *regs) {
 	return regs->relative & 0x8000 && is_register_ds_defined(regs);
 }
 
-int is_segment_register_defined_and_relative(struct Registers *regs, unsigned int index) {
+int is_segment_register_defined_relative(struct Registers *regs, unsigned int index) {
 	assert(index < 4);
 	return regs->relative & (0x1000 << index) && is_segment_register_defined(regs, index);
 }
