@@ -33,7 +33,7 @@ const char *JUMP_INSTRUCTIONS[] = {
 };
 
 const char *LOOP_INSTRUCTIONS[] = {
-	"loopnzw", "loopzw", "loopw", "jcxz"
+	"loopne", "loope", "loop", "jcxz"
 };
 
 const char *SHIFT_INSTRUCTIONS[] = {
