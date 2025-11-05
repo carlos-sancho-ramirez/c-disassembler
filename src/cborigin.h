@@ -126,4 +126,14 @@ void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instr
 
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin);
 
+/**
+ * Mark a code block origin as never reached.
+ *
+ * This is only relevant if the origin type if CALL RETURN. And this should be
+ * called when it is detected that the function called before this block will
+ * never return, and then, it is not expected that this block will be executed
+ * by returning from that function.
+ */
+void mark_cborigin_as_never_reached(struct CodeBlockOrigin *origin);
+
 #endif /* _CODE_BLOCK_ORIGIN_H_ */

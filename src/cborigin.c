@@ -74,3 +74,7 @@ void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instr
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin) {
 	origin->flags |= CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
 }
+
+void mark_cborigin_as_never_reached(struct CodeBlockOrigin *origin) {
+	origin->flags |= CBORIGIN_FLAG_NEVER_REACHED;
+}

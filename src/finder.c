@@ -22,34 +22,41 @@ static int update_call_return_origin(
 		struct CodeBlock *return_block,
 		unsigned int call_return_origin_index,
 		const struct Registers *regs,
-		const struct GlobalVariableWordValueMap *var_values) {
-	int error_code;
-	struct Registers updated_regs;
+		const struct GlobalVariableWordValueMap *var_values,
+		int never_returns) {
 	struct CodeBlockOrigin *call_return_origin = return_block->origin_list.sorted_origins[call_return_origin_index];
-	copy_registers(&updated_regs, regs);
-	if (is_register_sp_defined_absolute(regs)) {
-		set_register_sp(&updated_regs, where_register_sp_defined(regs), get_register_sp(regs) + 2);
-	}
 
-	if (is_cborigin_ready_to_be_evaluated(call_return_origin)) {
-		if (changes_on_merging_registers(&call_return_origin->regs, &updated_regs) || changes_on_merging_gvwvmap(&call_return_origin->var_values, var_values)) {
-			merge_registers(&call_return_origin->regs, &updated_regs);
-			if ((error_code = merge_gvwvmap(&call_return_origin->var_values, var_values))) {
+	if (never_returns) {
+		mark_cborigin_as_never_reached(call_return_origin);
+	}
+	else {
+		int error_code;
+		struct Registers updated_regs;
+		copy_registers(&updated_regs, regs);
+		if (is_register_sp_defined_absolute(regs)) {
+			set_register_sp(&updated_regs, where_register_sp_defined(regs), get_register_sp(regs) + 2);
+		}
+
+		if (is_cborigin_ready_to_be_evaluated(call_return_origin)) {
+			if (changes_on_merging_registers(&call_return_origin->regs, &updated_regs) || changes_on_merging_gvwvmap(&call_return_origin->var_values, var_values)) {
+				merge_registers(&call_return_origin->regs, &updated_regs);
+				if ((error_code = merge_gvwvmap(&call_return_origin->var_values, var_values))) {
+					return error_code;
+				}
+
+				invalidate_cblock_check(return_block);
+			}
+		}
+		else {
+			copy_registers(&call_return_origin->regs, &updated_regs);
+
+			if ((error_code = copy_gvwvmap(&call_return_origin->var_values, var_values))) {
 				return error_code;
 			}
 
+			set_cborigin_ready_to_be_evaluated(call_return_origin);
 			invalidate_cblock_check(return_block);
 		}
-	}
-	else {
-		copy_registers(&call_return_origin->regs, &updated_regs);
-
-		if ((error_code = copy_gvwvmap(&call_return_origin->var_values, var_values))) {
-			return error_code;
-		}
-
-		set_cborigin_ready_to_be_evaluated(call_return_origin);
-		invalidate_cblock_check(return_block);
 	}
 
 	return 0;
@@ -73,7 +80,8 @@ static int update_call_origins(
 		struct CodeBlockList *code_block_list,
 		uint16_t *checked_blocks,
 		const struct Registers *regs,
-		const struct GlobalVariableWordValueMap *var_values) {
+		const struct GlobalVariableWordValueMap *var_values,
+		int never_returns) {
 	struct CodeBlockOriginList *origin_list = &block->origin_list;
 	int index;
 	int error_code;
@@ -97,7 +105,7 @@ static int update_call_origins(
 					return 1;
 				}
 
-				error_code = update_call_origins(previous_block, code_block_list, new_checked_blocks, regs, var_values);
+				error_code = update_call_origins(previous_block, code_block_list, new_checked_blocks, regs, var_values, never_returns);
 				free(new_checked_blocks);
 				if (error_code) {
 					return error_code;
@@ -111,7 +119,7 @@ static int update_call_origins(
 				if (return_block_index >= 0) {
 					struct CodeBlock *return_block = code_block_list->sorted_blocks[return_block_index];
 					int call_return_origin_index = index_of_cborigin_of_type_call_return(&return_block->origin_list, 3);
-					if (call_return_origin_index >= 0 && (error_code = update_call_return_origin(return_block, call_return_origin_index, regs, var_values))) {
+					if (call_return_origin_index >= 0 && (error_code = update_call_return_origin(return_block, call_return_origin_index, regs, var_values, never_returns))) {
 						return error_code;
 					}
 				}
@@ -125,7 +133,7 @@ static int update_call_origins(
 						return 1;
 					}
 
-					error_code = update_call_origins(code_block_list->sorted_blocks[jumping_block_index], code_block_list, new_checked_blocks, regs, var_values);
+					error_code = update_call_origins(code_block_list->sorted_blocks[jumping_block_index], code_block_list, new_checked_blocks, regs, var_values, never_returns);
 					free(new_checked_blocks);
 					if (error_code) {
 						return error_code;
@@ -150,7 +158,7 @@ static int update_call_origins(
 					if (return_block_index >= 0) {
 						struct CodeBlock *return_block = code_block_list->sorted_blocks[return_block_index];
 						int call_return_origin_index = index_of_cborigin_of_type_call_return(&return_block->origin_list, jmp_instruction_length);
-						if (call_return_origin_index >= 0 && (error_code = update_call_return_origin(return_block, call_return_origin_index, regs, var_values))) {
+						if (call_return_origin_index >= 0 && (error_code = update_call_return_origin(return_block, call_return_origin_index, regs, var_values, never_returns))) {
 							return error_code;
 						}
 					}
@@ -164,7 +172,7 @@ static int update_call_origins(
 							return 1;
 						}
 
-						error_code = update_call_origins(code_block_list->sorted_blocks[jumping_block_index], code_block_list, new_checked_blocks, regs, var_values);
+						error_code = update_call_origins(code_block_list->sorted_blocks[jumping_block_index], code_block_list, new_checked_blocks, regs, var_values, never_returns);
 						free(new_checked_blocks);
 						if (error_code) {
 							return error_code;
@@ -698,7 +706,7 @@ static int read_block_instruction_internal(
 			checked_blocks[checked_blocks_word_index] = 0;
 		}
 
-		update_call_origins(block, code_block_list, checked_blocks, regs, var_values);
+		update_call_origins(block, code_block_list, checked_blocks, regs, var_values, 0);
 		free(checked_blocks);
 		return 0;
 	}
@@ -718,7 +726,7 @@ static int read_block_instruction_internal(
 			checked_blocks[checked_blocks_word_index] = 0;
 		}
 
-		update_call_origins(block, code_block_list, checked_blocks, regs, var_values);
+		update_call_origins(block, code_block_list, checked_blocks, regs, var_values, 0);
 		free(checked_blocks);
 		return 0;
 	}
@@ -813,7 +821,23 @@ static int read_block_instruction_internal(
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
 		if (interruption_number == 0x20) {
+			const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
+			uint16_t *checked_blocks;
+			unsigned int checked_blocks_word_index;
+
 			block->end = block->start + reader->buffer_index;
+
+			checked_blocks = malloc(checked_blocks_word_count * 2);
+			if (!checked_blocks) {
+				return 1;
+			}
+
+			for (checked_blocks_word_index = 0; checked_blocks_word_index < checked_blocks_word_count; checked_blocks_word_index++) {
+				checked_blocks[checked_blocks_word_index] = 0;
+			}
+
+			update_call_origins(block, code_block_list, checked_blocks, regs, var_values, 1);
+			free(checked_blocks);
 		}
 		else if (interruption_number == 0x21 && is_register_ah_defined(regs)) {
 			const unsigned int ah_value = get_register_ah(regs);
@@ -935,7 +959,23 @@ static int read_block_instruction_internal(
 				mark_register_ax_undefined(regs);
 			}
 			else if (ah_value == 0x4C) {
+				const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
+				uint16_t *checked_blocks;
+				unsigned int checked_blocks_word_index;
+
 				block->end = block->start + reader->buffer_index;
+
+				checked_blocks = malloc(checked_blocks_word_count * 2);
+				if (!checked_blocks) {
+					return 1;
+				}
+
+				for (checked_blocks_word_index = 0; checked_blocks_word_index < checked_blocks_word_count; checked_blocks_word_index++) {
+					checked_blocks[checked_blocks_word_index] = 0;
+				}
+
+				update_call_origins(block, code_block_list, checked_blocks, regs, var_values, 1);
+				free(checked_blocks);
 			}
 		}
 		return 0;
