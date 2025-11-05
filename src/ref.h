@@ -1,23 +1,5 @@
-#ifndef _REFS_H_
-#define _REFS_H_
-
-struct Reference;
-struct ReferenceList;
-
-#include "gvar.h"
-#include "cblock.h"
-
-#define REF_FLAG_TARGET_TYPE_MASK 1
-#define REF_FLAG_TARGET_IS_GVAR 0
-#define REF_FLAG_TARGET_IS_CBLOCK 1
-
-#define REF_FLAG_WHERE_IN_INSTRUCTION_MASK 2
-#define REF_FLAG_IN_INSTRUCTION_ADDRESS 2
-#define REF_FLAG_IN_INSTRUCTION_IMMEDIATE_VALUE 0
-
-#define REF_FLAG_ACCESS_MASK 0x0C
-#define REF_FLAG_ACCESS_READ 0x04
-#define REF_FLAG_ACCESS_WRITE 0x08
+#ifndef _REF_H_
+#define _REF_H_
 
 /**
  * Reference to a global variable in the code.
@@ -40,21 +22,45 @@ struct Reference {
 	const char *instruction;
 };
 
+#include "gvar.h"
+#include "cblock.h"
+
 /**
  * Returns the target of the given reference already casted as a GlobalVariable, or NULL if the target is not a GlobalVariable.
  */
-struct GlobalVariable *get_gvar_from_ref_target(struct Reference *ref);
+struct GlobalVariable *get_gvar_from_ref_target(const struct Reference *ref);
 
 /**
  * Returns the target of the given reference already casted as a CodeBlock, or NULL if the target is not a CodeBlock.
  */
-struct CodeBlock *get_cblock_from_ref_target(struct Reference *ref);
+struct CodeBlock *get_cblock_from_ref_target(const struct Reference *ref);
 
 /**
- * Sets the given global variable as the reference target, and mark it as located in the instruction address.
+ * Whether this reference is located in the instruction address.
+ */
+int is_ref_in_instruction_address(const struct Reference *ref);
+
+/**
+ * Sets the given global variable as the reference target and mark it as located
+ * in the instruction address.
+ *
  * This will override any previous target in the reference.
  */
 void set_gvar_ref_from_instruction_address(struct Reference *ref, struct GlobalVariable *var);
+
+/**
+ * Mark this reference as read access.
+ *
+ * This will not remove any write access set before. Note that some instructions reads and writes at the same time, like 'add' or 'xchg'.
+ */
+void set_gvar_ref_read_access(struct Reference *ref);
+
+/**
+ * Mark this reference as write access.
+ *
+ * This will not remove any read access set before. Note that some instructions reads and writes at the same time, like 'add' or 'xchg'.
+ */
+void set_gvar_ref_write_access(struct Reference *ref);
 
 /**
  * Sets the given global variable as the reference target, and mark it as located in the instruction immediate value.
@@ -68,7 +74,4 @@ void set_gvar_ref_from_instruction_immediate_value(struct Reference *ref, struct
  */
 void set_cblock_ref_from_instruction_immediate_value(struct Reference *ref, struct CodeBlock *block);
 
-DEFINE_STRUCT_LIST(Reference, reference);
-DECLARE_STRUCT_LIST_METHODS(Reference, reference, reference, instruction);
-
-#endif
+#endif /* _REF_H_ */

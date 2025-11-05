@@ -3,7 +3,7 @@
 
 #include "cblock.h"
 #include "gvar.h"
-#include "refs.h"
+#include "ref.h"
 
 int dump(
 	const char *buffer,

@@ -3,9 +3,7 @@
 
 DEFINE_STRUCT_LIST_METHODS(GlobalVariable, global_variable, variable, start, 8, 256)
 
-#include "refs.h"
-
-int add_global_variable_reference(
+int add_gvar_ref(
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list,
@@ -65,7 +63,7 @@ int add_global_variable_reference(
 	return 0;
 }
 
-int add_far_pointer_global_variable_reference(
+int add_far_pointer_gvar_ref(
 		struct GlobalVariableList *global_variable_list,
 		struct ReferenceList *reference_list,
 		struct Registers *regs,

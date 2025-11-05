@@ -1344,7 +1344,7 @@ int dump(
 						struct GlobalVariable *var;
 						if ((var = get_gvar_from_ref_target(reference))) {
 							unsigned int relative_address = var->relative_address;
-							if ((reference->flags & REF_FLAG_WHERE_IN_INSTRUCTION_MASK) == REF_FLAG_IN_INSTRUCTION_ADDRESS) {
+							if (is_ref_in_instruction_address(reference)) {
 								global_variable_reference_address = relative_address;
 							}
 							else {
