@@ -36,11 +36,13 @@ int index_of_cborigin_with_instruction(const struct CodeBlockOriginList *list, c
 	int last = list->origin_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_instruction = list->sorted_origins[index]->instruction;
-		if (this_instruction < instruction) {
+		const struct CodeBlockOrigin *this_origin = list->sorted_origins[index];
+		const char *this_instruction = this_origin->instruction;
+		const int this_origin_type = get_cborigin_type(this_origin);
+		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction < instruction) {
 			first = index + 1;
 		}
-		else if (this_instruction > instruction) {
+		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction > instruction) {
 			last = index;
 		}
 		else {
@@ -56,11 +58,13 @@ int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list
 	int last = list->origin_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_instruction = list->sorted_origins[index]->instruction;
-		if (this_instruction < position) {
+		const struct CodeBlockOrigin *this_origin = list->sorted_origins[index];
+		const char *this_instruction = this_origin->instruction;
+		const int this_origin_type = get_cborigin_type(this_origin);
+		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction < position) {
 			first = index + 1;
 		}
-		else if (this_instruction > position) {
+		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction > position) {
 			last = index;
 		}
 		else {
@@ -68,7 +72,7 @@ int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list
 		}
 	}
 
-	return first - 1;
+	return (first > 0 && get_cborigin_type(list->sorted_origins[first - 1]) == CBORIGIN_TYPE_JUMP)? first - 1 : -1;
 }
 
 struct CodeBlockOrigin *prepare_new_cborigin(struct CodeBlockOriginList *list) {
@@ -207,6 +211,27 @@ int index_of_first_cborigin_of_type_call_return(const struct CodeBlockOriginList
 	return -1;
 }
 
+int index_of_cborigin_of_type_continue(const struct CodeBlockOriginList *list) {
+	int first = 0;
+	int last = list->origin_count;
+	while (last > first) {
+		int index = (first + last) / 2;
+		struct CodeBlockOrigin *origin_at_index = list->sorted_origins[index];
+		unsigned int origin_type = get_cborigin_type(origin_at_index);
+		if (origin_type < CBORIGIN_TYPE_CONTINUE) {
+			first = index + 1;
+		}
+		else if (origin_type > CBORIGIN_TYPE_CONTINUE) {
+			last = index;
+		}
+		else {
+			return index;
+		}
+	}
+
+	return -1;
+}
+
 int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list, unsigned int behind_count) {
 	int first = 0;
 	int last = list->origin_count;
@@ -235,6 +260,25 @@ int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list
 	}
 
 	return -1;
+}
+
+int add_continue_type_cborigin(struct CodeBlockOriginList *list) {
+	if (index_of_cborigin_of_type_continue(list) < 0) {
+		int error_code;
+		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(list);
+		if (!new_origin) {
+			return 1;
+		}
+
+		set_continue_type_in_cborigin(new_origin);
+		make_all_registers_undefined(&new_origin->regs);
+		initialize_gvwvmap(&new_origin->var_values);
+		if ((error_code = insert_cborigin(list, new_origin))) {
+			return error_code;
+		}
+	}
+
+	return 0;
 }
 
 int add_call_return_type_cborigin(struct CodeBlockOriginList *list, unsigned int behind_count) {

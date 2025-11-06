@@ -7,6 +7,13 @@
 /**
  * Complex structure containing pages of the given struct in CodeBlockOrigin.
  * It is designed to grow as more references are added to it.
+ *
+ * Regarding the origins within the list, they will be sorted first by its type,
+ * and later by its instruction (only in case of JUMP type) or its behind count
+ * (only in case of CALL RETURN type).
+ *
+ * Note that it is not possible to have multiple origins of types OS,
+ * INTERRUPTION or CONTINUE within the same list.
  */
 struct CodeBlockOriginList {
 	/**
@@ -78,12 +85,14 @@ int insert_cborigin(struct CodeBlockOriginList *list, struct CodeBlockOrigin *ne
  */
 void clear_cbolist(struct CodeBlockOriginList *list);
 
+int index_of_cborigin_of_type_continue(const struct CodeBlockOriginList *list);
 int index_of_first_cborigin_of_type_call_return(const struct CodeBlockOriginList *list);
 int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list, unsigned int behind_count);
 
 void accumulate_registers_from_cbolist(struct Registers *regs, const struct CodeBlockOriginList *list);
 int accumulate_gvwvmap_from_cbolist(struct GlobalVariableWordValueMap *map, const struct CodeBlockOriginList *list);
 
+int add_continue_type_cborigin(struct CodeBlockOriginList *list);
 int add_call_return_type_cborigin(struct CodeBlockOriginList *list, unsigned int behind_count);
 
 #endif /* _CODE_BLOCK_ORIGIN_LIST_H_ */

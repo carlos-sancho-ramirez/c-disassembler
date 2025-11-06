@@ -4,7 +4,7 @@
 #define CBORIGIN_TYPE_MASK 7
 
 /**
- * Only in case tyoe is CALL RETURN
+ * Only in case type is either CONTINUE or CALL RETURN
  *
  * If set, it means that the registers and variables in this origin has been
  * set up as the result of evaluating the block where the previous instruction
@@ -58,6 +58,10 @@ void set_os_type_in_cborigin(struct CodeBlockOrigin *origin) {
 
 void set_interruption_type_in_cborigin(struct CodeBlockOrigin *origin) {
 	origin->flags = CBORIGIN_TYPE_INTERRUPTION;
+}
+
+void set_continue_type_in_cborigin(struct CodeBlockOrigin *origin) {
+	origin->flags = CBORIGIN_TYPE_CONTINUE;
 }
 
 void set_call_return_type_in_cborigin(struct CodeBlockOrigin *origin, unsigned int behind_count) {

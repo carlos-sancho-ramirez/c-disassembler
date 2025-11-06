@@ -111,6 +111,13 @@ void set_os_type_in_cborigin(struct CodeBlockOrigin *origin);
 void set_interruption_type_in_cborigin(struct CodeBlockOrigin *origin);
 
 /**
+ * Set the CONTINUE type to the given code block origin. Leaving it not ready yet to be evaluated.
+ *
+ * This will replace any previous set type.
+ */
+void set_continue_type_in_cborigin(struct CodeBlockOrigin *origin);
+
+/**
  * Set the CALL RETURN type and the given behind count to the given code block origin.
  *
  * This will replace any previous set type and count.

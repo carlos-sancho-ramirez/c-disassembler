@@ -31,12 +31,13 @@ int cblock_requires_evaluation(struct CodeBlock *block);
  * If this is returning false, most probably there is another code block that must be evaluated before this one,
  * and that block will fulfill the missing registers.
  */
-int cblock_ready_to_be_evaluated(struct CodeBlock *block);
+int cblock_ready_to_be_evaluated(const struct CodeBlock *block);
 void mark_cblock_as_being_evaluated(struct CodeBlock *block);
 void mark_cblock_as_evaluated(struct CodeBlock *block);
 void invalidate_cblock_check(struct CodeBlock *block);
 
 int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
+int add_continue_type_cborigin_in_block(struct CodeBlock *block);
 int add_call_return_type_cborigin_in_block(struct CodeBlock *block, unsigned int behind_count);
 int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
 
