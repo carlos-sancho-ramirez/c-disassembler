@@ -2,6 +2,7 @@
 #include "printu.h"
 #include "reader.h"
 #include "relocu.h"
+#include "counter.h"
 
 const char *BYTE_REGISTERS[] = {
 	"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"
@@ -122,264 +123,6 @@ static void dump_address_register_combination(
 		dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
 		print(",");
 		print(registers[(value1 >> 3) & 0x07]);
-	}
-}
-
-#define MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED 1
-#define MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE 2
-
-static int move_reader_forward(struct Reader *reader, unsigned int byte_count) {
-	reader->buffer_index += byte_count;
-	return (reader->buffer_index <= reader->buffer_size)? 0 :
-			MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-}
-
-static int move_reader_forward_for_address_length(struct Reader *reader, int value1) {
-	if (value1 < 0xC0) {
-		if (value1 >= 0x80 || (value1 & 0xC7) == 0x06) {
-			return move_reader_forward(reader, 2);
-		}
-		else if ((value1 & 0xC0) == 0x40) {
-			return move_reader_forward(reader, 1);
-		}
-	}
-
-	return 0;
-}
-
-static int move_reader_forward_for_instruction_length(struct Reader *reader) {
-	int value0;
-	if (reader->buffer_index >= reader->buffer_size) {
-		return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-	}
-	value0 = read_next_byte(reader);
-
-	if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
-		if ((value0 & 0x04) == 0x00) {
-			int value1;
-			if (reader->buffer_index >= reader->buffer_size) {
-				return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-			}
-
-			value1 = read_next_byte(reader);
-			return move_reader_forward_for_address_length(reader, value1);
-		}
-		else if ((value0 & 0x07) == 0x04) {
-			return move_reader_forward(reader, 1);
-		}
-		else {
-			/* (value0 & 0x07) == 0x05 */
-			return move_reader_forward(reader, 2);
-		}
-	}
-	else if ((value0 & 0xE6) == 0x06 && value0 != 0x0F) {
-		return 0;
-	}
-	else if ((value0 & 0xE7) == 0x26) {
-		return move_reader_forward_for_instruction_length(reader);
-	}
-	else if ((value0 & 0xF0) == 0x40) {
-		return 0;
-	}
-	else if ((value0 & 0xF0) == 0x50) {
-		return 0;
-	}
-	else if ((value0 & 0xF0) == 0x70) {
-		return move_reader_forward(reader, 1);
-	}
-	else if ((value0 & 0xFE) == 0x80) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		value1 = read_next_byte(reader);
-		if (move_reader_forward_for_address_length(reader, value1)) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		return move_reader_forward(reader, (value0 & 1) + 1);
-	}
-	else if (value0 == 0x83) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		value1 = read_next_byte(reader);
-		if (move_reader_forward_for_address_length(reader, value1)) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		return move_reader_forward(reader, 1);
-	}
-	else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		value1 = read_next_byte(reader);
-		return move_reader_forward_for_address_length(reader, value1);
-	}
-	else if ((value0 & 0xFD) == 0x8C) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		value1 = read_next_byte(reader);
-		return (value1 & 0x20)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
-				move_reader_forward_for_address_length(reader, value1);
-	}
-	else if (value0 == 0x8D) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		value1 = read_next_byte(reader);
-		return (value1 >= 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
-				move_reader_forward_for_address_length(reader, value1);
-	}
-	else if (value0 == 0x8F) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-		value1 = read_next_byte(reader);
-		return (value1 & 0x38 || value1 >= 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
-				move_reader_forward_for_address_length(reader, value1);
-	}
-	else if ((value0 & 0xF8) == 0x90) {
-		return 0;
-	}
-	else if ((value0 & 0xFC) == 0xA0) {
-		return move_reader_forward(reader, 2);
-	}
-	else if ((value0 & 0xFC) == 0xA4) {
-		return 0;
-	}
-	else if (value0 == 0xA8) {
-		return move_reader_forward(reader, 1);
-	}
-	else if (value0 == 0xA9) {
-		return move_reader_forward(reader, 2);
-	}
-	else if ((value0 & 0xFE) == 0xAA || (value0 & 0xFC) == 0xAC) {
-		return 0;
-	}
-	else if ((value0 & 0xF0) == 0xB0) {
-		return move_reader_forward(reader, (value0 & 0x08)? 2 : 1);
-	}
-	else if (value0 == 0xC2) {
-		return move_reader_forward(reader, 2);
-	}
-	else if (value0 == 0xC3) {
-		return 0;
-	}
-	else if ((value0 & 0xFE) == 0xC4) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		value1 = read_next_byte(reader);
-		return ((value1 & 0xC0) == 0xC0)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
-				move_reader_forward_for_address_length(reader, value1);
-	}
-	else if ((value0 & 0xFE) == 0xC6) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		value1 = read_next_byte(reader);
-		if (value1 & 0x38) {
-			return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
-		}
-		else {
-			if (move_reader_forward_for_address_length(reader, value1)) {
-				return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-			}
-			return move_reader_forward(reader, (value0 & 1) + 1);
-		}
-	}
-	else if (value0 == 0xCB) {
-		return 0;
-	}
-	else if (value0 == 0xCD) {
-		return move_reader_forward(reader, 1);
-	}
-	else if ((value0 & 0xFC) == 0xD0) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		value1 = read_next_byte(reader);
-		return ((value1 & 0x38) == 0x30)? MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE :
-				move_reader_forward_for_address_length(reader, value1);
-	}
-	else if ((value0 & 0xFC) == 0xE0) {
-		return move_reader_forward(reader, 1);
-	}
-	else if ((value0 & 0xFE) == 0xE8) {
-		return move_reader_forward(reader, 2);
-	}
-	else if (value0 == 0xEA) {
-		return move_reader_forward(reader, 4);
-	}
-	else if (value0 == 0xEB) {
-		return move_reader_forward(reader, 1);
-	}
-	else if ((value0 & 0xFE) == 0xF2) {
-		return 0;
-	}
-	else if ((value0 & 0xFE) == 0xF6) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		value1 = read_next_byte(reader);
-		if ((value1 & 0x38) == 0x08) {
-			return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
-		}
-		else {
-			if (move_reader_forward_for_address_length(reader, value1)) {
-				return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-			}
-			return (value0 & 0x38)? 0 : move_reader_forward(reader, (value0 & 1) + 1);
-		}
-	}
-	else if ((value0 & 0xFC) == 0xF8 || (value0 & 0xFE) == 0xFC) {
-		return 0;
-	}
-	else if (value0 == 0xFE) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		value1 = read_next_byte(reader);
-		if (value1 & 0x30) {
-			return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
-		}
-		else {
-			return move_reader_forward_for_address_length(reader, value1);
-		}
-	}
-	else if (value0 == 0xFF) {
-		int value1;
-		if (reader->buffer_index >= reader->buffer_size) {
-			return MOVE_READER_FORWARD_ERROR_CODE_MAX_EXCEEDED;
-		}
-
-		value1 = read_next_byte(reader);
-		if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
-			return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
-		}
-		else {
-			return move_reader_forward_for_address_length(reader, value1);
-		}
-	}
-	else {
-		return MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE;
 	}
 }
 
@@ -1303,7 +1046,7 @@ int dump(
 				reader.buffer = position;
 				reader.buffer_index = 0;
 				reader.buffer_size = block->end - position;
-				error_code = move_reader_forward_for_instruction_length(&reader);
+				error_code = read_for_instruction_length(&reader);
 				next_position = position + reader.buffer_index;
 
 				if (error_code || variable && next_position > variable->start) {
@@ -1311,7 +1054,7 @@ int dump(
 					reader.buffer_index = 0;
 					print("db ");
 					print_literal_hex_byte(print, read_next_byte(&reader));
-					print((error_code == MOVE_READER_FORWARD_ERROR_CODE_UNKNOWN_OPCODE)? " ; Unknown opcode\n" : "\n");
+					print((error_code == READ_ERROR_UNKNOWN_OPCODE)? " ; Unknown opcode\n" : "\n");
 
 					position++;
 					if (position >= block->end) {
@@ -1416,7 +1159,7 @@ int dump(
 					reader.buffer = next_position;
 					reader.buffer_index = 0;
 					reader.buffer_size = block->end - next_position;
-					error_code = move_reader_forward_for_instruction_length(&reader);
+					error_code = read_for_instruction_length(&reader);
 					next_position += reader.buffer_index;
 				}
 				while (error_code == 0 && next_position < current_variable_end);
