@@ -19,26 +19,37 @@
 #define CBORIGIN_TYPE_INTERRUPTION 1
 
 /**
- * Denotes that this block is accessed as the continuation of the previous one, without any kind of jmp or call instruction.
+ * Denotes that this block is accessed as the continuation of the previous one,
+ * without any kind of jmp or call instruction.
  *
  * When this type is selected. value in instruction should be ignored.
- * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
+ * Also we can assume that there is another existing code block whose end
+ * matches the start of the block pointed by this origin.
  */
 #define CBORIGIN_TYPE_CONTINUE 2
 
 /**
- * Denotes that this block is accessed as the continuation of the previous one, which is finishing with a call instruction
- * (opcode E8, FF 1X and others).
+ * Denotes that this block is accessed as the continuation of the previous one,
+ * which is finishing with a call instruction (opcode E8, FF 1X and others),
+ * far call or interruptions.
  *
  * When this type is selected. value in instruction should be ignored.
- * Also we can assume that there is another existing code block whose end matches the start of the block pointed by this origin.
+ * However, we also know that there is a valid behind count that can be queried
+ * to check which instruction originated the call.
+ *
+ * Also we can assume that there is another existing code block whose end
+ * matches the start of the block pointed by this origin.
  */
 #define CBORIGIN_TYPE_CALL_RETURN 3
 
 /**
  * Denotes that this block is accessed using a jmp or call instruction, or any of its variants, in any of our code instructions.
  *
- * When the type is selected. instruction and regs fields are also available and valid.
+ * When the type is selected. instruction field will point to the instruction
+ * that originated this jump.
+ *
+ * Also, in this case, we can ensure that regs and variable maps are also
+ * available and valid.
  */
 #define CBORIGIN_TYPE_JUMP 4
 

@@ -329,12 +329,18 @@ static int read_block_instruction_internal(
 		const char *jump_destination = block->start + reader->buffer_index + diff;
 		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+		int potential_container_evaluated_at_least_once = potential_container && potential_container->start != potential_container->end;
+		if (potential_container_evaluated_at_least_once && potential_container->end <= jump_destination) {
+			potential_container = NULL;
+			potential_container_evaluated_at_least_once = 0;
+		}
+
 		if (potential_container && potential_container->start == jump_destination) {
 			if ((error_code = add_jump_type_cborigin_in_block(potential_container, opcode_reference, regs, var_values))) {
 				return error_code;
 			}
 		}
-		else if (!potential_container || potential_container->start != jump_destination) {
+		else {
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -350,22 +356,45 @@ static int read_block_instruction_internal(
 				return result;
 			}
 
-			if (potential_container) {
-				if ((result = add_continue_type_cborigin_in_block(new_block))) {
-					return result;
+			if (potential_container_evaluated_at_least_once) {
+				if (potential_container->end > jump_destination) {
+					potential_container->end = jump_destination;
 				}
+
+				invalidate_cblock_check(potential_container);
 			}
 
 			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
 				return result;
 			}
+		}
 
-			if (potential_container) {
-				if (potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-					potential_container->end = jump_destination;
-				}
+		block->end = block->start + reader->buffer_index;
+		result = index_of_code_block_with_start(code_block_list, block->end);
+		if (result >= 0) {
+			if ((result = add_continue_type_cborigin_in_block(code_block_list->sorted_blocks[result], regs, var_values))) {
+				return result;
+			}
+		}
+		else {
+			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			if (!new_block) {
+				return 1;
+			}
 
-				invalidate_cblock_check(potential_container);
+			new_block->relative_cs = block->relative_cs;
+			new_block->ip = block->ip + reader->buffer_index;
+			new_block->start = block->end;
+			new_block->end = block->end;
+			new_block->flags = 0;
+			initialize_cbolist(&new_block->origin_list);
+
+			if ((result = add_continue_type_cborigin_in_block(new_block, regs, var_values))) {
+				return result;
+			}
+
+			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+				return result;
 			}
 		}
 
@@ -703,32 +732,14 @@ static int read_block_instruction_internal(
 		}
 		return 0;
 	}
-	else if (value0 == 0xC2) {
+	else if ((value0 & 0xFE) == 0xC2) {
 		const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
 		uint16_t *checked_blocks;
 		unsigned int checked_blocks_word_index;
 
-		read_next_word(reader);
-		block->end = block->start + reader->buffer_index;
-
-		checked_blocks = malloc(checked_blocks_word_count * 2);
-		if (!checked_blocks) {
-			return 1;
+		if (value0 == 0xC2) {
+			read_next_word(reader);
 		}
-
-		for (checked_blocks_word_index = 0; checked_blocks_word_index < checked_blocks_word_count; checked_blocks_word_index++) {
-			checked_blocks[checked_blocks_word_index] = 0;
-		}
-
-		update_call_origins(block, code_block_list, checked_blocks, regs, var_values, 0);
-		free(checked_blocks);
-		return 0;
-	}
-	else if (value0 == 0xC3) {
-		const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
-		uint16_t *checked_blocks;
-		unsigned int checked_blocks_word_index;
-
 		block->end = block->start + reader->buffer_index;
 
 		checked_blocks = malloc(checked_blocks_word_count * 2);

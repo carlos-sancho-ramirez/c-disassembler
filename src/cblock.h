@@ -4,7 +4,7 @@
 #include "cbolist.h"
 
 /**
- * Structure reflecting a piece of code that is always executed sequentially, except due to conditional jumps or interruptions.
+ * Structure reflecting a piece of code whose instructions are always executed one after the other, except due to interruptions not explicitly called.
  */
 struct CodeBlock {
 	unsigned int relative_cs;
@@ -20,6 +20,10 @@ struct CodeBlock {
 	const char *end;
 
 	unsigned int flags;
+
+	/**
+	 * List of origins found for this code block.
+	 */
 	struct CodeBlockOriginList origin_list;
 };
 
@@ -37,7 +41,7 @@ void mark_cblock_as_evaluated(struct CodeBlock *block);
 void invalidate_cblock_check(struct CodeBlock *block);
 
 int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values);
-int add_continue_type_cborigin_in_block(struct CodeBlock *block);
+int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
 int add_call_return_type_cborigin_in_block(struct CodeBlock *block, unsigned int behind_count);
 int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
 

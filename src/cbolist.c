@@ -171,7 +171,7 @@ void accumulate_registers_from_cbolist(struct Registers *regs, const struct Code
 	if (list->origin_count) {
 		int i;
 		copy_registers(regs, &list->sorted_origins[0]->regs);
-		for (i = 0; i < list->origin_count; i++) {
+		for (i = 1; i < list->origin_count; i++) {
 			merge_registers(regs, &list->sorted_origins[i]->regs);
 		}
 	}
@@ -185,7 +185,7 @@ int accumulate_gvwvmap_from_cbolist(struct GlobalVariableWordValueMap *map, cons
 			return error_code;
 		}
 
-		for (i = 0; i < list->origin_count; i++) {
+		for (i = 1; i < list->origin_count; i++) {
 			if ((error_code = merge_gvwvmap(map, &list->sorted_origins[i]->var_values))) {
 				return error_code;
 			}
@@ -260,25 +260,6 @@ int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list
 	}
 
 	return -1;
-}
-
-int add_continue_type_cborigin(struct CodeBlockOriginList *list) {
-	if (index_of_cborigin_of_type_continue(list) < 0) {
-		int error_code;
-		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(list);
-		if (!new_origin) {
-			return 1;
-		}
-
-		set_continue_type_in_cborigin(new_origin);
-		make_all_registers_undefined(&new_origin->regs);
-		initialize_gvwvmap(&new_origin->var_values);
-		if ((error_code = insert_cborigin(list, new_origin))) {
-			return error_code;
-		}
-	}
-
-	return 0;
 }
 
 int add_call_return_type_cborigin(struct CodeBlockOriginList *list, unsigned int behind_count) {
