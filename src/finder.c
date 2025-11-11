@@ -186,6 +186,52 @@ static int update_call_origins(
 	return 0;
 }
 
+static int add_call_return_origin_after_interruption(struct Reader *reader, struct Registers *regs, struct GlobalVariableWordValueMap *var_values, struct CodeBlock *block, struct CodeBlockList *code_block_list) {
+	struct CodeBlock *return_block;
+	struct CodeBlockOrigin *return_origin;
+	int index;
+	int error_code;
+	block->end = block->start + reader->buffer_index;
+
+	index = index_of_code_block_with_start(code_block_list, block->end);
+	if (index >= 0) {
+		return_block = code_block_list->sorted_blocks[index];
+		if ((error_code = add_call_return_type_cborigin_in_block(return_block, 2))) {
+			return error_code;
+		}
+	}
+	else {
+		return_block = prepare_new_code_block(code_block_list);
+		if (!return_block) {
+			return 1;
+		}
+
+		return_block->relative_cs = block->relative_cs;
+		return_block->ip = block->ip + reader->buffer_index;
+		return_block->start = block->end;
+		return_block->end = block->end;
+		return_block->flags = 0;
+		initialize_cbolist(&return_block->origin_list);
+
+		if ((error_code = add_call_return_type_cborigin_in_block(return_block, 2))) {
+			return error_code;
+		}
+
+		if ((error_code = insert_sorted_code_block(code_block_list, return_block))) {
+			return error_code;
+		}
+	}
+
+	index = index_of_cborigin_of_type_call_return(&return_block->origin_list, 2);
+	return_origin = return_block->origin_list.sorted_origins[index];
+	copy_registers(&return_origin->regs, regs);
+	initialize_gvwvmap(&return_origin->var_values);
+	copy_gvwvmap(&return_origin->var_values, var_values);
+	set_cborigin_ready_to_be_evaluated(return_origin);
+
+	return 0;
+}
+
 #define SEGMENT_INDEX_UNDEFINED -1
 #define SEGMENT_INDEX_SS 2
 #define SEGMENT_INDEX_DS 3
@@ -894,6 +940,10 @@ static int read_block_instruction_internal(
 						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, var_values, block, code_block_list))) {
+					return error_code;
+				}
 			}
 			else if (ah_value == 0x25 && is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs)) { /* Set interruption vector. DS:DX point to the handler code */
 				uint16_t target_relative_cs = get_register_ds(regs);
@@ -947,11 +997,19 @@ static int read_block_instruction_internal(
 						insert_sorted_reference(reference_list, new_ref);
 					}
 				}
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, var_values, block, code_block_list))) {
+					return error_code;
+				}
 			}
 			else if (ah_value == 0x30) { /* Get DOS version number */
 				mark_register_ax_undefined(regs);
 				mark_register_cx_undefined(regs);
 				mark_register_bx_undefined(regs);
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, var_values, block, code_block_list))) {
+					return error_code;
+				}
 			}
 			else if (ah_value == 0x40) { /* Write to file using handle */
 				unsigned int length;
@@ -982,6 +1040,10 @@ static int read_block_instruction_internal(
 					}
 				}
 				mark_register_ax_undefined(regs);
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, var_values, block, code_block_list))) {
+					return error_code;
+				}
 			}
 			else if (ah_value == 0x4C) {
 				const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
