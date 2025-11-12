@@ -1011,6 +1011,14 @@ static int read_block_instruction_internal(
 					return error_code;
 				}
 			}
+			else if (ah_value == 0x35) { /* Get interruption vector */
+				mark_register_bx_undefined(regs);
+				mark_register_es_undefined(regs);
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, var_values, block, code_block_list))) {
+					return error_code;
+				}
+			}
 			else if (ah_value == 0x40) { /* Write to file using handle */
 				unsigned int length;
 				if (is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs) && is_register_cx_defined_absolute(regs) && (length = get_register_cx(regs)) > 0) {
