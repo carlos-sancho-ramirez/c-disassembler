@@ -90,8 +90,9 @@ int index_of_first_cborigin_of_type_call_return(const struct CodeBlockOriginList
 int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list, unsigned int behind_count);
 
 void accumulate_registers_from_cbolist(struct Registers *regs, const struct CodeBlockOriginList *list);
+int accumulate_stack_from_cbolist(struct Stack *stack, const struct CodeBlockOriginList *list);
 int accumulate_gvwvmap_from_cbolist(struct GlobalVariableWordValueMap *map, const struct CodeBlockOriginList *list);
 
-int add_call_return_type_cborigin(struct CodeBlockOriginList *list, unsigned int behind_count);
+int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct Stack *stack, unsigned int behind_count);
 
 #endif /* _CODE_BLOCK_ORIGIN_LIST_H_ */

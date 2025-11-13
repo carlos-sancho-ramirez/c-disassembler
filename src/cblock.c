@@ -42,24 +42,38 @@ void invalidate_cblock_check(struct CodeBlock *block) {
 	block->flags &= ~CODE_BLOCK_FLAG_VALID_EVALUATION;
 }
 
-int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Registers *regs, struct GlobalVariableWordValueMap *var_values) {
+int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values) {
 	struct CodeBlockOriginList *origin_list = &block->origin_list;
 	int error_code;
 	int index = index_of_cborigin_with_type_interruption(origin_list);
 	if (index < 0) {
 		struct Registers accumulated_regs;
+		struct Stack accumulated_stack;
 		struct CodeBlockOrigin *new_origin;
 		struct GlobalVariableWordValueMap accumulated_var_values;
 		if (origin_list->origin_count) {
 			accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
+			initialize_stack(&accumulated_stack);
+			if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list))) {
+				return error_code;
+			}
+
 			initialize_gvwvmap(&accumulated_var_values);
-			accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list);
+			if ((error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
+				return error_code;
+			}
 		}
 
 		new_origin = prepare_new_cborigin(origin_list);
 		set_interruption_type_in_cborigin(new_origin);
 		copy_registers(&new_origin->regs, regs);
-		copy_gvwvmap(&new_origin->var_values, var_values);
+		initialize_stack(&new_origin->stack);
+		initialize_gvwvmap(&new_origin->var_values);
+
+		if ((error_code = copy_gvwvmap(&new_origin->var_values, var_values))) {
+			return error_code;
+		}
+
 		if ((error_code = insert_cborigin(origin_list, new_origin))) {
 			return error_code;
 		}
@@ -70,8 +84,12 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Regi
 	}
 	else {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		if (changes_on_merging_registers(&origin->regs, regs)) {
+		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
 			merge_registers(&origin->regs, regs);
+			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+				return error_code;
+			}
+
 			invalidate_cblock_check(block);
 		}
 	}
@@ -79,7 +97,7 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, struct Regi
 	return 0;
 }
 
-int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values) {
+int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
 	int error_code;
 	struct CodeBlockOriginList *origin_list;
 	int index;
@@ -94,10 +112,13 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 
 		if (cblock_ready_to_be_evaluated(block)) {
 			struct Registers accumulated_regs;
+			struct Stack accumulated_stack;
 			struct GlobalVariableWordValueMap accumulated_var_values;
 
 			if (origin_list->origin_count) {
 				accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
+				initialize_stack(&accumulated_stack);
+				accumulate_stack_from_cbolist(&accumulated_stack, origin_list);
 				initialize_gvwvmap(&accumulated_var_values);
 				accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list);
 			}
@@ -127,11 +148,11 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 	return 0;
 }
 
-int add_call_return_type_cborigin_in_block(struct CodeBlock *block, unsigned int behind_count) {
-	return add_call_return_type_cborigin(&block->origin_list, behind_count);
+int add_call_return_type_cborigin_in_block(struct CodeBlock *block, const struct Stack *stack, unsigned int behind_count) {
+	return add_call_return_type_cborigin(&block->origin_list, stack, behind_count);
 }
 
-int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values) {
+int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
 	int error_code;
 	struct CodeBlockOriginList *origin_list;
 	int index;
@@ -146,19 +167,27 @@ int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_
 
 		if (cblock_ready_to_be_evaluated(block)) {
 			struct Registers accumulated_regs;
+			struct Stack accumulated_stack;
 			struct GlobalVariableWordValueMap accumulated_var_values;
 
 			if (origin_list->origin_count) {
 				accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
+				initialize_stack(&accumulated_stack);
+				if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list))) {
+					return error_code;
+				}
+
 				initialize_gvwvmap(&accumulated_var_values);
-				accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list);
+				if ((error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
+					return error_code;
+				}
 			}
 
 			if ((error_code = insert_cborigin(origin_list, new_origin))) {
 				return error_code;
 			}
 
-			if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_gvwvmap(&accumulated_var_values, var_values))) {
+			if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_stacks(&accumulated_stack, stack) || changes_on_merging_gvwvmap(&accumulated_var_values, var_values))) {
 				invalidate_cblock_check(block);
 			}
 		}

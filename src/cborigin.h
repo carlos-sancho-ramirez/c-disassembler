@@ -2,6 +2,7 @@
 #define _CODE_BLOCK_ORIGIN_H_
 
 #include "register.h"
+#include "stack.h"
 #include "gvwvmap.h"
 
 /**
@@ -78,6 +79,8 @@ struct CodeBlockOrigin {
 	 * This is a typical situation reached when the origin is the result of a call return, and we do not know yet what the function is returning.
 	 */
 	struct Registers regs;
+
+	struct Stack stack;
 
 	/**
 	 * State of all known global variables when the block is accessed by this origin.
