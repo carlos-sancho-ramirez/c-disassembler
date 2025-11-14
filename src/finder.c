@@ -1369,6 +1369,47 @@ static int read_block_instruction_internal(
 				if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
+
+				if (value1 == 0x16 && is_segment_register_defined_relative(regs, segment_index)) {
+					unsigned int segment_value = get_segment_register(regs, segment_index);
+					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+					const char *var_target = segment_start + relative_address;
+					unsigned int code_relative_target = *((uint16_t *) var_target);
+					const char *jump_destination;
+					struct CodeBlock *potential_container;
+					int result;
+
+					code_relative_target += ((unsigned int) get_register_cs(regs)) << 4;
+					jump_destination = segment_start + code_relative_target;
+
+					result = index_of_code_block_containing_position(code_block_list, jump_destination);
+					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+					if (!potential_container || potential_container->start != jump_destination) {
+						struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+						if (!new_block) {
+							return 1;
+						}
+
+						new_block->relative_cs = block->relative_cs;
+						new_block->ip = code_relative_target;
+						new_block->start = jump_destination;
+						new_block->end = jump_destination;
+						new_block->flags = 0;
+						initialize_cbolist(&new_block->origin_list);
+						if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
+							return result;
+						}
+
+						if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+							return result;
+						}
+
+						if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+							potential_container->end = jump_destination;
+							invalidate_cblock_check(potential_container);
+						}
+					}
+				}
 			}
 			else if ((value1 & 0xC0) == 0x80) {
 				read_next_word(reader);
