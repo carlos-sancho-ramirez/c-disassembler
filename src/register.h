@@ -116,6 +116,7 @@ void set_word_register(struct Registers *regs, unsigned int index, const char *w
 void set_word_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
 void mark_register_ax_undefined(struct Registers *regs);
 void mark_register_cx_undefined(struct Registers *regs);
+void mark_register_dx_undefined(struct Registers *regs);
 void mark_register_bx_undefined(struct Registers *regs);
 void mark_register_es_undefined(struct Registers *regs);
 void mark_register_ds_undefined(struct Registers *regs);

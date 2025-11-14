@@ -906,7 +906,19 @@ static int read_block_instruction_internal(
 	}
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
-		if (interruption_number == 0x20) {
+		if (interruption_number == 0x1A && is_register_ah_defined(regs)) {
+			const unsigned int ah_value = get_register_ah(regs);
+			if (ah_value == 0x00) { /* Read System Clock Counter */
+				mark_register_ax_undefined(regs);
+				mark_register_cx_undefined(regs);
+				mark_register_dx_undefined(regs);
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
+					return error_code;
+				}
+			}
+		}
+		else if (interruption_number == 0x20) {
 			const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
 			uint16_t *checked_blocks;
 			unsigned int checked_blocks_word_index;

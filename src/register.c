@@ -543,6 +543,11 @@ void mark_register_cx_undefined(struct Registers *regs) {
 	regs->defined[3] = NULL;
 }
 
+void mark_register_dx_undefined(struct Registers *regs) {
+	regs->defined[4] = NULL;
+	regs->defined[5] = NULL;
+}
+
 void mark_register_bx_undefined(struct Registers *regs) {
 	regs->defined[6] = NULL;
 	regs->defined[7] = NULL;
