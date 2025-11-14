@@ -1158,6 +1158,7 @@ static int read_block_instruction_internal(
 		result = index_of_code_block_containing_position(code_block_list, jump_destination);
 		potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
+			struct Stack updated_stack;
 			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -1169,7 +1170,20 @@ static int read_block_instruction_internal(
 			new_block->end = jump_destination;
 			new_block->flags = 0;
 			initialize_cbolist(&new_block->origin_list);
-			if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
+
+			if (value0 == 0xE8) {
+				initialize_stack(&updated_stack);
+				copy_stack(&updated_stack, stack);
+				push_in_stack(&updated_stack, block->ip + reader->buffer_index);
+
+				result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, &updated_stack, var_values);
+				clear_stack(&updated_stack);
+
+				if (result) {
+					return result;
+				}
+			}
+			else if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
 				return result;
 			}
 
@@ -1405,6 +1419,7 @@ static int read_block_instruction_internal(
 					result = index_of_code_block_containing_position(code_block_list, jump_destination);
 					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 					if (!potential_container || potential_container->start != jump_destination) {
+						struct Stack updated_stack;
 						struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
 						if (!new_block) {
 							return 1;
@@ -1416,7 +1431,14 @@ static int read_block_instruction_internal(
 						new_block->end = jump_destination;
 						new_block->flags = 0;
 						initialize_cbolist(&new_block->origin_list);
-						if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
+
+						initialize_stack(&updated_stack);
+						copy_stack(&updated_stack, stack);
+						push_in_stack(&updated_stack, block->ip + reader->buffer_index);
+						result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, &updated_stack, var_values);
+						clear_stack(&updated_stack);
+
+						if (result) {
 							return result;
 						}
 
