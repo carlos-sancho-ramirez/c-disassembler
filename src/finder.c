@@ -1068,6 +1068,14 @@ static int read_block_instruction_internal(
 					return error_code;
 				}
 			}
+			else if (ah_value == 0x4A) { /* Modify allocated memory block */
+				mark_register_ax_undefined(regs);
+				mark_register_bx_undefined(regs);
+
+				if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
+					return error_code;
+				}
+			}
 			else if (ah_value == 0x4C) {
 				const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
 				uint16_t *checked_blocks;
