@@ -448,7 +448,7 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0x80) {
 		const int value1 = read_next_byte(reader);
-		if ((value1 & 0xC0) == 0 && (value1 & 0x07) == 6) {
+		if ((value1 & 0xC7) == 6) {
 			int result_address = read_next_word(reader);
 			if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 				segment_index = SEGMENT_INDEX_DS;
@@ -476,7 +476,22 @@ static int read_block_instruction_internal(
 	}
 	else if (value0 == 0x83) {
 		const int value1 = read_next_byte(reader);
-		read_block_instruction_address(reader, value1);
+		if ((value1 & 0xC7) == 0x06) {
+			int result_address = read_next_word(reader);
+			if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+				segment_index = SEGMENT_INDEX_DS;
+			}
+
+			if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				return error_code;
+			}
+		}
+		else if ((value1 & 0xC0) == 0x80) {
+			read_next_word(reader);
+		}
+		else if ((value1 & 0xC0) == 0x40) {
+			read_next_byte(reader);
+		}
 		read_next_byte(reader);
 		return 0;
 	}

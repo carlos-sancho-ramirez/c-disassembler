@@ -254,17 +254,7 @@ static int dump_instruction(
 		else if (value0 == 0x83) {
 			const int value1 = read_next_byte(reader);
 			print(INSTRUCTION[(value1 >> 3) & 0x07]);
-			if ((value1 & 0xC0) != 0xC0) {
-				if (value0 & 1) {
-					print(" word ");
-				}
-				else {
-					print(" byte ");
-				}
-			}
-			else {
-				print(" ");
-			}
+			print((value1 < 0xC0)? " word " : " ");
 
 			dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
 			print(",");
