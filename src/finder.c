@@ -904,6 +904,26 @@ static int read_block_instruction_internal(
 			return 0;
 		}
 	}
+	else if (value0 == 0xCB) {
+		const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
+		uint16_t *checked_blocks;
+		unsigned int checked_blocks_word_index;
+
+		block->end = block->start + reader->buffer_index;
+
+		checked_blocks = malloc(checked_blocks_word_count * 2);
+		if (!checked_blocks) {
+			return 1;
+		}
+
+		for (checked_blocks_word_index = 0; checked_blocks_word_index < checked_blocks_word_count; checked_blocks_word_index++) {
+			checked_blocks[checked_blocks_word_index] = 0;
+		}
+
+		update_call_origins(block, code_block_list, checked_blocks, regs, var_values, 0);
+		free(checked_blocks);
+		return 0;
+	}
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
 		if (interruption_number == 0x1A && is_register_ah_defined(regs)) {
