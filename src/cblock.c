@@ -163,6 +163,11 @@ int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
 		set_jump_type_in_cborigin(new_origin, origin_instruction);
 		copy_registers(&new_origin->regs, regs);
+
+		initialize_stack(&new_origin->stack);
+		copy_stack(&new_origin->stack, stack);
+
+		initialize_gvwvmap(&new_origin->var_values);
 		copy_gvwvmap(&new_origin->var_values, var_values);
 
 		if (cblock_ready_to_be_evaluated(block)) {
