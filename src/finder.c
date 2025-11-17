@@ -1609,12 +1609,12 @@ static int read_block(
 int find_cblocks_and_gvars(
 		struct SegmentReadResult *read_result,
 		void (*print_error)(const char *),
-		struct CodeBlockList *code_block_list,
+		struct CodeBlockList *cblock_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct CodeBlockOrigin *origin;
-	struct CodeBlock *first_block = prepare_new_cblock(code_block_list);
+	struct CodeBlock *first_block = prepare_new_cblock(cblock_list);
 	int error_code;
 	int any_evaluated;
 	int any_not_ready;
@@ -1646,7 +1646,7 @@ int find_cblocks_and_gvars(
 		return error_code;
 	}
 
-	if ((error_code = insert_cblock(code_block_list, first_block))) {
+	if ((error_code = insert_cblock(cblock_list, first_block))) {
 		return error_code;
 	}
 
@@ -1656,8 +1656,8 @@ int find_cblocks_and_gvars(
 		any_evaluated = 0;
 		any_not_ready = 0;
 
-		for (block_index = 0; block_index < code_block_list->block_count; block_index++) {
-			struct CodeBlock *block = code_block_list->page_array[block_index / code_block_list->blocks_per_page] + (block_index % code_block_list->blocks_per_page);
+		for (block_index = 0; block_index < cblock_list->block_count; block_index++) {
+			struct CodeBlock *block = get_unsorted_cblock(cblock_list, block_index);
 			if (cblock_requires_evaluation(block)) {
 				if (evaluate_all || cblock_ready_to_be_evaluated(block)) {
 					struct Registers regs;
@@ -1679,7 +1679,7 @@ int find_cblocks_and_gvars(
 					initialize_gvwvmap(&var_values);
 					accumulate_gvwvmap_from_cbolist(&var_values, &block->origin_list);
 
-					if ((error_code = read_block(&regs, &stack, &var_values, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, code_block_list, global_variable_list, segment_start_list, reference_list))) {
+					if ((error_code = read_block(&regs, &stack, &var_values, read_result->buffer, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
 						return error_code;
 					}
 
@@ -1702,13 +1702,13 @@ int find_cblocks_and_gvars(
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
 		if (variable->start == variable->end && variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
-			const int index = index_of_cblock_containing_position(code_block_list, variable->start);
-			if (index < 0 || code_block_list->sorted_blocks[index]->end <= variable->start) {
+			const int index = index_of_cblock_containing_position(cblock_list, variable->start);
+			if (index < 0 || cblock_list->sorted_blocks[index]->end <= variable->start) {
 				const char *potential_end = read_result->buffer + read_result->size;
 				const char *end;
 
-				if (index + 1 < code_block_list->block_count) {
-					potential_end = code_block_list->sorted_blocks[index + 1]->start;
+				if (index + 1 < cblock_list->block_count) {
+					potential_end = cblock_list->sorted_blocks[index + 1]->start;
 				}
 
 				for (end = variable->start; end < potential_end; end++) {
@@ -1722,7 +1722,7 @@ int find_cblocks_and_gvars(
 			}
 			else {
 				/* TODO: Find a better solution */
-				variable->end = code_block_list->sorted_blocks[index]->end;
+				variable->end = cblock_list->sorted_blocks[index]->end;
 			}
 		}
 	}

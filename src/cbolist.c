@@ -1,14 +1,11 @@
 #include "cbolist.h"
+#include "slmacros.h"
 #include <assert.h>
 
 #define PAGE_ARRAY_GRANULARITY 8
 #define ORIGINS_PER_PAGE 4
 
-void initialize_cborigin_list(struct CodeBlockOriginList *list) {
-	list->origin_count = 0;
-	list->page_array = NULL;
-	list->sorted_origins = NULL;
-}
+DEFINE_STRUCT_LIST_INITIALIZE_METHOD(CodeBlockOrigin, cborigin, origin)
 
 int index_of_cborigin_with_type_interruption(const struct CodeBlockOriginList *list) {
 	int first = 0;
@@ -75,32 +72,7 @@ int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list
 	return (first > 0 && get_cborigin_type(list->sorted_origins[first - 1]) == CBORIGIN_TYPE_JUMP)? first - 1 : -1;
 }
 
-struct CodeBlockOrigin *prepare_new_cborigin(struct CodeBlockOriginList *list) {
-	if ((list->origin_count % ORIGINS_PER_PAGE) == 0) {
-		struct CodeBlockOrigin *new_page;
-		if ((list->origin_count % (ORIGINS_PER_PAGE * PAGE_ARRAY_GRANULARITY)) == 0) {
-			const int new_page_array_length = (list->origin_count / (ORIGINS_PER_PAGE * PAGE_ARRAY_GRANULARITY)) + PAGE_ARRAY_GRANULARITY;
-			list->page_array = realloc(list->page_array, new_page_array_length * sizeof(struct CodeBlockOrigin *));
-			if (!(list->page_array)) {
-				return NULL;
-			}
-
-			list->sorted_origins = realloc(list->sorted_origins, new_page_array_length * ORIGINS_PER_PAGE * sizeof(struct CodeBlockOrigin *));
-			if (!(list->sorted_origins)) {
-				return NULL;
-			}
-		}
-
-		new_page = malloc(ORIGINS_PER_PAGE * sizeof(struct CodeBlockOrigin));
-		if (!new_page) {
-			return NULL;
-		}
-
-		list->page_array[list->origin_count / ORIGINS_PER_PAGE] = new_page;
-	}
-
-	return list->page_array[list->origin_count / ORIGINS_PER_PAGE] + (list->origin_count % ORIGINS_PER_PAGE);
-}
+DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(CodeBlockOrigin, cborigin, origin, PAGE_ARRAY_GRANULARITY, ORIGINS_PER_PAGE)
 
 static int is_before(struct CodeBlockOrigin *a, struct CodeBlockOrigin *b) {
 	unsigned int a_type = get_cborigin_type(a);
@@ -151,21 +123,7 @@ int insert_cborigin(struct CodeBlockOriginList *list, struct CodeBlockOrigin *ne
 	return 0;
 }
 
-void clear_cborigin_list(struct CodeBlockOriginList *list) {
-	if (list->origin_count > 0) {
-		const int allocated_pages = (list->origin_count + ORIGINS_PER_PAGE - 1) / ORIGINS_PER_PAGE;
-		int i;
-		for (i = allocated_pages - 1; i >= 0; i--) {
-			free(list->page_array[i]);
-		}
-
-		free(list->page_array);
-		free(list->sorted_origins);
-		list->page_array = NULL;
-		list->sorted_origins = NULL;
-		list->origin_count = 0;
-	}
-}
+DEFINE_STRUCT_LIST_CLEAR_METHOD(CodeBlockOrigin, cborigin, origin, ORIGINS_PER_PAGE)
 
 void accumulate_registers_from_cbolist(struct Registers *regs, const struct CodeBlockOriginList *list) {
 	if (list->origin_count) {
