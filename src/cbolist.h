@@ -67,7 +67,7 @@ int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list
 
 /**
  * Returns a proper pointer to store a new origin.
- * The returned pointer should be filled and call insert_sorted_cborigin method in order to sort it properly.
+ * The returned pointer should be filled and call insert_cborigin method in order to sort it properly.
  * This method may require allocating a new page of memory.
  * This method will return NULL in case of failure.
  */

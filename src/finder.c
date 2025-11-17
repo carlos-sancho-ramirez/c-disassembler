@@ -86,7 +86,7 @@ static int update_call_origins(
 	int index;
 	int error_code;
 	int cblock_index;
-	cblock_index = index_of_code_block_with_start(code_block_list, block->start);
+	cblock_index = index_of_cblock_with_start(code_block_list, block->start);
 	if (cblock_index < 0 || checked_blocks[cblock_index >> 4] & (1 << (cblock_index & 0xF))) {
 		return 0;
 	}
@@ -115,7 +115,7 @@ static int update_call_origins(
 		else if (origin_type == CBORIGIN_TYPE_JUMP) {
 			const int jmp_opcode0 = ((int) *origin->instruction) & 0xFF;
 			if (jmp_opcode0 == 0xE8) { /* CALL */
-				int return_block_index = index_of_code_block_with_start(code_block_list, origin->instruction + 3);
+				int return_block_index = index_of_cblock_with_start(code_block_list, origin->instruction + 3);
 				if (return_block_index >= 0) {
 					struct CodeBlock *return_block = code_block_list->sorted_blocks[return_block_index];
 					int call_return_origin_index = index_of_cborigin_of_type_call_return(&return_block->origin_list, 3);
@@ -125,7 +125,7 @@ static int update_call_origins(
 				}
 			}
 			else if (jmp_opcode0 == 0xE9) { /* JMP */
-				int jumping_block_index = index_of_code_block_containing_position(code_block_list, origin->instruction);
+				int jumping_block_index = index_of_cblock_containing_position(code_block_list, origin->instruction);
 				if (jumping_block_index >= 0) {
 					int word_index;
 					uint16_t *new_checked_blocks = clone_checked_blocks(checked_blocks, code_block_list);
@@ -154,7 +154,7 @@ static int update_call_origins(
 						}
 					}
 
-					return_block_index = index_of_code_block_with_start(code_block_list, origin->instruction + jmp_instruction_length);
+					return_block_index = index_of_cblock_with_start(code_block_list, origin->instruction + jmp_instruction_length);
 					if (return_block_index >= 0) {
 						struct CodeBlock *return_block = code_block_list->sorted_blocks[return_block_index];
 						int call_return_origin_index = index_of_cborigin_of_type_call_return(&return_block->origin_list, jmp_instruction_length);
@@ -164,7 +164,7 @@ static int update_call_origins(
 					}
 				}
 				else if ((jmp_opcode1 & 0x38) == 0x20) {
-					int jumping_block_index = index_of_code_block_containing_position(code_block_list, origin->instruction);
+					int jumping_block_index = index_of_cblock_containing_position(code_block_list, origin->instruction);
 					if (jumping_block_index >= 0) {
 						int word_index;
 						uint16_t *new_checked_blocks = clone_checked_blocks(checked_blocks, code_block_list);
@@ -193,7 +193,7 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 	int error_code;
 	block->end = block->start + reader->buffer_index;
 
-	index = index_of_code_block_with_start(code_block_list, block->end);
+	index = index_of_cblock_with_start(code_block_list, block->end);
 	if (index >= 0) {
 		return_block = code_block_list->sorted_blocks[index];
 		if ((error_code = add_call_return_type_cborigin_in_block(return_block, stack, 2))) {
@@ -201,7 +201,7 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 		}
 	}
 	else {
-		return_block = prepare_new_code_block(code_block_list);
+		return_block = prepare_new_cblock(code_block_list);
 		if (!return_block) {
 			return 1;
 		}
@@ -217,7 +217,7 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 			return error_code;
 		}
 
-		if ((error_code = insert_sorted_code_block(code_block_list, return_block))) {
+		if ((error_code = insert_cblock(code_block_list, return_block))) {
 			return error_code;
 		}
 	}
@@ -248,9 +248,9 @@ static int read_block_instruction_internal(
 		void (*print_error)(const char *),
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
-		struct GlobalVariableList *global_variable_list,
+		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list,
+		struct ReferenceList *ref_list,
 		int segment_index,
 		const char *opcode_reference) {
 	int error_code;
@@ -264,7 +264,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -331,7 +331,7 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, (value0 >> 3) & 0x03, opcode_reference);
+		return read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, gvar_list, segment_start_list, ref_list, (value0 >> 3) & 0x03, opcode_reference);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		return 0;
@@ -373,7 +373,7 @@ static int read_block_instruction_internal(
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
 		const char *jump_destination = block->start + reader->buffer_index + diff;
-		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
+		int result = index_of_cblock_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		int potential_container_evaluated_at_least_once = potential_container && potential_container->start != potential_container->end;
 		if (potential_container_evaluated_at_least_once && potential_container->end <= jump_destination) {
@@ -387,7 +387,7 @@ static int read_block_instruction_internal(
 			}
 		}
 		else {
-			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 			if (!new_block) {
 				return 1;
 			}
@@ -410,20 +410,20 @@ static int read_block_instruction_internal(
 				invalidate_cblock_check(potential_container);
 			}
 
-			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+			if ((result = insert_cblock(code_block_list, new_block))) {
 				return result;
 			}
 		}
 
 		block->end = block->start + reader->buffer_index;
-		result = index_of_code_block_with_start(code_block_list, block->end);
+		result = index_of_cblock_with_start(code_block_list, block->end);
 		if (result >= 0) {
 			if ((result = add_continue_type_cborigin_in_block(code_block_list->sorted_blocks[result], regs, stack, var_values))) {
 				return result;
 			}
 		}
 		else {
-			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 			if (!new_block) {
 				return 1;
 			}
@@ -439,7 +439,7 @@ static int read_block_instruction_internal(
 				return result;
 			}
 
-			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+			if ((result = insert_cblock(code_block_list, new_block))) {
 				return result;
 			}
 		}
@@ -454,7 +454,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 				return error_code;
 			}
 		}
@@ -482,7 +482,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 				return error_code;
 			}
 		}
@@ -504,7 +504,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 				return error_code;
 			}
 
@@ -513,7 +513,7 @@ static int read_block_instruction_internal(
 				unsigned int segment_value = get_segment_register(regs, segment_index);
 				unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 				const char *target = segment_start + relative_address;
-				const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+				const int var_index = index_of_gvar_with_start(gvar_list, target);
 				if (var_index >= 0) {
 					const int reg_index = (value1 >> 3) & 7;
 					if (value0 == 0x89) {
@@ -577,7 +577,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, 1, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, 1, opcode_reference))) {
 					return error_code;
 				}
 
@@ -675,7 +675,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -728,23 +728,23 @@ static int read_block_instruction_internal(
 			unsigned int segment_value = (segment_index == SEGMENT_INDEX_UNDEFINED)? get_register_ds(regs) : get_segment_register(regs, segment_index);
 			unsigned int relative_address = (segment_value * 16 + offset) & 0xFFFF;
 			const char *target = segment_start + relative_address;
-			const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+			const int var_index = index_of_gvar_with_start(gvar_list, target);
 			struct GlobalVariable *var;
 			if (var_index < 0) {
-				var = prepare_new_global_variable(global_variable_list);
+				var = prepare_new_gvar(gvar_list);
 				var->start = target;
 				var->end = target + 2;
 				var->relative_address = relative_address;
 				var->var_type = (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE;
 
-				insert_sorted_global_variable(global_variable_list, var);
+				insert_gvar(gvar_list, var);
 			}
 			else {
-				var = global_variable_list->sorted_variables[var_index];
+				var = gvar_list->sorted_variables[var_index];
 			}
 
-			if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
-				struct Reference *new_ref = prepare_new_reference(reference_list);
+			if (index_of_ref_with_instruction(ref_list, opcode_reference) < 0) {
+				struct Reference *new_ref = prepare_new_ref(ref_list);
 				new_ref->instruction = opcode_reference;
 				set_gvar_ref_from_instruction_address(new_ref, var);
 				if (value0 & 2) {
@@ -754,7 +754,7 @@ static int read_block_instruction_internal(
 					set_gvar_ref_read_access(new_ref);
 				}
 
-				insert_sorted_reference(reference_list, new_ref);
+				insert_ref(ref_list, new_ref);
 			}
 		}
 
@@ -833,7 +833,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_far_pointer_gvar_ref(global_variable_list, reference_list, regs, segment_index, result_address, segment_start, opcode_reference))) {
+				if ((error_code = add_far_pointer_gvar_ref(gvar_list, ref_list, regs, segment_index, result_address, segment_start, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -874,7 +874,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 			}
@@ -892,7 +892,7 @@ static int read_block_instruction_internal(
 					unsigned int segment_value = get_segment_register(regs, segment_index);
 					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 					const char *target = segment_start + relative_address;
-					if (index_of_global_variable_with_start(global_variable_list, target) >= 0 &&
+					if (index_of_gvar_with_start(gvar_list, target) >= 0 &&
 							(error_code = put_gvar_in_gvwvmap(var_values, target, immediate_value))) {
 						return error_code;
 					}
@@ -964,27 +964,27 @@ static int read_block_instruction_internal(
 				const char *target = segment_start + relative_address;
 				struct GlobalVariable *var;
 				const char *instruction;
-				int index = index_of_global_variable_with_start(global_variable_list, target);
+				int index = index_of_gvar_with_start(gvar_list, target);
 				if (index < 0) {
-					var = prepare_new_global_variable(global_variable_list);
+					var = prepare_new_gvar(gvar_list);
 					var->start = target;
 					var->end = target;
 					var->relative_address = relative_address;
 					var->var_type = GVAR_TYPE_DOLLAR_TERMINATED_STRING;
-					insert_sorted_global_variable(global_variable_list, var);
+					insert_gvar(gvar_list, var);
 				}
 				else {
-					var = global_variable_list->sorted_variables[index];
+					var = gvar_list->sorted_variables[index];
 				}
 				/* What should we do if the variable is present, but its type does not match? Not sure. */
 
 				instruction = where_register_dx_defined(regs);
 				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
-					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
-						struct Reference *new_ref = prepare_new_reference(reference_list);
+					if (index_of_ref_with_instruction(ref_list, instruction) < 0) {
+						struct Reference *new_ref = prepare_new_ref(ref_list);
 						new_ref->instruction = instruction;
 						set_gvar_ref_from_instruction_immediate_value(new_ref, var);
-						insert_sorted_reference(reference_list, new_ref);
+						insert_ref(ref_list, new_ref);
 					}
 				}
 
@@ -1004,13 +1004,13 @@ static int read_block_instruction_internal(
 				addr = (addr * 16 + target_ip) & 0xFFFFF;
 
 				jump_destination = segment_start + addr;
-				result = index_of_code_block_containing_position(code_block_list, jump_destination);
+				result = index_of_cblock_containing_position(code_block_list, jump_destination);
 				potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 				if (potential_container && potential_container->start == jump_destination) {
 					target_block = potential_container;
 				}
 				else {
-					target_block = prepare_new_code_block(code_block_list);
+					target_block = prepare_new_cblock(code_block_list);
 					if (!target_block) {
 						return 1;
 					}
@@ -1025,7 +1025,7 @@ static int read_block_instruction_internal(
 						return result;
 					}
 
-					if ((result = insert_sorted_code_block(code_block_list, target_block))) {
+					if ((result = insert_cblock(code_block_list, target_block))) {
 						return result;
 					}
 
@@ -1037,11 +1037,11 @@ static int read_block_instruction_internal(
 
 				instruction = where_register_dx_defined(regs);
 				if ((((unsigned int) *instruction) & 0xFF) == 0xBA) {
-					if (index_of_reference_with_instruction(reference_list, instruction) < 0) {
-						struct Reference *new_ref = prepare_new_reference(reference_list);
+					if (index_of_ref_with_instruction(ref_list, instruction) < 0) {
+						struct Reference *new_ref = prepare_new_ref(ref_list);
 						new_ref->instruction = instruction;
 						set_cblock_ref_from_instruction_immediate_value(new_ref, target_block);
-						insert_sorted_reference(reference_list, new_ref);
+						insert_ref(ref_list, new_ref);
 					}
 				}
 
@@ -1073,14 +1073,14 @@ static int read_block_instruction_internal(
 					unsigned int segment_value = get_register_ds(regs);
 					unsigned int relative_address = (segment_value * 16 + get_register_dx(regs)) & 0xFFFF;
 					const char *target = segment_start + relative_address;
-					if (index_of_global_variable_with_start(global_variable_list, target) < 0) {
-						struct GlobalVariable *var = prepare_new_global_variable(global_variable_list);
+					if (index_of_gvar_with_start(gvar_list, target) < 0) {
+						struct GlobalVariable *var = prepare_new_gvar(gvar_list);
 						var->start = target;
 						var->relative_address = relative_address;
 						var->end = target + length;
 						var->var_type = GVAR_TYPE_STRING;
 
-						if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
+						if ((error_code = insert_gvar(gvar_list, var))) {
 							return error_code;
 						}
 					}
@@ -1155,11 +1155,11 @@ static int read_block_instruction_internal(
 		}
 
 		jump_destination = block->start + reader->buffer_index + diff;
-		result = index_of_code_block_containing_position(code_block_list, jump_destination);
+		result = index_of_cblock_containing_position(code_block_list, jump_destination);
 		potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
 			struct Stack updated_stack;
-			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 			if (!new_block) {
 				return 1;
 			}
@@ -1187,7 +1187,7 @@ static int read_block_instruction_internal(
 				return result;
 			}
 
-			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+			if ((result = insert_cblock(code_block_list, new_block))) {
 				return result;
 			}
 
@@ -1199,9 +1199,9 @@ static int read_block_instruction_internal(
 
 		block->end = block->start + reader->buffer_index;
 		if (value0 == 0xE8) {
-			result = index_of_code_block_with_start(code_block_list, block->end);
+			result = index_of_cblock_with_start(code_block_list, block->end);
 			if (result < 0) {
-				struct CodeBlock *next_block = prepare_new_code_block(code_block_list);
+				struct CodeBlock *next_block = prepare_new_cblock(code_block_list);
 				if (!next_block) {
 					return 1;
 				}
@@ -1216,7 +1216,7 @@ static int read_block_instruction_internal(
 					return result;
 				}
 
-				if ((result = insert_sorted_code_block(code_block_list, next_block))) {
+				if ((result = insert_cblock(code_block_list, next_block))) {
 					return result;
 				}
 			}
@@ -1241,10 +1241,10 @@ static int read_block_instruction_internal(
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
 		const char *jump_destination = block->start + reader->buffer_index + diff;
-		int result = index_of_code_block_containing_position(code_block_list, jump_destination);
+		int result = index_of_cblock_containing_position(code_block_list, jump_destination);
 		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		if (!potential_container || potential_container->start != jump_destination) {
-			struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 			if (!new_block) {
 				return 1;
 			}
@@ -1259,7 +1259,7 @@ static int read_block_instruction_internal(
 				return result;
 			}
 
-			if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+			if ((result = insert_cblock(code_block_list, new_block))) {
 				return result;
 			}
 
@@ -1315,7 +1315,7 @@ static int read_block_instruction_internal(
 				addr = (addr * 16 + target_ip) & 0xFFFFF;
 
 				jump_destination = segment_start + addr;
-				result = index_of_code_block_containing_position(code_block_list, jump_destination);
+				result = index_of_cblock_containing_position(code_block_list, jump_destination);
 				potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 				if (potential_container && potential_container->start == jump_destination) {
 					target_block = potential_container;
@@ -1326,7 +1326,7 @@ static int read_block_instruction_internal(
 						potential_container->end = jump_destination;
 					}
 
-					target_block = prepare_new_code_block(code_block_list);
+					target_block = prepare_new_cblock(code_block_list);
 					if (!target_block) {
 						return 1;
 					}
@@ -1344,18 +1344,18 @@ static int read_block_instruction_internal(
 						return result;
 					}
 
-					if ((result = insert_sorted_code_block(code_block_list, target_block))) {
+					if ((result = insert_cblock(code_block_list, target_block))) {
 						return result;
 					}
 				}
 
 				where_offset = where_interruption_offset_defined_in_table(int_table, i);
 				if (where_offset && where_offset != REGISTER_DEFINED_OUTSIDE && (((unsigned int) *where_offset) & 0xF8) == 0xB8) {
-					if (index_of_reference_with_instruction(reference_list, where_offset) < 0) {
-						struct Reference *new_ref = prepare_new_reference(reference_list);
+					if (index_of_ref_with_instruction(ref_list, where_offset) < 0) {
+						struct Reference *new_ref = prepare_new_ref(ref_list);
 						new_ref->instruction = where_offset;
 						set_cblock_ref_from_instruction_immediate_value(new_ref, target_block);
-						insert_sorted_reference(reference_list, new_ref);
+						insert_ref(ref_list, new_ref);
 					}
 				}
 			}
@@ -1400,7 +1400,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(global_variable_list, segment_start_list, reference_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
 					return error_code;
 				}
 
@@ -1416,11 +1416,11 @@ static int read_block_instruction_internal(
 					code_relative_target += ((unsigned int) get_register_cs(regs)) << 4;
 					jump_destination = segment_start + code_relative_target;
 
-					result = index_of_code_block_containing_position(code_block_list, jump_destination);
+					result = index_of_cblock_containing_position(code_block_list, jump_destination);
 					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 					if (!potential_container || potential_container->start != jump_destination) {
 						struct Stack updated_stack;
-						struct CodeBlock *new_block = prepare_new_code_block(code_block_list);
+						struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 						if (!new_block) {
 							return 1;
 						}
@@ -1442,7 +1442,7 @@ static int read_block_instruction_internal(
 							return result;
 						}
 
-						if ((result = insert_sorted_code_block(code_block_list, new_block))) {
+						if ((result = insert_cblock(code_block_list, new_block))) {
 							return result;
 						}
 
@@ -1465,9 +1465,9 @@ static int read_block_instruction_internal(
 			if ((value1 & 0x30) == 0x10) {
 				int result;
 				block->end = block->start + reader->buffer_index;
-				result = index_of_code_block_with_start(code_block_list, block->end);
+				result = index_of_cblock_with_start(code_block_list, block->end);
 				if (result < 0) {
-					struct CodeBlock *next_block = prepare_new_code_block(code_block_list);
+					struct CodeBlock *next_block = prepare_new_cblock(code_block_list);
 					if (!next_block) {
 						return 1;
 					}
@@ -1482,7 +1482,7 @@ static int read_block_instruction_internal(
 						return result;
 					}
 
-					if ((result = insert_sorted_code_block(code_block_list, next_block))) {
+					if ((result = insert_cblock(code_block_list, next_block))) {
 						return result;
 					}
 				}
@@ -1501,7 +1501,7 @@ static int read_block_instruction_internal(
 		}
 	}
 	else {
-		const int this_block_index = index_of_code_block_with_start(code_block_list, block->start);
+		const int this_block_index = index_of_cblock_with_start(code_block_list, block->start);
 		const char *new_end = reader->buffer + reader->buffer_size;
 		if (this_block_index + 1 < code_block_list->block_count) {
 			const char *next_start = code_block_list->sorted_blocks[this_block_index + 1]->start;
@@ -1564,7 +1564,7 @@ static int read_block(
 			return error_code;
 		}
 
-		index = index_of_code_block_with_start(code_block_list, block->start);
+		index = index_of_cblock_with_start(code_block_list, block->start);
 		if (index + 1 < code_block_list->block_count) {
 			struct CodeBlock *next_block = code_block_list->sorted_blocks[index + 1];
 			const char *next_start = next_block->start;
@@ -1614,7 +1614,7 @@ int find_cblocks_and_gvars(
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct CodeBlockOrigin *origin;
-	struct CodeBlock *first_block = prepare_new_code_block(code_block_list);
+	struct CodeBlock *first_block = prepare_new_cblock(code_block_list);
 	int error_code;
 	int any_evaluated;
 	int any_not_ready;
@@ -1646,7 +1646,7 @@ int find_cblocks_and_gvars(
 		return error_code;
 	}
 
-	if ((error_code = insert_sorted_code_block(code_block_list, first_block))) {
+	if ((error_code = insert_cblock(code_block_list, first_block))) {
 		return error_code;
 	}
 
@@ -1702,7 +1702,7 @@ int find_cblocks_and_gvars(
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
 		if (variable->start == variable->end && variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
-			const int index = index_of_code_block_containing_position(code_block_list, variable->start);
+			const int index = index_of_cblock_containing_position(code_block_list, variable->start);
 			if (index < 0 || code_block_list->sorted_blocks[index]->end <= variable->start) {
 				const char *potential_end = read_result->buffer + read_result->size;
 				const char *end;

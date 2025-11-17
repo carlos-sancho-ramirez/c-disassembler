@@ -1,10 +1,10 @@
 #include "gvlist.h"
 #include "slmacros.h"
 
-DEFINE_STRUCT_LIST_METHODS(GlobalVariable, global_variable, variable, start, 8, 256)
+DEFINE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start, 8, 256)
 
 int add_gvar_ref(
-		struct GlobalVariableList *global_variable_list,
+		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list,
 		struct Registers *regs,
@@ -18,13 +18,13 @@ int add_gvar_ref(
 		unsigned int segment_value = get_segment_register(regs, segment_index);
 		unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 		const char *target = segment_start + relative_address;
-		const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+		const int var_index = index_of_gvar_with_start(gvar_list, target);
 		struct GlobalVariable *var;
 		if (var_index >= 0) {
-			var = global_variable_list->sorted_variables[var_index];
+			var = gvar_list->sorted_variables[var_index];
 		}
 		else {
-			var = prepare_new_global_variable(global_variable_list);
+			var = prepare_new_gvar(gvar_list);
 			var->start = target;
 			var->relative_address = relative_address;
 			if (value0 & 1) {
@@ -36,7 +36,7 @@ int add_gvar_ref(
 				var->var_type = GVAR_TYPE_BYTE;
 			}
 
-			if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
+			if ((error_code = insert_gvar(gvar_list, var))) {
 				return error_code;
 			}
 		}
@@ -50,11 +50,11 @@ int add_gvar_ref(
 			}
 		}
 
-		if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
-			struct Reference *new_ref = prepare_new_reference(reference_list);
+		if (index_of_ref_with_instruction(reference_list, opcode_reference) < 0) {
+			struct Reference *new_ref = prepare_new_ref(reference_list);
 			new_ref->instruction = opcode_reference;
 			set_gvar_ref_from_instruction_address(new_ref, var);
-			if ((error_code = insert_sorted_reference(reference_list, new_ref))) {
+			if ((error_code = insert_ref(reference_list, new_ref))) {
 				return error_code;
 			}
 		}
@@ -64,8 +64,8 @@ int add_gvar_ref(
 }
 
 int add_far_pointer_gvar_ref(
-		struct GlobalVariableList *global_variable_list,
-		struct ReferenceList *reference_list,
+		struct GlobalVariableList *gvar_list,
+		struct ReferenceList *ref_list,
 		struct Registers *regs,
 		int segment_index,
 		int result_address,
@@ -75,32 +75,32 @@ int add_far_pointer_gvar_ref(
 		int error_code;
 		unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
 		const char *target = segment_start + relative_address;
-		const int var_index = index_of_global_variable_with_start(global_variable_list, target);
+		const int var_index = index_of_gvar_with_start(gvar_list, target);
 		struct GlobalVariable *var;
 		if (var_index >= 0) {
-			var = global_variable_list->sorted_variables[var_index];
+			var = gvar_list->sorted_variables[var_index];
 			if (var->var_type == GVAR_TYPE_WORD) {
 				var->end += 2;
 				var->var_type = GVAR_TYPE_FAR_POINTER;
 			}
 		}
 		else {
-			var = prepare_new_global_variable(global_variable_list);
+			var = prepare_new_gvar(gvar_list);
 			var->start = target;
 			var->relative_address = relative_address;
 			var->end = target + 4;
 			var->var_type = GVAR_TYPE_FAR_POINTER;
 
-			if ((error_code = insert_sorted_global_variable(global_variable_list, var))) {
+			if ((error_code = insert_gvar(gvar_list, var))) {
 				return error_code;
 			}
 		}
 
-		if (index_of_reference_with_instruction(reference_list, opcode_reference) < 0) {
-			struct Reference *new_ref = prepare_new_reference(reference_list);
+		if (index_of_ref_with_instruction(ref_list, opcode_reference) < 0) {
+			struct Reference *new_ref = prepare_new_ref(ref_list);
 			new_ref->instruction = opcode_reference;
 			set_gvar_ref_from_instruction_address(new_ref, var);
-			if ((error_code = insert_sorted_reference(reference_list, new_ref))) {
+			if ((error_code = insert_ref(ref_list, new_ref))) {
 				return error_code;
 			}
 		}

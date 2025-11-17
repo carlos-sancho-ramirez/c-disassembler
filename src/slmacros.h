@@ -71,7 +71,7 @@ int index_of_##struct_name_snake##_containing_position(const struct struct_name#
 \
 /** \
  * Returns a proper pointer to store a new short_item_name. \
- * The returned pointer should be filled and call insert_sorted_##struct_name_snake method in order to sort it properly. \
+ * The returned pointer should be filled and call insert_##struct_name_snake method in order to sort it properly. \
  * This method may require allocating a new page of memory. \
  * This method will return NULL in case of failure. \
  */ \
@@ -82,7 +82,7 @@ struct struct_name *prepare_new_##struct_name_snake(struct struct_name##List *li
  * This will increase the short_item_name##_count value by 1 and will update the sorted_#short_item_name##s inserting the \
  * reference to this short_item_name in its suitable position. \
  */ \
-int insert_sorted_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name); \
+int insert_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name); \
 \
 /** \
  * Free all the allocated short_item_name and restores this list to its initial state. \
@@ -165,7 +165,7 @@ struct struct_name *prepare_new_##struct_name_snake(struct struct_name##List *li
 	return list->page_array[list->short_item_name##_count / list->short_item_name##s_per_page] + (list->short_item_name##_count % list->short_item_name##s_per_page); \
 } \
 \
-int insert_sorted_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name) { \
+int insert_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name) { \
 	int first = 0; \
 	int last = list->short_item_name##_count; \
 	int i; \

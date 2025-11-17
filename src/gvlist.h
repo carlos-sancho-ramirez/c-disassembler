@@ -5,7 +5,7 @@
 #include "slmacros.h"
 
 DEFINE_STRUCT_LIST(GlobalVariable, variable);
-DECLARE_STRUCT_LIST_METHODS(GlobalVariable, global_variable, variable, start);
+DECLARE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start);
 
 #include "register.h"
 #include "sslist.h"

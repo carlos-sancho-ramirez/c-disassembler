@@ -235,10 +235,10 @@ int main(int argc, const char *argv[]) {
 	int i;
 	struct SegmentReadResult read_result;
 	int error_code;
-	struct CodeBlockList code_block_list;
-	struct GlobalVariableList global_variable_list;
+	struct CodeBlockList cblock_list;
+	struct GlobalVariableList gvar_list;
 	struct SegmentStartList segment_start_list;
-	struct ReferenceList reference_list;
+	struct ReferenceList ref_list;
 
 	printf("%s", application_name_and_version);
 
@@ -300,12 +300,12 @@ int main(int argc, const char *argv[]) {
 		return error_code;
 	}
 
-	initialize_code_block_list(&code_block_list);
-	initialize_global_variable_list(&global_variable_list);
+	initialize_cblock_list(&cblock_list);
+	initialize_gvar_list(&gvar_list);
 	initialize_segment_start_list(&segment_start_list);
-	initialize_reference_list(&reference_list);
+	initialize_ref_list(&ref_list);
 
-	if ((error_code = find_cblocks_and_gvars(&read_result, print_error, &code_block_list, &global_variable_list, &segment_start_list, &reference_list))) {
+	if ((error_code = find_cblocks_and_gvars(&read_result, print_error, &cblock_list, &gvar_list, &segment_start_list, &ref_list))) {
 		goto end;
 	}
 
@@ -328,14 +328,14 @@ int main(int argc, const char *argv[]) {
 	error_code = dump(
 			read_result.buffer,
 			read_result.relative_cs? 0x100 : 0,
-			code_block_list.sorted_blocks,
-			code_block_list.block_count,
-			global_variable_list.sorted_variables,
-			global_variable_list.variable_count,
+			cblock_list.sorted_blocks,
+			cblock_list.block_count,
+			gvar_list.sorted_variables,
+			gvar_list.variable_count,
 			segment_start_list.start,
 			segment_start_list.count,
-			reference_list.sorted_references,
-			reference_list.reference_count,
+			ref_list.sorted_references,
+			ref_list.reference_count,
 			read_result.sorted_relocations,
 			read_result.relocation_count,
 			print_output,
@@ -354,8 +354,8 @@ int main(int argc, const char *argv[]) {
 		free(read_result.relocation_table);
 	}
 
-	for (i = 0; i < code_block_list.block_count; i++) {
-		struct CodeBlockOriginList *origin_list = &code_block_list.sorted_blocks[i]->origin_list;
+	for (i = 0; i < cblock_list.block_count; i++) {
+		struct CodeBlockOriginList *origin_list = &cblock_list.sorted_blocks[i]->origin_list;
 		int j;
 		for (j = 0; j < origin_list->origin_count; j++) {
 			clear_gvwvmap(&origin_list->sorted_origins[j]->var_values);
@@ -363,10 +363,10 @@ int main(int argc, const char *argv[]) {
 		clear_cbolist(origin_list);
 	}
 
-	clear_reference_list(&reference_list);
+	clear_ref_list(&ref_list);
 	clear_segment_start_list(&segment_start_list);
-	clear_global_variable_list(&global_variable_list);
-	clear_code_block_list(&code_block_list);
+	clear_gvar_list(&gvar_list);
+	clear_cblock_list(&cblock_list);
 	free(read_result.buffer);
 	return error_code;
 }
