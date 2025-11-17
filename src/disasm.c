@@ -360,7 +360,7 @@ int main(int argc, const char *argv[]) {
 		for (j = 0; j < origin_list->origin_count; j++) {
 			clear_gvwvmap(&origin_list->sorted_origins[j]->var_values);
 		}
-		clear_cbolist(origin_list);
+		clear_cborigin_list(origin_list);
 	}
 
 	clear_ref_list(&ref_list);

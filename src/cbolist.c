@@ -4,7 +4,7 @@
 #define PAGE_ARRAY_GRANULARITY 8
 #define ORIGINS_PER_PAGE 4
 
-void initialize_cbolist(struct CodeBlockOriginList *list) {
+void initialize_cborigin_list(struct CodeBlockOriginList *list) {
 	list->origin_count = 0;
 	list->page_array = NULL;
 	list->sorted_origins = NULL;
@@ -151,7 +151,7 @@ int insert_cborigin(struct CodeBlockOriginList *list, struct CodeBlockOrigin *ne
 	return 0;
 }
 
-void clear_cbolist(struct CodeBlockOriginList *list) {
+void clear_cborigin_list(struct CodeBlockOriginList *list) {
 	if (list->origin_count > 0) {
 		const int allocated_pages = (list->origin_count + ORIGINS_PER_PAGE - 1) / ORIGINS_PER_PAGE;
 		int i;

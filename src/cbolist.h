@@ -40,50 +40,13 @@ struct CodeBlockOriginList {
 	unsigned int origin_count;
 };
 
-/**
- * Set all its values. After this, this list will be empty, but ready.
- */
-void initialize_cbolist(struct CodeBlockOriginList *list);
+DECLARE_STRUCT_LIST_METHODS(CodeBlockOrigin, cborigin, origin, instruction);
 
 /**
  * Searches for a origin whose type is interruption.
  * This will return the index of the origin within the sorted_origins array. Or -1 if none matches.
  */
 int index_of_cborigin_with_type_interruption(const struct CodeBlockOriginList *list);
-
-/**
- * Searches for a origin whose sorted_property matches the given one.
- * This will return the index of the origin within the sorted_origins array. Or -1 if none matches.
- */
-int index_of_cborigin_with_instruction(const struct CodeBlockOriginList *list, const char *instruction);
-
-/**
- * Searches for a origin whose sorted_property matches the given position.
- * If none matches, this method will return the origin whose start is closest but before the given position.
- * This will return -1 if there are not origins, or all of them has a sorted_property greater than the given position.
- * This will return the index of the origin within the sorted_origins array.
- */
-int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list, const char *position);
-
-/**
- * Returns a proper pointer to store a new origin.
- * The returned pointer should be filled and call insert_cborigin method in order to sort it properly.
- * This method may require allocating a new page of memory.
- * This method will return NULL in case of failure.
- */
-struct CodeBlockOrigin *prepare_new_cborigin(struct CodeBlockOriginList *list);
-
-/**
- * Inserts the origin returned previously by prepare_new_cborigin.
- * This will increase the origin_count value by 1 and will update the sorted_origins inserting the
- * reference to this origin in its suitable position.
- */
-int insert_cborigin(struct CodeBlockOriginList *list, struct CodeBlockOrigin *new_origin); \
-
-/**
- * Free all the allocated origin and restores this list to its initial state.
- */
-void clear_cbolist(struct CodeBlockOriginList *list);
 
 int index_of_cborigin_of_type_continue(const struct CodeBlockOriginList *list);
 int index_of_first_cborigin_of_type_call_return(const struct CodeBlockOriginList *list);

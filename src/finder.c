@@ -211,7 +211,7 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 		return_block->start = block->end;
 		return_block->end = block->end;
 		return_block->flags = 0;
-		initialize_cbolist(&return_block->origin_list);
+		initialize_cborigin_list(&return_block->origin_list);
 
 		if ((error_code = add_call_return_type_cborigin_in_block(return_block, stack, 2))) {
 			return error_code;
@@ -397,7 +397,7 @@ static int read_block_instruction_internal(
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
 			new_block->flags = 0;
-			initialize_cbolist(&new_block->origin_list);
+			initialize_cborigin_list(&new_block->origin_list);
 			if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
 				return result;
 			}
@@ -433,7 +433,7 @@ static int read_block_instruction_internal(
 			new_block->start = block->end;
 			new_block->end = block->end;
 			new_block->flags = 0;
-			initialize_cbolist(&new_block->origin_list);
+			initialize_cborigin_list(&new_block->origin_list);
 
 			if ((result = add_continue_type_cborigin_in_block(new_block, regs, stack, var_values))) {
 				return result;
@@ -1020,7 +1020,7 @@ static int read_block_instruction_internal(
 					target_block->start = jump_destination;
 					target_block->end = jump_destination;
 					target_block->flags = 0;
-					initialize_cbolist(&target_block->origin_list);
+					initialize_cborigin_list(&target_block->origin_list);
 					if ((result = add_interruption_type_cborigin_in_block(target_block, regs, var_values))) {
 						return result;
 					}
@@ -1169,7 +1169,7 @@ static int read_block_instruction_internal(
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
 			new_block->flags = 0;
-			initialize_cbolist(&new_block->origin_list);
+			initialize_cborigin_list(&new_block->origin_list);
 
 			if (value0 == 0xE8) {
 				initialize_stack(&updated_stack);
@@ -1211,7 +1211,7 @@ static int read_block_instruction_internal(
 				next_block->start = block->end;
 				next_block->end = block->end;
 				next_block->flags = 0;
-				initialize_cbolist(&next_block->origin_list);
+				initialize_cborigin_list(&next_block->origin_list);
 				if ((result = add_call_return_type_cborigin_in_block(next_block, stack, 3))) {
 					return result;
 				}
@@ -1254,7 +1254,7 @@ static int read_block_instruction_internal(
 			new_block->start = jump_destination;
 			new_block->end = jump_destination;
 			new_block->flags = 0;
-			initialize_cbolist(&new_block->origin_list);
+			initialize_cborigin_list(&new_block->origin_list);
 			if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
 				return result;
 			}
@@ -1336,7 +1336,7 @@ static int read_block_instruction_internal(
 					target_block->start = jump_destination;
 					target_block->end = jump_destination;
 					target_block->flags = 0;
-					initialize_cbolist(&target_block->origin_list);
+					initialize_cborigin_list(&target_block->origin_list);
 
 					make_all_registers_undefined(&int_regs);
 					set_register_cs_relative(&int_regs, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
@@ -1430,7 +1430,7 @@ static int read_block_instruction_internal(
 						new_block->start = jump_destination;
 						new_block->end = jump_destination;
 						new_block->flags = 0;
-						initialize_cbolist(&new_block->origin_list);
+						initialize_cborigin_list(&new_block->origin_list);
 
 						initialize_stack(&updated_stack);
 						copy_stack(&updated_stack, stack);
@@ -1477,7 +1477,7 @@ static int read_block_instruction_internal(
 					next_block->start = block->end;
 					next_block->end = block->end;
 					next_block->flags = 0;
-					initialize_cbolist(&next_block->origin_list);
+					initialize_cborigin_list(&next_block->origin_list);
 					if ((result = add_call_return_type_cborigin_in_block(next_block, stack, instruction_length))) {
 						return result;
 					}
@@ -1630,7 +1630,7 @@ int find_cblocks_and_gvars(
 	first_block->start = read_result->buffer + (read_result->relative_cs * 16 + read_result->ip);
 	first_block->end = first_block->start;
 	first_block->flags = 0;
-	initialize_cbolist(&first_block->origin_list);
+	initialize_cborigin_list(&first_block->origin_list);
 
 	origin = prepare_new_cborigin(&first_block->origin_list);
 	set_os_type_in_cborigin(origin);
