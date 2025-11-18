@@ -20,7 +20,7 @@ void clear_stack(struct Stack *stack) {
 	initialize_stack(stack);
 }
 
-int stack_is_empty(struct Stack *stack) {
+int stack_is_empty(const struct Stack *stack) {
 	return stack->word_count == 0;
 }
 
@@ -76,18 +76,45 @@ int push_relative_in_stack(struct Stack *stack, uint16_t value) {
 }
 
 uint16_t pop_from_stack(struct Stack *stack) {
-	return stack->values[--stack->word_count];
+	if (stack->word_count > 0) {
+		return stack->values[--stack->word_count];
+	}
+	else {
+		return 0;
+	}
 }
 
-int top_is_defined_in_stack(struct Stack *stack) {
-	unsigned int index = stack->word_count - 1;
-	return stack->defined_and_relative[index >> 3] & (1 << ((index & 0x07) * 2));
+int is_defined_in_stack_from_top(const struct Stack *stack, unsigned int count) {
+	if (stack->word_count > count) {
+		unsigned int index = stack->word_count - count - 1;
+		return stack->defined_and_relative[index >> 3] & (1 << ((index & 0x07) * 2));
+	}
+	else {
+		return 0;
+	}
 }
 
-int top_is_defined_and_relative_in_stack(struct Stack *stack) {
-	unsigned int index = stack->word_count - 1;
-	uint16_t mask = 3 << ((index & 0x07) * 2);
-	return (stack->defined_and_relative[index >> 3] & mask) == mask;
+int is_defined_relative_in_stack_from_top(const struct Stack *stack, unsigned int count) {
+	if (stack->word_count > count) {
+		unsigned int index = stack->word_count - count - 1;
+		uint16_t mask = 3 << ((index & 0x07) * 2);
+		return (stack->defined_and_relative[index >> 3] & mask) == mask;
+	}
+	else {
+		return 0;
+	}
+}
+
+int top_is_defined_in_stack(const struct Stack *stack) {
+	return is_defined_in_stack_from_top(stack, 0);
+}
+
+int top_is_defined_relative_in_stack(const struct Stack *stack) {
+	return is_defined_relative_in_stack_from_top(stack, 0);
+}
+
+uint16_t get_from_top(const struct Stack *stack, unsigned int count) {
+	return (stack->word_count > count)? stack->values[stack->word_count - count - 1] : 0;
 }
 
 int copy_stack(struct Stack *target_stack, const struct Stack *source_stack) {

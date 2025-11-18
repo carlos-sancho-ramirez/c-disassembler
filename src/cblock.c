@@ -214,18 +214,7 @@ int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_
 }
 
 int should_be_dumped(const struct CodeBlock *block) {
-	const struct CodeBlockOriginList *origin_list = &block->origin_list;
-	const unsigned int origin_count = origin_list->origin_count;
-	int index;
-	for (index = 0; index < origin_count; index++) {
-		const struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		const unsigned int origin_type = get_cborigin_type(origin);
-		if (origin_type != CBORIGIN_TYPE_CALL_RETURN || !is_marked_as_never_reached(origin)) {
-			return 1;
-		}
-	}
-
-	return 0;
+	return block->origin_list.origin_count > 0;
 }
 
 int should_dump_label_for_block(const struct CodeBlock *block) {
