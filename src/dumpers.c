@@ -47,13 +47,11 @@ const char *FF_INSTRUCTIONS[] = {
 
 const char RELOCATION_VALUE[] = "base_segment";
 
-#define DUMP_GLOBAL_VARIABLE_UNDEFINED 0xFFFFFFFF
-
 static void dump_address(
 		const char *buffer,
 		unsigned int buffer_origin,
 		struct Reader *reader,
-		unsigned int reference_address,
+		struct Reference *reference,
 		void (*print)(const char *),
 		void (*print_segment_start_label)(void (*)(const char *), const char *),
 		void (*print_variable_label)(void (*)(const char *), unsigned int),
@@ -69,10 +67,9 @@ static void dump_address(
 
 		if ((value1 & 0xC7) == 0x06) {
 			const int addr = read_next_word(reader);
-			if (reference_address == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
-				print_literal_hex_word(print, addr);
-			}
-			else {
+			struct GlobalVariable *var;
+			if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
+				const unsigned int reference_address = var->relative_address;
 				print_variable_label(print, reference_address);
 
 				if (addr < reference_address + buffer_origin) {
@@ -83,6 +80,9 @@ static void dump_address(
 					print("+");
 					print_segment_start_label(print, buffer + (addr - reference_address - buffer_origin));
 				}
+			}
+			else {
+				print_literal_hex_word(print, addr);
 			}
 		}
 		else {
@@ -105,7 +105,7 @@ static void dump_address_register_combination(
 		const char *buffer,
 		unsigned int buffer_origin,
 		struct Reader *reader,
-		unsigned int reference_address,
+		struct Reference *reference,
 		void (*print)(const char *),
 		void (*print_segment_start_label)(void (*)(const char *), const char *),
 		void (*print_variable_label)(void (*)(const char *), unsigned int),
@@ -117,10 +117,10 @@ static void dump_address_register_combination(
 	if (value0 & 0x02) {
 		print(registers[(value1 >> 3) & 0x07]);
 		print(",");
-		dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
+		dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
 	}
 	else {
-		dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
+		dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
 		print(",");
 		print(registers[(value1 >> 3) & 0x07]);
 	}
@@ -131,9 +131,7 @@ static int dump_instruction(
 		unsigned int buffer_origin,
 		struct Reader *reader,
 		const struct CodeBlock *block,
-		unsigned int reference_address,
-		unsigned int reference_variable_value,
-		struct CodeBlock *reference_block_value,
+		struct Reference *reference,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		void (*print)(const char *),
@@ -158,7 +156,7 @@ static int dump_instruction(
 				}
 
 				value1 = read_next_byte(reader);
-				dump_address_register_combination(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
+				dump_address_register_combination(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
 				print("\n");
 				return 0;
 			}
@@ -240,7 +238,7 @@ static int dump_instruction(
 			}
 
 			registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-			dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, registers);
+			dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
 			print(",");
 			if (value0 & 1) {
 				print_literal_hex_word(print, read_next_word(reader));
@@ -256,7 +254,7 @@ static int dump_instruction(
 			print(INSTRUCTION[(value1 >> 3) & 0x07]);
 			print((value1 < 0xC0)? " word " : " ");
 
-			dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
+			dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
 			print(",");
 			print_differential_hex_byte(print, read_next_byte(reader));
 			print("\n");
@@ -266,7 +264,7 @@ static int dump_instruction(
 			const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
 			const int value1 = read_next_byte(reader);
 			print((value0 < 0x88)? "xchg " : "mov ");
-			dump_address_register_combination(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
+			dump_address_register_combination(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
 			print("\n");
 			return 0;
 		}
@@ -282,7 +280,7 @@ static int dump_instruction(
 			}
 			else {
 				print("mov ");
-				dump_address_register_combination(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
+				dump_address_register_combination(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
 				print("\n");
 				return 0;
 			}
@@ -301,7 +299,7 @@ static int dump_instruction(
 				print("lea ");
 				print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
 				print(",");
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
 				print("\n");
 				return 0;
 			}
@@ -318,7 +316,7 @@ static int dump_instruction(
 			}
 			else {
 				print("pop ");
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
 				print("\n");
 				return 0;
 			}
@@ -346,6 +344,7 @@ static int dump_instruction(
 
 			addr_value = read_next_word(reader);
 			if ((value0 & 0xFE) == 0xA0) {
+				struct GlobalVariable *var;
 				print(registers[0]);
 				print(",[");
 				if (segment) {
@@ -353,10 +352,8 @@ static int dump_instruction(
 					print(":");
 				}
 
-				if (reference_address == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
-					print_literal_hex_word(print, addr_value);
-				}
-				else {
+				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
+					const unsigned int reference_address = var->relative_address;
 					print_variable_label(print, reference_address);
 
 					if (addr_value < reference_address + buffer_origin) {
@@ -368,20 +365,23 @@ static int dump_instruction(
 						print_segment_start_label(print, buffer + (addr_value - reference_address - buffer_origin));
 					}
 				}
+				else {
+					print_literal_hex_word(print, addr_value);
+				}
 
 				print("]");
 			}
 			else {
+				struct GlobalVariable *var;
+
 				print("[");
 				if (segment) {
 					print(segment);
 					print(":");
 				}
 
-				if (reference_address == DUMP_GLOBAL_VARIABLE_UNDEFINED) {
-					print_literal_hex_word(print, addr_value);
-				}
-				else {
+				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
+					const unsigned int reference_address = var->relative_address;
 					print_variable_label(print, reference_address);
 
 					if (addr_value < reference_address + buffer_origin) {
@@ -392,6 +392,9 @@ static int dump_instruction(
 						print("+");
 						print_segment_start_label(print, buffer + (addr_value - reference_address - buffer_origin));
 					}
+				}
+				else {
+					print_literal_hex_word(print, addr_value);
 				}
 
 				print("],");
@@ -459,6 +462,8 @@ static int dump_instruction(
 				const char *relocation_query;
 				int offset_value;
 				int relocation_segment_present = 0;
+				struct GlobalVariable *var;
+				struct CodeBlock *ref_block;
 
 				print(WORD_REGISTERS[value0 & 0x07]);
 				print(",");
@@ -468,19 +473,20 @@ static int dump_instruction(
 					print(RELOCATION_VALUE);
 				}
 
-				if (reference_variable_value != DUMP_GLOBAL_VARIABLE_UNDEFINED) {
+				if (reference && (var = get_gvar_from_ref_target(reference)) && !is_ref_in_instruction_address(reference)) {
+					unsigned int ref_var_value = var->relative_address;
 					if (relocation_segment_present) {
 						print("+");
 					}
 
-					print_variable_label(print, reference_variable_value);
+					print_variable_label(print, ref_var_value);
 				}
-				else if (reference_block_value) {
+				else if (reference && (ref_block = get_cblock_from_ref_target(reference))) {
 					if (relocation_segment_present) {
 						print("+");
 					}
 
-					print_code_label(print, reference_block_value->ip, reference_block_value->relative_cs);
+					print_code_label(print, ref_block->ip, ref_block->relative_cs);
 				}
 				else {
 					if (relocation_segment_present) {
@@ -532,7 +538,7 @@ static int dump_instruction(
 
 				print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
 				print(",");
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
 				print("\n");
 				return 0;
 			}
@@ -557,7 +563,7 @@ static int dump_instruction(
 						print("byte ");
 					}
 				}
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, BYTE_REGISTERS);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, BYTE_REGISTERS);
 				print(",");
 				if (value0 & 1) {
 					print_literal_hex_word(print, read_next_word(reader));
@@ -603,7 +609,7 @@ static int dump_instruction(
 				}
 
 				registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, registers);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
 
 				if (value0 & 2) {
 					print(",cl\n");
@@ -690,7 +696,7 @@ static int dump_instruction(
 				}
 
 				registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, registers);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
 				if ((value0 & 0x38) == 0) {
 					print(",");
 					if (value0 & 1) {
@@ -741,7 +747,7 @@ static int dump_instruction(
 			else {
 				print(FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
 				print((value1 < 0xC0)? " byte " : " ");
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, BYTE_REGISTERS);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, BYTE_REGISTERS);
 				print("\n");
 				return 0;
 			}
@@ -767,7 +773,7 @@ static int dump_instruction(
 				else {
 					print(" ");
 				}
-				dump_address(buffer, buffer_origin, reader, reference_address, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
+				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
 				print("\n");
 				return 0;
 			}
@@ -937,8 +943,8 @@ int dump(
 		unsigned int global_variable_count,
 		const char **segment_starts,
 		unsigned int segment_start_count,
-		struct Reference **global_variable_references,
-		unsigned int global_variable_reference_count,
+		struct Reference **gvar_refs,
+		unsigned int gvar_ref_count,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		void (*print)(const char *),
@@ -1057,45 +1063,25 @@ int dump(
 					}
 				}
 				else {
-					unsigned int global_variable_reference_address;
-					unsigned int global_variable_reference_value;
-					struct CodeBlock *reference_block_value = NULL;
+					struct Reference *reference = NULL;
 
 					reader.buffer = block->start;
 					reader.buffer_index = position - block->start;
 					reader.buffer_size = block->end - block->start;
 
-					while(global_variable_reference_count > 0 && global_variable_references[0]->instruction < position) {
-						global_variable_references++;
-						global_variable_reference_count--;
+					while(gvar_ref_count > 0 && gvar_refs[0]->instruction < position) {
+						gvar_refs++;
+						gvar_ref_count--;
 					}
 
-					global_variable_reference_address = DUMP_GLOBAL_VARIABLE_UNDEFINED;
-					global_variable_reference_value = DUMP_GLOBAL_VARIABLE_UNDEFINED;
-					if (global_variable_reference_count > 0 && global_variable_references[0]->instruction == position) {
-						struct Reference *reference = global_variable_references[0];
-						struct GlobalVariable *var;
-						if ((var = get_gvar_from_ref_target(reference))) {
-							unsigned int relative_address = var->relative_address;
-							if (is_ref_in_instruction_address(reference)) {
-								global_variable_reference_address = relative_address;
-							}
-							else {
-								global_variable_reference_value = relative_address;
-							}
-						}
-						else {
-							struct CodeBlock *block;
-							if ((block = get_cblock_from_ref_target(reference))) {
-								reference_block_value = block;
-							}
-						}
+					if (gvar_ref_count > 0 && gvar_refs[0]->instruction == position) {
+						reference = gvar_refs[0];
 
-						global_variable_references++;
-						global_variable_reference_count--;
+						gvar_refs++;
+						gvar_ref_count--;
 					}
 
-					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, global_variable_reference_address, global_variable_reference_value, reference_block_value, sorted_relocations, relocation_count, print, print_error, print_segment_start_label, print_code_label, print_variable_label);
+					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, reference, sorted_relocations, relocation_count, print, print_error, print_segment_start_label, print_code_label, print_variable_label);
 					position = next_position;
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
