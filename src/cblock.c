@@ -108,7 +108,15 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
 		set_continue_type_in_cborigin(new_origin);
 		copy_registers(&new_origin->regs, regs);
-		copy_gvwvmap(&new_origin->var_values, var_values);
+		initialize_stack(&new_origin->stack);
+		if ((error_code = copy_stack(&new_origin->stack, stack))) {
+			return error_code;
+		}
+
+		initialize_gvwvmap(&new_origin->var_values);
+		if ((error_code = copy_gvwvmap(&new_origin->var_values, var_values))) {
+			return error_code;
+		}
 
 		if (cblock_ready_to_be_evaluated(block)) {
 			struct Registers accumulated_regs;
@@ -127,7 +135,7 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 				return error_code;
 			}
 
-			if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_gvwvmap(&accumulated_var_values, var_values))) {
+			if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_stacks(&accumulated_stack, stack) || changes_on_merging_gvwvmap(&accumulated_var_values, var_values))) {
 				invalidate_cblock_check(block);
 			}
 		}
