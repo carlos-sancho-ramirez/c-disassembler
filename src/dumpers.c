@@ -630,10 +630,8 @@ static int dump_instruction(
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0xE8) {
-			int diff = read_next_word(reader);
-			if (block->ip + reader->buffer_index + diff >= 0x10000) {
-				diff -= 0x10000;
-			}
+			const int diff = read_next_word(reader);
+			const uint16_t target_ip = block->ip + reader->buffer_index + diff;
 
 			if (value0 & 1) {
 				print("jmp ");
@@ -642,7 +640,7 @@ static int dump_instruction(
 				print("call ");
 			}
 
-			print_code_label(print, block->ip + reader->buffer_index + diff, block->relative_cs);
+			print_code_label(print, target_ip, block->relative_cs);
 			print("\n");
 			return 0;
 		}
