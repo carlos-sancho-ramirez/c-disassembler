@@ -1,5 +1,10 @@
 #include "gvlist.h"
 #include "slmacros.h"
+#include "printd.h"
+
+static void log_gvar_insertion(struct GlobalVariable *gvar) {
+	DEBUG_PRINT1(" Registering new global variable at +%x\n", gvar->relative_address);
+}
 
 DEFINE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start, 8, 256)
 

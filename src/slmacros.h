@@ -193,6 +193,7 @@ int insert_##struct_name_snake(struct struct_name##List *list, struct struct_nam
 	int first = 0; \
 	int last = list->short_item_name##_count; \
 	int i; \
+	log_##struct_name_snake##_insertion(new_##short_item_name); \
 	while (last > first) { \
 		int index = (first + last) / 2; \
 		const char *this_##sorted_property = list->sorted_##short_item_name##s[index]->sorted_property; \

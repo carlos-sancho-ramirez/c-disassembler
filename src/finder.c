@@ -6,6 +6,7 @@
 #include "itable.h"
 #include "printu.h"
 #include "relocu.h"
+#include "printd.h"
 
 static void read_block_instruction_address(
 		struct Reader *reader,
@@ -170,13 +171,15 @@ static int update_call_origins(
 		const struct Registers *regs,
 		const struct Stack *stack,
 		const struct GlobalVariableWordValueMap *var_values,
-		int is_returning_far) {
+		int is_returning_far,
+		unsigned int depth) {
 	struct CodeBlockOriginList *origin_list = &block->origin_list;
 	int index;
 	int error_code;
 
 	for (index = 0; index < checked_blocks->count; index++) {
 		if (checked_blocks->blocks[index] == block) {
+			DEBUG_INDENTED_PRINT2(depth, "Block at +%x:%x already checked, or not found.\n", block->relative_cs, block->ip);
 			return 0;
 		}
 	}
@@ -189,15 +192,17 @@ static int update_call_origins(
 	}
 	checked_blocks->blocks[checked_blocks->count++] = block;
 
+	DEBUG_INDENTED_PRINT3(depth, "Checking origins of block at +%x:%x. %d origin(s)\n", block->relative_cs, block->ip, origin_list->origin_count);
 	for (index = 0; index < origin_list->origin_count; index++) {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
 		int origin_type = get_cborigin_type(origin);
+		DEBUG_INDENTED_PRINT2(depth + 1, "Index %d -> origin type is %d.\n", index, origin_type);
 		if (origin_type == CBORIGIN_TYPE_CONTINUE || origin_type == CBORIGIN_TYPE_CALL_RETURN) {
 			struct CodeBlock *previous_block;
 			int cblock_index = index_of_cblock_with_start(cblock_list, block->start);
 			if (cblock_index > 0 && (previous_block = cblock_list->sorted_blocks[cblock_index - 1])->end == block->start) {
 				unsigned int current_count = checked_blocks->count;
-				if ((error_code = update_call_origins(previous_block, cblock_list, checked_blocks, regs, stack, var_values, is_returning_far))) {
+				if ((error_code = update_call_origins(previous_block, cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
 					return error_code;
 				}
 				checked_blocks->count = current_count;
@@ -214,7 +219,7 @@ static int update_call_origins(
 				int jumping_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
 				if (jumping_block_index >= 0) {
 					unsigned int current_count = checked_blocks->count;
-					if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far))) {
+					if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
 						return error_code;
 					}
 
@@ -235,6 +240,7 @@ static int update_call_origins(
 						}
 					}
 
+					DEBUG_INDENTED_PRINT1(depth + 2, "Jump from opcode 0xFF 0x%x.\n", jmp_opcode1);
 					if ((error_code = ensure_call_return_origin(cblock_list, origin, regs, stack, var_values, is_returning_far, jmp_instruction_length))) {
 						return error_code;
 					}
@@ -243,7 +249,7 @@ static int update_call_origins(
 					int jumping_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
 					if (jumping_block_index >= 0) {
 						unsigned int current_count = checked_blocks->count;
-						if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far))) {
+						if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
 							return error_code;
 						}
 
@@ -871,13 +877,14 @@ static int read_block_instruction_internal(
 		if (value0 == 0xC2) {
 			read_next_word(reader);
 		}
+		DEBUG_PRINT0(" Finding origins of this function.\n");
 		block->end = block->start + reader->buffer_index;
 
 		checked_blocks.blocks = NULL;
 		checked_blocks.count = 0;
 		checked_blocks.allocated_pages = 0;
 
-		update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0);
+		update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0);
 		if (checked_blocks.blocks != NULL) {
 			free(checked_blocks.blocks);
 		}
@@ -983,7 +990,7 @@ static int read_block_instruction_internal(
 		checked_blocks.count = 0;
 		checked_blocks.allocated_pages = 0;
 
-		return update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0);
+		return update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0);
 	}
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
@@ -1543,12 +1550,17 @@ static int read_block(
 
 	make_all_interruption_table_undefined(&int_table);
 
+	DEBUG_PRINT2("Reading block at +%x:%x\n", block->relative_cs, block->ip);
 	do {
 		int index;
 		if ((error_code = read_block_instruction(&reader, regs, stack, var_values, &int_table, segment_start, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list))) {
 			return error_code;
 		}
 
+		DEBUG_REGS(regs);
+		DEBUG_STACK(stack);
+		DEBUG_GVWVMAP(var_values, segment_start);
+		DEBUG_ITABLE(&int_table);
 		index = index_of_cblock_with_start(code_block_list, block->start);
 		if (index + 1 < code_block_list->block_count) {
 			struct CodeBlock *next_block = code_block_list->sorted_blocks[index + 1];
@@ -1671,6 +1683,7 @@ int find_cblocks_and_gvars(
 					clear_stack(&stack);
 					clear_gvwvmap(&var_values);
 					mark_cblock_as_evaluated(block);
+					DEBUG_CBLIST(cblock_list);
 				}
 				else {
 					any_not_ready = 1;
