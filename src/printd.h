@@ -57,10 +57,13 @@ if (1) { \
 } \
 DEBUG_PRINT3(msg, arg1, arg2, arg3)
 
-#define DEBUG_REGS(regs) print_regs(regs)
-#define DEBUG_STACK(stack) print_stack(stack)
-#define DEBUG_GVWVMAP(map, buffer) print_gvwvmap(map, buffer)
-#define DEBUG_ITABLE(table) print_itable(table)
+#define DEBUG_PRINT_STATE(ip, regs, stack, map, buffer, table) \
+DEBUG_PRINT1("  IP=%x", ip); \
+print_regs(regs); \
+print_stack(stack); \
+print_gvwvmap(map, buffer); \
+print_itable(table)
+
 #define DEBUG_CBLIST(list) print_cblist(list)
 
 #else /* DEBUG */
@@ -73,10 +76,7 @@ DEBUG_PRINT3(msg, arg1, arg2, arg3)
 #define DEBUG_INDENTED_PRINT1(depth, msg, arg1)
 #define DEBUG_INDENTED_PRINT2(depth, msg, arg1, arg2)
 #define DEBUG_INDENTED_PRINT3(depth, msg, arg1, arg2, arg3)
-#define DEBUG_REGS(regs)
-#define DEBUG_STACK(stack)
-#define DEBUG_GVWVMAP(map, buffer)
-#define DEBUG_ITABLE(table)
+#define DEBUG_PRINT_STATE(ip, regs, stack, map, buffer, table)
 #define DEBUG_CBLIST(list)
 
 #endif /* DEBUG */
