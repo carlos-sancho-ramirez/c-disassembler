@@ -978,8 +978,16 @@ static int read_block_instruction_internal(
 		}
 		else {
 			int result_address;
+			int immediate_value;
 			if (value1 == 0x06) {
 				result_address = read_next_word(reader);
+				if (value0 & 1) {
+					immediate_value = read_next_word(reader);
+				}
+				else {
+					read_next_byte(reader);
+				}
+				DEBUG_PRINT0("\n");
 
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
@@ -989,32 +997,34 @@ static int read_block_instruction_internal(
 					return error_code;
 				}
 			}
-			else if ((value1 & 0xC0) == 0x80) {
-				read_next_word(reader);
-			}
-			else if ((value1 & 0xC0) == 0x40) {
-				read_next_byte(reader);
-			}
+			else {
+				if ((value1 & 0xC0) == 0x80) {
+					read_next_word(reader);
+				}
+				else if ((value1 & 0xC0) == 0x40) {
+					read_next_byte(reader);
+				}
 
-			if (value0 & 1) {
-				int immediate_value = read_next_word(reader);
+				if (value0 & 1) {
+					immediate_value = read_next_word(reader);
+				}
+				else {
+					read_next_byte(reader);
+				}
 				DEBUG_PRINT0("\n");
+			}
 
-				if (value1 == 0x06 && is_segment_register_defined_relative(regs, segment_index)) {
-					/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
-					unsigned int segment_value = get_segment_register(regs, segment_index);
-					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
-					const char *target = segment_start + relative_address;
-					if (index_of_gvar_with_start(gvar_list, target) >= 0 &&
-							(error_code = put_gvar_in_gvwvmap(var_values, target, immediate_value))) {
-						return error_code;
-					}
+			if (value0 & 1 && value1 == 0x06 && is_segment_register_defined_relative(regs, segment_index)) {
+				/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
+				unsigned int segment_value = get_segment_register(regs, segment_index);
+				unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+				const char *target = segment_start + relative_address;
+				if (index_of_gvar_with_start(gvar_list, target) >= 0 &&
+						(error_code = put_gvar_in_gvwvmap(var_values, target, immediate_value))) {
+					return error_code;
 				}
 			}
-			else {
-				read_next_byte(reader);
-				DEBUG_PRINT0("\n");
-			}
+
 			return 0;
 		}
 	}
