@@ -54,6 +54,13 @@
  */
 #define CBORIGIN_TYPE_JUMP 4
 
+#ifdef DEBUG
+extern const char *CBORIGIN_TYPE_NAME[];
+#define DEBUG_CBORIGIN_TYPE_NAME(index) CBORIGIN_TYPE_NAME[index]
+#else
+#define DEBUG_CBORIGIN_TYPE_NAME(index) ""
+#endif
+
 /**
  * Provide information regarding how the linked block is reached.
  */

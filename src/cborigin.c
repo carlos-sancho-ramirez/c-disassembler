@@ -26,6 +26,13 @@
  */
 #define CBORIGIN_BEHIND_COUNT_SHIFT 4
 
+#ifdef DEBUG
+const char *CBORIGIN_TYPE_NAME[] = {
+	"OS", "INTERRUPTION", "CONTINUE", "CALL_RETURN", "JUMP"
+};
+
+#endif
+
 int get_cborigin_type(const struct CodeBlockOrigin *origin) {
 	return origin->flags & CBORIGIN_TYPE_MASK;
 }
