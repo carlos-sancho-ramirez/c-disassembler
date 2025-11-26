@@ -9,10 +9,10 @@
 #include "itable.h"
 #include "cblist.h"
 
-void print_regs(struct Registers *regs);
-void print_stack(struct Stack *stack);
+void print_regs(const struct Registers *regs);
+void print_stack(const struct Stack *stack);
 void print_gvwvmap(const struct GlobalVariableWordValueMap *map, const char *buffer);
-void print_itable(struct InterruptionTable *table);
+void print_itable(const struct InterruptionTable *table);
 void print_cblist(const struct CodeBlockList *list);
 
 #include <stdio.h>

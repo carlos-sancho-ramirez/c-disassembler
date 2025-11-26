@@ -1,7 +1,7 @@
 #include "printd.h"
 #include <stdio.h>
 
-static void print_word_or_byte_register(struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
+static void print_word_or_byte_register(const struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
 	if (is_word_register_defined(regs, index)) {
 		if (is_word_register_defined_relative(regs, index)) {
 			fprintf(stderr, " %s=+%x;", word_reg, get_word_register(regs, index));
@@ -25,7 +25,7 @@ static void print_word_or_byte_register(struct Registers *regs, unsigned int ind
 	}
 }
 
-static void print_word_register(struct Registers *regs, unsigned int index, const char *word_reg) {
+static void print_word_register(const struct Registers *regs, unsigned int index, const char *word_reg) {
 	if (is_word_register_defined_relative(regs, index)) {
 		fprintf(stderr, " %s=+%x;", word_reg, get_word_register(regs, index));
 	}
@@ -37,7 +37,7 @@ static void print_word_register(struct Registers *regs, unsigned int index, cons
 	}
 }
 
-static void print_segment_register(struct Registers *regs, unsigned int index, const char *word_reg) {
+static void print_segment_register(const struct Registers *regs, unsigned int index, const char *word_reg) {
 	if (is_segment_register_defined_relative(regs, index)) {
 		fprintf(stderr, " %s=+%x;", word_reg, get_segment_register(regs, index));
 	}
@@ -49,7 +49,7 @@ static void print_segment_register(struct Registers *regs, unsigned int index, c
 	}
 }
 
-void print_regs(struct Registers *regs) {
+void print_regs(const struct Registers *regs) {
 	print_word_or_byte_register(regs, 0, "AX", "AH", "AL");
 	print_word_or_byte_register(regs, 1, "CX", "CH", "CL");
 	print_word_or_byte_register(regs, 2, "DX", "DH", "DL");
@@ -64,23 +64,34 @@ void print_regs(struct Registers *regs) {
 	print_segment_register(regs, 3, "DS");
 }
 
-void print_stack(struct Stack *stack) {
+void print_stack(const struct Stack *stack) {
+	int defined_value_printed = 0;
 	int i;
 	fprintf(stderr, " Stack(");
 	for (i = 0; i < stack->word_count; i++) {
 		const unsigned int definition = stack->defined_and_relative[i >> 3] >> ((i & 7) * 2);
-		if (i > 0) {
-			fprintf(stderr, ", ");
-		}
-
 		if ((definition & 1) == 0) {
-			fprintf(stderr, "?");
+			if (defined_value_printed) {
+				fprintf(stderr, ", ?");
+			}
 		}
 		else if (definition & 2) {
-			fprintf(stderr, "+%x", stack->values[i]);
+			if (defined_value_printed) {
+				fprintf(stderr, ", +%x", stack->values[i]);
+			}
+			else {
+				fprintf(stderr, "+%x", stack->values[i]);
+				defined_value_printed = 1;
+			}
 		}
 		else {
-			fprintf(stderr, "%x", stack->values[i]);
+			if (defined_value_printed) {
+				fprintf(stderr, ", %x", stack->values[i]);
+			}
+			else {
+				fprintf(stderr, "%x", stack->values[i]);
+				defined_value_printed = 1;
+			}
 		}
 	}
 
@@ -106,7 +117,7 @@ void print_gvwvmap(const struct GlobalVariableWordValueMap *map, const char *buf
 	fprintf(stderr, ")");
 }
 
-void print_itable(struct InterruptionTable *table) {
+void print_itable(const struct InterruptionTable *table) {
 	int i;
 	fprintf(stderr, " IntTable(");
 	for (i = 0; i < 256; i++) {
