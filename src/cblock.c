@@ -147,8 +147,12 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 	}
 	else {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		if (changes_on_merging_registers(&origin->regs, regs)) {
+		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_stacks(&origin->stack, stack) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
 			merge_registers(&origin->regs, regs);
+			merge_stacks(&origin->stack, stack);
+			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+				return error_code;
+			}
 			invalidate_cblock_check(block);
 		}
 	}
@@ -212,8 +216,13 @@ int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_
 	}
 	else {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		if (changes_on_merging_registers(&origin->regs, regs)) {
+		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_stacks(&origin->stack, stack) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
 			merge_registers(&origin->regs, regs);
+			merge_stacks(&origin->stack, stack);
+			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+				return error_code;
+			}
+
 			invalidate_cblock_check(block);
 		}
 	}
