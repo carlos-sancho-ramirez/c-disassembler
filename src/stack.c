@@ -154,7 +154,7 @@ void merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
 			if (this_defined_and_relative & 1) {
 				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
+				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
 				if (this_defined_and_relative == other_defined_and_relative) {
 					const uint16_t this_value = stack->values[this_index];
 					const uint16_t other_value = other_stack->values[other_index];
@@ -177,7 +177,7 @@ void merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
 			if (this_defined_and_relative & 1) {
 				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
+				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
 				if (this_defined_and_relative == other_defined_and_relative) {
 					const uint16_t this_value = stack->values[this_index];
 					const uint16_t other_value = other_stack->values[other_index];
@@ -203,7 +203,7 @@ int changes_on_merging_stacks(const struct Stack *stack, const struct Stack *oth
 			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
 			if (this_defined_and_relative & 1) {
 				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
+				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
 				if (this_defined_and_relative != other_defined_and_relative || stack->values[this_index] != other_stack->values[other_index]) {
 					return 1;
 				}
@@ -215,7 +215,7 @@ int changes_on_merging_stacks(const struct Stack *stack, const struct Stack *oth
 			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
 			if (this_defined_and_relative & 1) {
 				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
+				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
 				if (this_defined_and_relative != other_defined_and_relative || stack->values[this_index] != other_stack->values[other_index]) {
 					return 1;
 				}
