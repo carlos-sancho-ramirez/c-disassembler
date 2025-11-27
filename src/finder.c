@@ -30,8 +30,13 @@ static int ensure_call_return_origin(
 	int jmp_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
 	struct CodeBlock *jmp_block = cblock_list->sorted_blocks[jmp_block_index];
 	uint16_t expected_ip = jmp_block->ip + (origin->instruction + instruction_length - jmp_block->start);
+	const int stack_top_matches_expected_ip = top_is_defined_in_stack(stack) && !top_is_defined_relative_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
+	const int origin_stack_top_matches_expected_ip = top_is_defined_in_stack(&origin->stack) && !top_is_defined_relative_in_stack(&origin->stack) && get_from_top(&origin->stack, 0) == expected_ip;
+	const int stack_matches_expected_cs = is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == jmp_block->relative_cs;
+	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(&origin->stack, 1) && get_from_top(&origin->stack, 1) == jmp_block->relative_cs;
 
-	if (top_is_defined_in_stack(stack) && !top_is_defined_relative_in_stack(stack) && get_from_top(stack, 0) == expected_ip && (!is_returning_far || is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == jmp_block->relative_cs)) {
+	if ((stack_top_matches_expected_ip || !top_is_defined_in_stack(stack) && origin_stack_top_matches_expected_ip) &&
+			(!is_returning_far || stack_matches_expected_cs || !is_defined_in_stack_from_top(stack, 1) && origin_stack_matches_expected_cs)) {
 		int return_block_index = index_of_cblock_with_start(cblock_list, origin->instruction + instruction_length);
 		int error_code;
 
@@ -62,8 +67,13 @@ static int ensure_call_return_origin(
 				set_register_sp(&return_origin->regs, where_register_sp_defined(regs), get_register_sp(regs) + (is_returning_far? 4 : 2));
 			}
 
-			return_block->ip = pop_from_stack(&return_origin->stack);
-			return_block->relative_cs = (is_returning_far)? pop_from_stack(&return_origin->stack) : jmp_block->relative_cs;
+			pop_from_stack(&return_origin->stack);
+			return_block->ip = expected_ip;
+
+			if (is_returning_far) {
+				pop_from_stack(&return_origin->stack);
+			}
+			return_block->relative_cs = jmp_block->relative_cs;
 
 			set_cborigin_ready_to_be_evaluated(return_origin);
 			if ((error_code = insert_cborigin(&return_block->origin_list, return_origin))) {
