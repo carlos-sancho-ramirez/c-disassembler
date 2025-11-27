@@ -930,7 +930,20 @@ static const char *determine_position(const char *segment_start, struct CodeBloc
 	}
 }
 
+#include "printd.h"
 #include <stdio.h>
+
+#ifdef DEBUG
+#define DEBUG_ASSIGN_LAST_END(x) last_end = x;
+#define DEBUG_DUMP_GAP() \
+if (position > last_end) { \
+	DEBUG_PRINT1("; Gap at %x\n", (int) (last_end - buffer)); \
+} \
+
+#else /* DEBUG */
+#define DEBUG_ASSIGN_LAST_END(x)
+#define DEBUG_DUMP_GAP()
+#endif /* DEBUG */
 
 int dump(
 		const char *buffer,
@@ -961,6 +974,10 @@ int dump(
 	const char *position;
 	struct GlobalVariable *variable;
 	int unknown_opcode_found_in_block = 0;
+
+#ifdef DEBUG
+	const char *last_end;
+#endif
 
 	segment_start = segment_start_count? segment_starts[0] : NULL;
 	block = code_block_count? sorted_blocks[code_block_index] : NULL;
@@ -996,6 +1013,7 @@ int dump(
 		position_in_variable = variable && variable->start <= position && position < variable->end;
 
 		if (!position_in_block && !position_in_variable) {
+			DEBUG_PRINT1("; Gap at %x\n", (int) (position - buffer));
 			position = determine_position(segment_start, block, variable);
 		}
 		else if (position_in_variable && !position_in_block && (!block || block->start >= variable->end)) {
@@ -1005,9 +1023,12 @@ int dump(
 				return error_code;
 			}
 
+			DEBUG_ASSIGN_LAST_END(variable->end)
+
 			++global_variable_index;
 			variable = next_variable;
 			position = determine_position(segment_start, block, variable);
+			DEBUG_DUMP_GAP()
 		}
 		else if (position_in_block && !position_in_variable) {
 			if (block->start == position && should_dump_label_for_block(block)) {
@@ -1028,11 +1049,14 @@ int dump(
 				position++;
 				if (position >= block->end) {
 					unknown_opcode_found_in_block = 0;
+					DEBUG_ASSIGN_LAST_END(block->end)
+
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					while (block && !should_be_dumped(block)) {
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					}
 					position = determine_position(segment_start, block, variable);
+					DEBUG_DUMP_GAP()
 				}
 			}
 			else {
@@ -1053,11 +1077,13 @@ int dump(
 					position++;
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
+						DEBUG_ASSIGN_LAST_END(block->end)
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 						while (block && !should_be_dumped(block)) {
 							block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 						}
 						position = determine_position(segment_start, block, variable);
+						DEBUG_DUMP_GAP()
 					}
 				}
 				else {
@@ -1083,11 +1109,13 @@ int dump(
 					position = next_position;
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
+						DEBUG_ASSIGN_LAST_END(block->end)
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 						while (block && !should_be_dumped(block)) {
 							block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 						}
 						position = determine_position(segment_start, block, variable);
+						DEBUG_DUMP_GAP()
 					}
 				}
 			}
@@ -1120,11 +1148,13 @@ int dump(
 
 				if (position >= block->end) {
 					unknown_opcode_found_in_block = 0;
+					DEBUG_ASSIGN_LAST_END(block->end)
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					while (block && !should_be_dumped(block)) {
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					}
 					position = determine_position(segment_start, block, variable);
+					DEBUG_DUMP_GAP()
 				}
 			}
 			else {
@@ -1149,11 +1179,13 @@ int dump(
 
 				if (position >= block->end) {
 					unknown_opcode_found_in_block = 0;
+					DEBUG_ASSIGN_LAST_END(block->end);
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					while (block && !should_be_dumped(block)) {
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					}
 					position = determine_position(segment_start, block, variable);
+					DEBUG_DUMP_GAP()
 				}
 			}
 		}
