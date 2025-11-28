@@ -774,22 +774,32 @@ static int read_block_instruction_internal(
 				const int index = (value1 >> 3) & 0x03;
 				DEBUG_PRINT0("\n");
 
-				if ((value0 & 2) && is_word_register_defined(regs, rm)) {
-					const uint16_t value = get_word_register(regs, rm);
-					if (is_word_register_defined_relative(regs, rm)) {
-						set_segment_register_relative(regs, index, opcode_reference, value);
+				if ((value0 & 2)) {
+					if (is_word_register_defined(regs, rm)) {
+						const uint16_t value = get_word_register(regs, rm);
+						if (is_word_register_defined_relative(regs, rm)) {
+							set_segment_register_relative(regs, index, opcode_reference, value);
+						}
+						else {
+							set_segment_register(regs, index, opcode_reference, value);
+						}
 					}
 					else {
-						set_segment_register(regs, index, opcode_reference, value);
+						mark_segment_register_undefined(regs, index);
 					}
 				}
-				else if ((value0 & 2) == 0 && is_segment_register_defined(regs, index)) {
-					const uint16_t value = get_segment_register(regs, index);
-					if (is_segment_register_defined_relative(regs, index)) {
-						set_word_register_relative(regs, rm, opcode_reference, value);
+				else {
+					if (is_segment_register_defined(regs, index)) {
+						const uint16_t value = get_segment_register(regs, index);
+						if (is_segment_register_defined_relative(regs, index)) {
+							set_word_register_relative(regs, rm, opcode_reference, value);
+						}
+						else {
+							set_word_register(regs, rm, opcode_reference, value);
+						}
 					}
 					else {
-						set_word_register(regs, rm, opcode_reference, value);
+						mark_word_register_undefined(regs, rm);
 					}
 				}
 			}
