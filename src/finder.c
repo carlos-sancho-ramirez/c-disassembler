@@ -1361,37 +1361,10 @@ static int read_block_instruction_internal(
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
 		const char *jump_destination = block->start + reader->buffer_index + diff;
-		int result = index_of_cblock_containing_position(code_block_list, jump_destination);
-		struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		DEBUG_PRINT0("\n");
 
-		if (!potential_container || potential_container->start != jump_destination) {
-			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
-			if (!new_block) {
-				return 1;
-			}
-
-			new_block->relative_cs = block->relative_cs;
-			new_block->ip = block->ip + reader->buffer_index + diff;
-			new_block->start = jump_destination;
-			new_block->end = jump_destination;
-			new_block->flags = 0;
-			initialize_cborigin_list(&new_block->origin_list);
-			if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
-				return result;
-			}
-
-			if ((result = insert_cblock(code_block_list, new_block))) {
-				return result;
-			}
-
-			if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-				potential_container->end = jump_destination;
-				invalidate_cblock_check(potential_container);
-			}
-		}
-
-		return 0;
+		block->end = block->start + reader->buffer_index;
+		return register_jump_target_block(reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff);
 	}
 	else if (value0 == 0xF2) {
 		DEBUG_PRINT0("\n");
