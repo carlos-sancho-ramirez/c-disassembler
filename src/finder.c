@@ -238,7 +238,7 @@ static int update_call_origins(
 					return error_code;
 				}
 			}
-			else if (jmp_opcode0 == 0xE9 || (jmp_opcode0 & 0xF0) == 0x70 || (jmp_opcode0 & 0xFC) == 0xE0) { /* JMP and its conditionals */
+			else if (jmp_opcode0 == 0xE9 || (jmp_opcode0 & 0xF0) == 0x70 || (jmp_opcode0 & 0xFC) == 0xE0 || jmp_opcode0 == 0xEB) { /* JMP and its conditionals */
 				if (jumping_block_index >= 0) {
 					unsigned int current_count = checked_blocks->count;
 					if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
