@@ -1520,7 +1520,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 1, 0, 0, 0, 0))) {
 					return error_code;
 				}
 
@@ -1528,7 +1528,8 @@ static int read_block_instruction_internal(
 					unsigned int segment_value = get_segment_register(regs, segment_index);
 					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 					const char *var_target = segment_start + relative_address;
-					unsigned int code_relative_target = *((uint16_t *) var_target);
+					int index = index_of_gvar_in_gvwvmap_with_start(var_values, var_target);
+					unsigned int code_relative_target = (index < 0)? *((uint16_t *) var_target) : get_gvwvalue_at_index(var_values, index);
 					const char *jump_destination;
 					struct CodeBlock *potential_container;
 					int result;
