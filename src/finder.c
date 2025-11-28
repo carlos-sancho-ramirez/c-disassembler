@@ -453,7 +453,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 					return error_code;
 				}
 			}
@@ -601,7 +601,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 				return error_code;
 			}
 		}
@@ -630,7 +630,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 				return error_code;
 			}
 		}
@@ -655,7 +655,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 				return error_code;
 			}
 
@@ -731,7 +731,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, 1, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, 1, opcode_reference, 0, 0, 0, 0, 0))) {
 					return error_code;
 				}
 
@@ -816,9 +816,9 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
-			if (!stack_is_empty(stack)) {
-				pop_from_stack(stack);
-			}
+			int top_defined = top_is_defined_in_stack(stack);
+			int top_defined_relative = top_is_defined_relative_in_stack(stack);
+			uint16_t stack_top = pop_from_stack(stack);
 
 			if ((value1 & 0xC7) == 0x06) {
 				int result_address = read_next_word(reader);
@@ -828,7 +828,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 1, top_defined, top_defined_relative, stack_top))) {
 					return error_code;
 				}
 			}
@@ -1050,7 +1050,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 					return error_code;
 				}
 			}
@@ -1520,7 +1520,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, segment_index, result_address, segment_start, value0, opcode_reference))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 					return error_code;
 				}
 
