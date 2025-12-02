@@ -107,11 +107,16 @@ void print_gvwvmap(const struct GlobalVariableWordValueMap *map, const char *buf
 		}
 
 		fprintf(stderr, "%lx->", map->keys[i] - buffer);
-		if (is_gvwvalue_relative_at_index(map, i)) {
-			fprintf(stderr, "+");
-		}
+		if (is_gvwvalue_defined_at_index(map, i)) {
+			if (is_gvwvalue_defined_relative_at_index(map, i)) {
+				fprintf(stderr, "+");
+			}
 
-		fprintf(stderr, "%x", map->values[i]);
+			fprintf(stderr, "%x", map->values[i]);
+		}
+		else {
+			fprintf(stderr, "?");
+		}
 	}
 
 	fprintf(stderr, ")");

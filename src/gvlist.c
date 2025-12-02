@@ -61,7 +61,13 @@ int add_gvar_ref(
 				}
 			}
 			else {
-				if ((error_code = put_gvar_in_gvwvmap(var_values, target, write_value))) {
+				const uint16_t original_value = *((uint16_t *) target);
+				if (write_value != original_value) {
+					if ((error_code = put_gvar_in_gvwvmap(var_values, target, write_value))) {
+						return error_code;
+					}
+				}
+				else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
 					return error_code;
 				}
 			}
