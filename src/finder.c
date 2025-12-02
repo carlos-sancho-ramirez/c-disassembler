@@ -701,6 +701,30 @@ static int read_block_instruction_internal(
 		}
 		else {
 			DEBUG_PRINT0("\n");
+
+			if ((value0 & 0xFD) == 0x89) {
+				int source_register;
+				int target_register;
+
+				if (value0 == 0x89) {
+					source_register = (value1 >> 3) & 7;
+					target_register = value1 & 7;
+				}
+				else {
+					source_register = value1 & 7;
+					target_register = (value1 >> 3) & 7;
+				}
+
+				if (is_word_register_defined_relative(regs, source_register)) {
+					set_word_register_relative(regs, target_register, where_word_register_defined(regs, source_register), get_word_register(regs, source_register));
+				}
+				else if (is_word_register_defined(regs, source_register)) {
+					set_word_register(regs, target_register, where_word_register_defined(regs, source_register), get_word_register(regs, source_register));
+				}
+				else {
+					mark_word_register_undefined(regs, target_register);
+				}
+			}
 		}
 
 		return 0;

@@ -211,6 +211,17 @@ const char *where_register_sp_defined(const struct Registers *regs) {
 	return regs->defined[8];
 }
 
+const char *where_word_register_defined(const struct Registers *regs, unsigned int index) {
+	assert(index < 8);
+	if (index < 4) {
+		const char *low_defined = regs->defined[index * 2];
+		return (low_defined == regs->defined[index * 2 + 1])? low_defined : NULL;
+	}
+	else {
+		return regs->defined[index + 4];
+	}
+}
+
 unsigned int get_register_al(const struct Registers *regs) {
 	return regs->al;
 }

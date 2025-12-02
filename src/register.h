@@ -83,6 +83,7 @@ int is_segment_register_defined_relative(const struct Registers *regs, unsigned 
 const char *where_register_ax_defined(const struct Registers *regs);
 const char *where_register_dx_defined(const struct Registers *regs);
 const char *where_register_sp_defined(const struct Registers *regs);
+const char *where_word_register_defined(const struct Registers *regs, unsigned int index);
 
 unsigned int get_register_al(const struct Registers *regs);
 unsigned int get_register_ah(const struct Registers *regs);
