@@ -649,13 +649,18 @@ static int read_block_instruction_internal(
 
 		if ((value1 & 0xC7) == 6) {
 			int result_address = read_next_word(reader);
+			const int read_access = value0 == 0x8B;
+			const int write_access = value0 == 0x89;
+			const int write_value_defined = is_word_register_defined(regs, (value1 >> 3) & 7);
+			const int write_value_defined_relative = is_word_register_defined_relative(regs, (value1 >> 3) & 7);
+			const int write_value = get_word_register(regs, (value1 >> 3) & 7);
 			DEBUG_PRINT0("\n");
 
 			if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
 				return error_code;
 			}
 
@@ -667,31 +672,7 @@ static int read_block_instruction_internal(
 				const int var_index = index_of_gvar_with_start(gvar_list, target);
 				if (var_index >= 0) {
 					const int reg_index = (value1 >> 3) & 7;
-					if (value0 == 0x89) {
-						if (is_word_register_defined_relative(regs, reg_index)) {
-							if ((error_code = put_gvar_in_gvwvmap_relative(var_values, target, get_word_register(regs, reg_index)))) {
-								return error_code;
-							}
-						}
-						else if (is_word_register_defined(regs, reg_index)) {
-							const uint16_t original_value = *((uint16_t *) target);
-							const uint16_t register_value = get_word_register(regs, reg_index);
-							if (register_value != original_value) {
-								if ((error_code = put_gvar_in_gvwvmap(var_values, target, register_value))) {
-									return error_code;
-								}
-							}
-							else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
-								return error_code;
-							}
-						}
-						else {
-							if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
-								return error_code;
-							}
-						}
-					}
-					else { /* value == 0x8B */
+					if (value0 == 0x8B) {
 						const int var_index_in_map = index_of_gvar_in_gvwvmap_with_start(var_values, target);
 						if (var_index_in_map >= 0) {
 							uint16_t var_value = get_gvwvalue_at_index(var_values, var_index_in_map);
