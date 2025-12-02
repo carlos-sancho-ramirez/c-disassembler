@@ -871,13 +871,11 @@ static int read_block_instruction_internal(
 	else if ((value0 & 0xFC) == 0xA0) {
 		int offset;
 		unsigned int current_segment_index;
-		if ((value0 & 0xFE) == 0xA0) {
-			if (value0 & 1) {
-				set_register_ax_undefined(regs);
-			}
-			else {
-				set_register_al_undefined(regs);
-			}
+		if (value0 == 0xA0) {
+			set_register_al_undefined(regs);
+		}
+		else if (value0 == 0xA1) {
+			set_register_ax_undefined(regs);
 		}
 
 		offset = read_next_word(reader);
@@ -933,6 +931,29 @@ static int read_block_instruction_internal(
 				}
 
 				insert_ref(ref_list, new_ref);
+			}
+
+			if (value0 == 0xA3) {
+				const uint16_t original_value = *((uint16_t *) target);
+				if (is_register_ax_defined_relative(regs)) {
+					if ((error_code = put_gvar_in_gvwvmap_relative(var_values, target, get_register_ax(regs)))) {
+						return error_code;
+					}
+				}
+				else if (is_register_ax_defined(regs)) {
+					const uint16_t reg_value = get_register_ax(regs);
+					if (reg_value != original_value) {
+						if ((error_code = put_gvar_in_gvwvmap(var_values, target, reg_value))) {
+							return error_code;
+						}
+					}
+					else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
+						return error_code;
+					}
+				}
+				else if ((error_code = put_gvar_in_gvwvmap_undefined(var_values, target))) {
+					return error_code;
+				}
 			}
 		}
 
