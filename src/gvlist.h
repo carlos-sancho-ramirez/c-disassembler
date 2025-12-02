@@ -17,7 +17,7 @@ DECLARE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start);
  * This method will first check if the global variable is already registered and will register it if not.
  * Also, in case of being a write access. This method will update the given variable map with the new value.
  *
- * Note that, in case write_access is 0, write_value, wirte_value_defined and wirte_value_defined_relative will be ignored.
+ * Note that, in case write_access is 0, write_value, write_value_defined and write_value_defined_relative will be ignored.
  */
 int add_gvar_ref(
 		struct GlobalVariableList *global_variable_list,

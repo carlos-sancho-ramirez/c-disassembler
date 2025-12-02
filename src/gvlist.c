@@ -54,22 +54,27 @@ int add_gvar_ref(
 			}
 		}
 
-		if (write_access && write_value_defined) {
-			if (write_value_defined_relative) {
-				if ((error_code = put_gvar_in_gvwvmap_relative(var_values, target, write_value))) {
-					return error_code;
-				}
-			}
-			else {
-				const uint16_t original_value = *((uint16_t *) target);
-				if (write_value != original_value) {
-					if ((error_code = put_gvar_in_gvwvmap(var_values, target, write_value))) {
+		if (write_access) {
+			if (write_value_defined) {
+				if (write_value_defined_relative) {
+					if ((error_code = put_gvar_in_gvwvmap_relative(var_values, target, write_value))) {
 						return error_code;
 					}
 				}
-				else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
-					return error_code;
+				else {
+					const uint16_t original_value = *((uint16_t *) target);
+					if (write_value != original_value) {
+						if ((error_code = put_gvar_in_gvwvmap(var_values, target, write_value))) {
+							return error_code;
+						}
+					}
+					else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
+						return error_code;
+					}
 				}
+			}
+			else if ((error_code = put_gvar_in_gvwvmap_undefined(var_values, target))) {
+				return error_code;
 			}
 		}
 

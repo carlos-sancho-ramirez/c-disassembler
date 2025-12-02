@@ -732,13 +732,18 @@ static int read_block_instruction_internal(
 		else {
 			if ((value1 & 0xC7) == 6) {
 				int result_address = read_next_word(reader);
+				const int read_access = value0 == 0x8E;
+				const int write_access = value0 == 0x8C;
+				const int write_value_defined = is_segment_register_defined(regs, (value1 >> 3) & 3);
+				const int write_value_defined_relative = is_segment_register_defined_relative(regs, (value1 >> 3) & 3);
+				const int write_value = get_segment_register(regs, (value1 >> 3) & 3);
 				DEBUG_PRINT0("\n");
 
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, 1, opcode_reference, 0, 0, 0, 0, 0))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, 1, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
 					return error_code;
 				}
 
