@@ -120,15 +120,18 @@ int add_far_pointer_gvar_ref(
 		int segment_index,
 		int result_address,
 		const char *segment_start,
-		const char *opcode_reference) {
+		const char *opcode_reference,
+		const int read_access) {
 	if (is_segment_register_defined_relative(regs, segment_index)) {
 		int error_code;
 		unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
 		const char *target = segment_start + relative_address;
-		const int var_index = index_of_gvar_with_start(gvar_list, target);
+		int index = index_of_gvar_with_start(gvar_list, target);
 		struct GlobalVariable *var;
-		if (var_index >= 0) {
-			var = gvar_list->sorted_variables[var_index];
+		struct Reference *var_ref;
+
+		if (index >= 0) {
+			var = gvar_list->sorted_variables[index];
 			if (var->var_type == GVAR_TYPE_WORD) {
 				var->end += 2;
 				var->var_type = GVAR_TYPE_FAR_POINTER;
@@ -146,13 +149,21 @@ int add_far_pointer_gvar_ref(
 			}
 		}
 
-		if (index_of_ref_with_instruction(ref_list, opcode_reference) < 0) {
-			struct Reference *new_ref = prepare_new_ref(ref_list);
-			new_ref->instruction = opcode_reference;
-			set_gvar_ref_from_instruction_address(new_ref, var);
-			if ((error_code = insert_ref(ref_list, new_ref))) {
+		index = index_of_ref_with_instruction(ref_list, opcode_reference);
+		if (index < 0) {
+			var_ref = prepare_new_ref(ref_list);
+			var_ref->instruction = opcode_reference;
+			set_gvar_ref_from_instruction_address(var_ref, var);
+			if ((error_code = insert_ref(ref_list, var_ref))) {
 				return error_code;
 			}
+		}
+		else {
+			var_ref = ref_list->sorted_references[index];
+		}
+
+		if (read_access) {
+			set_gvar_ref_read_access(var_ref);
 		}
 	}
 

@@ -43,6 +43,7 @@ int add_far_pointer_gvar_ref(
 		int segment_index,
 		int result_address,
 		const char *segment_start,
-		const char *opcode_reference);
+		const char *opcode_reference,
+		const int read_access);
 
 #endif /* _GLOBAL_VARIABLE_LIST_H_ */

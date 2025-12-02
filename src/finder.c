@@ -420,6 +420,7 @@ static int register_next_block(
 }
 
 #define SEGMENT_INDEX_UNDEFINED -1
+#define SEGMENT_INDEX_ES 0
 #define SEGMENT_INDEX_SS 2
 #define SEGMENT_INDEX_DS 3
 
@@ -1015,15 +1016,18 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
+			const int target_register_index = (value1 >> 3) & 7;
+			const int target_segment_index = (value0 == 0xC4)? SEGMENT_INDEX_ES : SEGMENT_INDEX_DS;
+			int result_address;
 			if ((value1 & 0xC7) == 0x06) {
-				int result_address = read_next_word(reader);
+				result_address = read_next_word(reader);
 				DEBUG_PRINT0("\n");
 
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_far_pointer_gvar_ref(gvar_list, ref_list, regs, segment_index, result_address, segment_start, opcode_reference))) {
+				if ((error_code = add_far_pointer_gvar_ref(gvar_list, ref_list, regs, segment_index, result_address, segment_start, opcode_reference, 1))) {
 					return error_code;
 				}
 			}
@@ -1039,13 +1043,49 @@ static int read_block_instruction_internal(
 				DEBUG_PRINT0("\n");
 			}
 
-			mark_word_register_undefined(regs, (value1 >> 3) & 7);
-			if (value0 == 0xC4) {
-				mark_register_es_undefined(regs);
+			if ((value1 & 0xC7) == 0x06 && is_segment_register_defined_relative(regs, segment_index)) {
+				unsigned int relative_address = (get_segment_register(regs, segment_index) * 16 + result_address) & 0xFFFF;
+				const char *target = segment_start + relative_address;
+				int index = index_of_gvar_in_gvwvmap_with_start(var_values, target);
+				uint16_t offset_value;
+				uint16_t segment_value;
+
+				if (index < 0) {
+					set_word_register(regs, target_register_index, opcode_reference, *((uint16_t *) target));
+				}
+				else if (is_gvwvalue_defined_relative_at_index(var_values, index)) {
+					set_word_register_relative(regs, target_register_index, opcode_reference, get_gvwvalue_at_index(var_values, index));
+				}
+				else if (is_gvwvalue_defined_at_index(var_values, index)) {
+					set_word_register(regs, target_register_index, opcode_reference, get_gvwvalue_at_index(var_values, index));
+				}
+				else {
+					mark_word_register_undefined(regs, target_register_index);
+				}
+
+				index = index_of_gvar_in_gvwvmap_with_start(var_values, target + 2);
+				if (index < 0) {
+					set_segment_register(regs, target_segment_index, opcode_reference, ((uint16_t *) target)[1]);
+				}
+				else if (is_gvwvalue_defined_relative_at_index(var_values, index)) {
+					set_segment_register_relative(regs, target_segment_index, opcode_reference, get_gvwvalue_at_index(var_values, index));
+				}
+				else if (is_gvwvalue_defined_at_index(var_values, index)) {
+					set_segment_register(regs, target_segment_index, opcode_reference, get_gvwvalue_at_index(var_values, index));
+				}
+				else {
+					mark_segment_register_undefined(regs, target_segment_index);
+				}
 			}
 			else {
-				/* Assuming value0 == 0xC5 */
-				mark_register_ds_undefined(regs);
+				mark_word_register_undefined(regs, target_register_index);
+				if (value0 == 0xC4) {
+					mark_register_es_undefined(regs);
+				}
+				else {
+					/* Assuming value0 == 0xC5 */
+					mark_register_ds_undefined(regs);
+				}
 			}
 
 			return 0;
