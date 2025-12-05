@@ -3,7 +3,7 @@
 #include "printd.h"
 
 static void log_gvar_insertion(struct GlobalVariable *gvar) {
-	DEBUG_PRINT1("  Registering new global variable at +%x\n", gvar->relative_address);
+	DEBUG_PRINT3("  Registering new global variable from +%x (%d bytes). Type %d.\n", gvar->relative_address, (int) (gvar->end - gvar->start), gvar->var_type);
 }
 
 DEFINE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start, 8, 256)

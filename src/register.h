@@ -99,6 +99,10 @@ int is_segment_register_defined(const struct Registers *regs, unsigned int index
 int is_segment_register_defined_absolute(const struct Registers *regs, unsigned int index);
 int is_segment_register_defined_relative(const struct Registers *regs, unsigned int index);
 
+int is_register_cx_merged(const struct Registers *regs);
+int is_register_dx_merged(const struct Registers *regs);
+int is_register_ds_merged(const struct Registers *regs);
+
 const char *get_register_ax_value_origin(const struct Registers *regs);
 const char *get_register_dx_value_origin(const struct Registers *regs);
 const char *get_word_register_value_origin(const struct Registers *regs, unsigned int index);

@@ -419,6 +419,112 @@ static int register_next_block(
 	}
 }
 
+/* This method should iterate over itself... we still have to work on it */
+int update_int2140_message_references(
+		const struct Registers *regs,
+		const char *segment_start,
+		struct CodeBlock *block,
+		struct GlobalVariableList *gvar_list,
+		struct SegmentStartList *segment_start_list,
+		struct CheckedBlocks *checked_blocks,
+		unsigned int depth) {
+	uint16_t length;
+	int index;
+
+	for (index = 0; index < checked_blocks->count; index++) {
+		if (checked_blocks->blocks[index] == block) {
+			DEBUG_INDENTED_PRINT2(depth, "Block at +%x:%x already checked, or not found.\n", block->relative_cs, block->ip);
+			return 0;
+		}
+	}
+
+	if (checked_blocks->count == checked_blocks->allocated_pages * CHECKED_BLOCK_BLOCKS_PER_PAGE) {
+		checked_blocks->blocks = realloc(checked_blocks->blocks, (++checked_blocks->allocated_pages) * CHECKED_BLOCK_BLOCKS_PER_PAGE * sizeof(struct CodeBlock *));
+		if (!checked_blocks->blocks) {
+			return 1;
+		}
+	}
+	checked_blocks->blocks[checked_blocks->count++] = block;
+
+	if (is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs) && is_register_cx_defined_absolute(regs) && (length = get_register_cx(regs)) > 0) {
+		int error_code;
+		unsigned int segment_value = get_register_ds(regs);
+		unsigned int relative_address = (segment_value * 16 + get_register_dx(regs)) & 0xFFFF;
+		const char *target = segment_start + relative_address;
+		if (index_of_gvar_with_start(gvar_list, target) < 0) {
+			struct GlobalVariable *var = prepare_new_gvar(gvar_list);
+			var->start = target;
+			var->relative_address = relative_address;
+			var->end = target + length;
+			var->var_type = GVAR_TYPE_STRING;
+
+			if ((error_code = insert_gvar(gvar_list, var))) {
+				return error_code;
+			}
+		}
+
+		if (segment_value && segment_value != 0xFFF0) {
+			const char *target_segment_start = segment_start + segment_value * 16;
+			if (!contains_segment_start(segment_start_list, target_segment_start)) {
+				if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+					return error_code;
+				}
+			}
+		}
+	}
+	else {
+		struct CodeBlockOriginList *origin_list = &block->origin_list;
+		const unsigned int origin_count = origin_list->origin_count;
+		int index;
+
+		for (index = 0; index < origin_count; index++) {
+			struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
+			if (get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
+				const int ds_defined = is_register_ds_defined(regs) || is_register_ds_merged(regs) && is_register_ds_defined(&origin->regs);
+				const int ds_relative = is_register_ds_defined(regs)? is_register_ds_defined_relative(regs) : is_register_ds_defined_relative(&origin->regs);
+				const uint16_t ds_value = is_register_ds_defined(regs)? get_register_ds(regs) : get_register_ds(&origin->regs);
+
+				const int cx_defined = is_register_cx_defined(regs) || is_register_cx_merged(regs) && is_register_cx_defined(&origin->regs);
+				const int cx_relative = is_register_cx_defined(regs)? is_register_cx_defined_relative(regs) : is_register_cx_defined_relative(&origin->regs);
+				const uint16_t cx_value = is_register_cx_defined(regs)? get_register_cx(regs) : get_register_cx(&origin->regs);
+
+				const int dx_defined = is_register_dx_defined(regs) || is_register_dx_merged(regs) && is_register_dx_defined(&origin->regs);
+				const int dx_relative = is_register_dx_defined(regs)? is_register_dx_defined_relative(regs) : is_register_dx_defined_relative(&origin->regs);
+				const uint16_t dx_value = is_register_dx_defined(regs)? get_register_dx(regs) : get_register_dx(&origin->regs);
+
+				if (ds_defined && ds_relative && cx_defined && !cx_relative && dx_defined && !dx_relative) {
+					int error_code;
+					unsigned int segment_value = ds_value;
+					unsigned int relative_address = (segment_value * 16 + dx_value) & 0xFFFF;
+					const char *target = segment_start + relative_address;
+					if (index_of_gvar_with_start(gvar_list, target) < 0) {
+						struct GlobalVariable *var = prepare_new_gvar(gvar_list);
+						var->start = target;
+						var->relative_address = relative_address;
+						var->end = target + cx_value;
+						var->var_type = GVAR_TYPE_STRING;
+
+						if ((error_code = insert_gvar(gvar_list, var))) {
+							return error_code;
+						}
+					}
+
+					if (segment_value && segment_value != 0xFFF0) {
+						const char *target_segment_start = segment_start + segment_value * 16;
+						if (!contains_segment_start(segment_start_list, target_segment_start)) {
+							if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+								return error_code;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
 #define SEGMENT_INDEX_UNDEFINED -1
 #define SEGMENT_INDEX_ES 0
 #define SEGMENT_INDEX_SS 2
@@ -1022,7 +1128,6 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if ((value0 & 0xFE) == 0xC2) {
-		const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
 		struct CheckedBlocks checked_blocks;
 
 		if (value0 == 0xC2) {
@@ -1190,9 +1295,7 @@ static int read_block_instruction_internal(
 		}
 	}
 	else if (value0 == 0xCB) {
-		const unsigned int checked_blocks_word_count = (code_block_list->block_count + 15) >> 4;
 		struct CheckedBlocks checked_blocks;
-		unsigned int checked_blocks_word_index;
 		DEBUG_PRINT0("\n");
 
 		block->end = block->start + reader->buffer_index;
@@ -1201,7 +1304,12 @@ static int read_block_instruction_internal(
 		checked_blocks.count = 0;
 		checked_blocks.allocated_pages = 0;
 
-		return update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0);
+		error_code = update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0);
+		if (checked_blocks.blocks != NULL) {
+			free(checked_blocks.blocks);
+		}
+
+		return error_code;
 	}
 	else if (value0 == 0xCD) {
 		const int interruption_number = read_next_byte(reader);
@@ -1328,33 +1436,20 @@ static int read_block_instruction_internal(
 				}
 			}
 			else if (ah_value == 0x40) { /* Write to file using handle */
-				unsigned int length;
-				if (is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs) && is_register_cx_defined_absolute(regs) && (length = get_register_cx(regs)) > 0) {
-					int error_code;
-					unsigned int segment_value = get_register_ds(regs);
-					unsigned int relative_address = (segment_value * 16 + get_register_dx(regs)) & 0xFFFF;
-					const char *target = segment_start + relative_address;
-					if (index_of_gvar_with_start(gvar_list, target) < 0) {
-						struct GlobalVariable *var = prepare_new_gvar(gvar_list);
-						var->start = target;
-						var->relative_address = relative_address;
-						var->end = target + length;
-						var->var_type = GVAR_TYPE_STRING;
+				struct CheckedBlocks checked_blocks;
+				checked_blocks.blocks = NULL;
+				checked_blocks.count = 0;
+				checked_blocks.allocated_pages = 0;
 
-						if ((error_code = insert_gvar(gvar_list, var))) {
-							return error_code;
-						}
-					}
-
-					if (segment_value && segment_value != 0xFFF0) {
-						const char *target_segment_start = segment_start + segment_value * 16;
-						if (!contains_segment_start(segment_start_list, target_segment_start)) {
-							if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
-								return error_code;
-							}
-						}
-					}
+				error_code = update_int2140_message_references(regs, segment_start, block, gvar_list, segment_start_list, &checked_blocks, 2);
+				if (checked_blocks.blocks != NULL) {
+					free(checked_blocks.blocks);
 				}
+
+				if (error_code) {
+					return error_code;
+				}
+
 				set_register_ax_undefined(regs, opcode_reference);
 
 				if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
