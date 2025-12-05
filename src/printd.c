@@ -126,10 +126,10 @@ void print_itable(const struct InterruptionTable *table) {
 	int i;
 	fprintf(stderr, " IntTable(");
 	for (i = 0; i < 256; i++) {
-		const char *offset_defined = table->offset_defined[i];
-		const char *segment_defined = table->segment_defined[i];
+		int offset_defined = table->offset_defined[i >> 4] & 1 << (i & 15);
+		int segment_defined = table->segment_defined[i >> 4] & 1 << (i & 15);
 		if (offset_defined && segment_defined) {
-			if (table->relative[i >> 3] & (1 << (i & 7))) {
+			if (table->relative[i >> 4] & 1 << (i & 15)) {
 				fprintf(stderr, "%x->+%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
 			}
 			else {
@@ -140,7 +140,7 @@ void print_itable(const struct InterruptionTable *table) {
 			fprintf(stderr, "%x->?:%x", i, table->pointers[i].offset);
 		}
 		else if (segment_defined) {
-			if (table->relative[i >> 3] & (1 << (i & 7))) {
+			if (table->relative[i >> 4] & 1 << (i & 15)) {
 				fprintf(stderr, "%x->+%x:?", i, table->pointers[i].segment);
 			}
 			else {

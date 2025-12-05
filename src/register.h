@@ -2,8 +2,6 @@
 #define _REGISTER_H_
 #include <stdint.h>
 
-#define REGISTER_DEFINED_OUTSIDE ((const char *) 1)
-
 struct Registers {
 	unsigned char al;
 	unsigned char ah;
@@ -23,11 +21,32 @@ struct Registers {
 	uint16_t ds;
 
 	/**
-	 * Points to the last opcode that modified the register value.
-	 * NULL if the register is not defined.
-	 * REGISTER_DEFINED_OUTSIDE if the register comes registered by the OS.
+	 * Points to the opcode where the value in this register was set.
+	 * NULL if it is unknown.
 	 */
-	const char *defined[16];
+	const char *value_origin[16];
+
+	/**
+	 * Points to the last opcode that modified the register value.
+	 * NULL if it is unknown.
+	 */
+	const char *last_update[16];
+
+	/**
+	 * Whether the corresponding register definition and value comes from the
+	 * merging performed before the start of the current block.
+	 */
+	uint16_t merged;
+
+	/**
+	 * Whether the corresponding register has a valid value.
+	 */
+	uint16_t defined;
+
+	/**
+	 * Whether the corresponding register has a relative value on it.
+	 * This is only relevant if the curresponding register is defined as well.
+	 */
 	uint16_t relative;
 };
 
@@ -80,10 +99,10 @@ int is_segment_register_defined(const struct Registers *regs, unsigned int index
 int is_segment_register_defined_absolute(const struct Registers *regs, unsigned int index);
 int is_segment_register_defined_relative(const struct Registers *regs, unsigned int index);
 
-const char *where_register_ax_defined(const struct Registers *regs);
-const char *where_register_dx_defined(const struct Registers *regs);
-const char *where_register_sp_defined(const struct Registers *regs);
-const char *where_word_register_defined(const struct Registers *regs, unsigned int index);
+const char *get_register_ax_value_origin(const struct Registers *regs);
+const char *get_register_dx_value_origin(const struct Registers *regs);
+const char *get_word_register_value_origin(const struct Registers *regs, unsigned int index);
+const char *get_segment_register_value_origin(const struct Registers *regs, unsigned int index);
 
 unsigned int get_register_al(const struct Registers *regs);
 unsigned int get_register_ah(const struct Registers *regs);
@@ -112,38 +131,38 @@ unsigned int get_byte_register(const struct Registers *regs, unsigned int index)
 unsigned int get_word_register(const struct Registers *regs, unsigned int index);
 unsigned int get_segment_register(const struct Registers *regs, unsigned int index);
 
-void set_byte_register(struct Registers *regs, unsigned int index, const char *where, unsigned char value);
-void set_word_register(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
-void set_word_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
-void mark_register_ax_undefined(struct Registers *regs);
-void mark_register_cx_undefined(struct Registers *regs);
-void mark_register_dx_undefined(struct Registers *regs);
-void mark_register_bx_undefined(struct Registers *regs);
-void mark_register_es_undefined(struct Registers *regs);
-void mark_register_ds_undefined(struct Registers *regs);
-void mark_word_register_undefined(struct Registers *regs, unsigned int index);
+void set_byte_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, unsigned char value);
+void set_word_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
+void set_word_register_relative(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_ax_undefined(struct Registers *regs, const char *last_update);
+void set_register_cx_undefined(struct Registers *regs, const char *last_update);
+void set_register_dx_undefined(struct Registers *regs, const char *last_update);
+void set_register_bx_undefined(struct Registers *regs, const char *last_update);
+void set_register_es_undefined(struct Registers *regs, const char *last_update);
+void set_register_ds_undefined(struct Registers *regs, const char *last_update);
+void set_word_register_undefined(struct Registers *regs, unsigned int index, const char *last_update);
 
-void set_register_al_undefined(struct Registers *regs);
-void set_register_ax_undefined(struct Registers *regs);
+void set_register_al_undefined(struct Registers *regs, const char *last_update);
+void set_register_ax_undefined(struct Registers *regs, const char *last_update);
 
-void set_register_sp(struct Registers *regs, const char *where, uint16_t value);
-void set_register_es(struct Registers *regs, const char *where, uint16_t value);
-void set_register_cs(struct Registers *regs, const char *where, uint16_t value);
-void set_register_ss(struct Registers *regs, const char *where, uint16_t value);
-void set_register_ds(struct Registers *regs, const char *where, uint16_t value);
-void set_segment_register(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
+void set_register_sp(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_es(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_cs(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_ss(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_ds(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_segment_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
 
-void set_register_es_relative(struct Registers *regs, const char *where, uint16_t value);
-void set_register_cs_relative(struct Registers *regs, const char *where, uint16_t value);
-void set_register_ss_relative(struct Registers *regs, const char *where, uint16_t value);
-void set_register_ds_relative(struct Registers *regs, const char *where, uint16_t value);
-void set_segment_register_relative(struct Registers *regs, unsigned int index, const char *where, uint16_t value);
-void mark_segment_register_undefined(struct Registers *regs, unsigned int index);
+void set_register_es_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_cs_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_ss_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_register_ds_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+void set_segment_register_relative(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
+void set_segment_register_undefined(struct Registers *regs, unsigned int index, const char *last_update);
 
 void copy_registers(struct Registers *target_regs, const struct Registers *source_regs);
 void merge_registers(struct Registers *regs, const struct Registers *other_regs);
 int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs);
-void make_all_registers_undefined(struct Registers *regs);
-void make_all_registers_undefined_except_cs(struct Registers *regs);
+void set_all_registers_undefined(struct Registers *regs);
+void set_all_registers_undefined_except_cs(struct Registers *regs);
 
 #endif /* _REGISTER_H_ */
