@@ -419,14 +419,25 @@ static int register_next_block(
 	}
 }
 
-/* This method should iterate over itself... we still have to work on it */
 int update_int2140_message_references(
 		const struct Registers *regs,
 		const char *segment_start,
 		struct CodeBlock *block,
+		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
+		struct ReferenceList *ref_list,
 		struct CheckedBlocks *checked_blocks,
+		const int cx_defined,
+		const int cx_relative,
+		const uint16_t cx_value,
+		const int dx_defined,
+		const int dx_relative,
+		const uint16_t dx_value,
+		const char *dx_value_origin,
+		const int ds_defined,
+		const int ds_relative,
+		const uint16_t ds_value,
 		unsigned int depth) {
 	uint16_t length;
 	int index;
@@ -446,78 +457,89 @@ int update_int2140_message_references(
 	}
 	checked_blocks->blocks[checked_blocks->count++] = block;
 
-	if (is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs) && is_register_cx_defined_absolute(regs) && (length = get_register_cx(regs)) > 0) {
-		int error_code;
-		unsigned int segment_value = get_register_ds(regs);
-		unsigned int relative_address = (segment_value * 16 + get_register_dx(regs)) & 0xFFFF;
-		const char *target = segment_start + relative_address;
-		if (index_of_gvar_with_start(gvar_list, target) < 0) {
-			struct GlobalVariable *var = prepare_new_gvar(gvar_list);
-			var->start = target;
-			var->relative_address = relative_address;
-			var->end = target + length;
-			var->var_type = GVAR_TYPE_STRING;
+	if (ds_defined && dx_defined && cx_defined) {
+		if (ds_relative && !dx_relative && !cx_relative && (length = cx_value) > 0) {
+			int error_code;
+			unsigned int segment_value = get_register_ds(regs);
+			unsigned int relative_address = (segment_value * 16 + get_register_dx(regs)) & 0xFFFF;
+			const char *target = segment_start + relative_address;
+			struct GlobalVariable *var;
 
-			if ((error_code = insert_gvar(gvar_list, var))) {
-				return error_code;
-			}
-		}
+			if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
+				var = prepare_new_gvar(gvar_list);
+				var->start = target;
+				var->relative_address = relative_address;
+				var->end = target + length;
+				var->var_type = GVAR_TYPE_STRING;
 
-		if (segment_value && segment_value != 0xFFF0) {
-			const char *target_segment_start = segment_start + segment_value * 16;
-			if (!contains_segment_start(segment_start_list, target_segment_start)) {
-				if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+				if ((error_code = insert_gvar(gvar_list, var))) {
 					return error_code;
+				}
+			}
+			else {
+				var = gvar_list->sorted_variables[index];
+			}
+
+			if (dx_value_origin && index_of_ref_with_instruction(ref_list, dx_value_origin) < 0) {
+				struct Reference *new_ref = prepare_new_ref(ref_list);
+				DEBUG_INDENTED_PRINT1(depth, "DX value origin at %x. Registering reference.\n", (int) (dx_value_origin - segment_start));
+
+				new_ref->instruction = dx_value_origin;
+				set_gvar_ref_from_instruction_immediate_value(new_ref, var);
+				if ((error_code = insert_ref(ref_list, new_ref))) {
+					return error_code;
+				}
+			}
+
+			if (segment_value && segment_value != 0xFFF0) {
+				const char *target_segment_start = segment_start + segment_value * 16;
+				if (!contains_segment_start(segment_start_list, target_segment_start)) {
+					if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+						return error_code;
+					}
 				}
 			}
 		}
 	}
-	else {
+	else if ((ds_defined || is_register_ds_merged(regs)) && (dx_defined || is_register_dx_merged(regs)) && (cx_defined || is_register_cx_merged(regs))) {
 		struct CodeBlockOriginList *origin_list = &block->origin_list;
 		const unsigned int origin_count = origin_list->origin_count;
 		int index;
 
 		for (index = 0; index < origin_count; index++) {
 			struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-			if (get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
-				const int ds_defined = is_register_ds_defined(regs) || is_register_ds_merged(regs) && is_register_ds_defined(&origin->regs);
-				const int ds_relative = is_register_ds_defined(regs)? is_register_ds_defined_relative(regs) : is_register_ds_defined_relative(&origin->regs);
-				const uint16_t ds_value = is_register_ds_defined(regs)? get_register_ds(regs) : get_register_ds(&origin->regs);
+			const int origin_block_index = index_of_cblock_containing_position(code_block_list, origin->instruction);
+			DEBUG_INDENTED_PRINT1(depth, "Checking origin at %d. ", index);
 
-				const int cx_defined = is_register_cx_defined(regs) || is_register_cx_merged(regs) && is_register_cx_defined(&origin->regs);
-				const int cx_relative = is_register_cx_defined(regs)? is_register_cx_defined_relative(regs) : is_register_cx_defined_relative(&origin->regs);
-				const uint16_t cx_value = is_register_cx_defined(regs)? get_register_cx(regs) : get_register_cx(&origin->regs);
+			if (origin_block_index >= 0 && get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
+				struct CodeBlock *origin_block = code_block_list->sorted_blocks[origin_block_index];
+				const int new_ds_defined = ds_defined || is_register_ds_defined(&origin->regs);
+				const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(&origin->regs);
+				const uint16_t new_ds_value = ds_defined? ds_value : get_register_ds(&origin->regs);
 
-				const int dx_defined = is_register_dx_defined(regs) || is_register_dx_merged(regs) && is_register_dx_defined(&origin->regs);
-				const int dx_relative = is_register_dx_defined(regs)? is_register_dx_defined_relative(regs) : is_register_dx_defined_relative(&origin->regs);
-				const uint16_t dx_value = is_register_dx_defined(regs)? get_register_dx(regs) : get_register_dx(&origin->regs);
+				const int new_dx_defined = dx_defined || is_register_dx_defined(&origin->regs);
+				const int new_dx_relative = dx_defined? dx_relative : is_register_dx_defined_relative(&origin->regs);
+				const uint16_t new_dx_value = dx_defined? dx_value : get_register_dx(&origin->regs);
+				const char *new_dx_value_origin = dx_defined? dx_value_origin : get_register_dx_value_origin(&origin->regs);
 
-				if (ds_defined && ds_relative && cx_defined && !cx_relative && dx_defined && !dx_relative) {
-					int error_code;
-					unsigned int segment_value = ds_value;
-					unsigned int relative_address = (segment_value * 16 + dx_value) & 0xFFFF;
-					const char *target = segment_start + relative_address;
-					if (index_of_gvar_with_start(gvar_list, target) < 0) {
-						struct GlobalVariable *var = prepare_new_gvar(gvar_list);
-						var->start = target;
-						var->relative_address = relative_address;
-						var->end = target + cx_value;
-						var->var_type = GVAR_TYPE_STRING;
+				const int new_cx_defined = cx_defined || is_register_cx_defined(&origin->regs);
+				const int new_cx_relative = cx_defined? ds_relative : is_register_cx_defined_relative(&origin->regs);
+				const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(&origin->regs);
 
-						if ((error_code = insert_gvar(gvar_list, var))) {
-							return error_code;
-						}
-					}
+				int error_code;
+				DEBUG_PRINT0("Type is JUMP.\n");
 
-					if (segment_value && segment_value != 0xFFF0) {
-						const char *target_segment_start = segment_start + segment_value * 16;
-						if (!contains_segment_start(segment_start_list, target_segment_start)) {
-							if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
-								return error_code;
-							}
-						}
-					}
+				if ((error_code = update_int2140_message_references(&origin->regs, segment_start, origin_block, code_block_list,
+						gvar_list, segment_start_list, ref_list, checked_blocks,
+						new_cx_defined, new_cx_relative, new_cx_value,
+						new_dx_defined, new_dx_relative, new_dx_value, new_dx_value_origin,
+						new_ds_defined, new_ds_relative, new_ds_value,
+						depth + 1))) {
+					return error_code;
 				}
+			}
+			else {
+				DEBUG_PRINT0("Type is not JUMP or origin block not found. Skipping.\n");
 			}
 		}
 	}
@@ -1436,12 +1458,26 @@ static int read_block_instruction_internal(
 				}
 			}
 			else if (ah_value == 0x40) { /* Write to file using handle */
+				const int cx_defined = is_register_cx_defined(regs);
+				const int cx_relative = is_register_cx_defined(regs);
+				const uint16_t cx_value = is_register_cx_defined(regs);
+
+				const int dx_defined = is_register_dx_defined(regs);
+				const int dx_relative = is_register_dx_defined(regs);
+				const uint16_t dx_value = is_register_dx_defined(regs);
+				const char *dx_value_origin = get_register_dx_value_origin(regs);
+
+				const int ds_defined = is_register_ds_defined(regs);
+				const int ds_relative = is_register_ds_defined(regs);
+				const uint16_t ds_value = is_register_ds_defined(regs);
+
 				struct CheckedBlocks checked_blocks;
 				checked_blocks.blocks = NULL;
 				checked_blocks.count = 0;
 				checked_blocks.allocated_pages = 0;
 
-				error_code = update_int2140_message_references(regs, segment_start, block, gvar_list, segment_start_list, &checked_blocks, 2);
+				DEBUG_PRINT0("  Checking for message references.\n");
+				error_code = update_int2140_message_references(regs, segment_start, block, code_block_list, gvar_list, segment_start_list, ref_list, &checked_blocks, cx_defined, cx_relative, cx_value, dx_defined, dx_relative, dx_value, dx_value_origin, ds_defined, ds_relative, ds_value, 2);
 				if (checked_blocks.blocks != NULL) {
 					free(checked_blocks.blocks);
 				}
