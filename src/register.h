@@ -45,7 +45,13 @@ struct Registers {
 
 	/**
 	 * Whether the corresponding register has a relative value on it.
+	 *
+	 * Bits from 4 to 15 are reserved for registers WORD registers + segments.
+	 * If the corresponding flag is set, it means that the value is relative from the segment_start.
 	 * This is only relevant if the curresponding register is defined as well.
+	 *
+	 * Bit 0 is set, it means that the value at SP register is relative from BP.
+	 * This bit will only be considered if SP is undefined.
 	 */
 	uint16_t relative;
 };
@@ -99,12 +105,15 @@ int is_segment_register_defined(const struct Registers *regs, unsigned int index
 int is_segment_register_defined_absolute(const struct Registers *regs, unsigned int index);
 int is_segment_register_defined_relative(const struct Registers *regs, unsigned int index);
 
+int is_register_sp_relative_from_bp(const struct Registers *regs);
+
 int is_register_cx_merged(const struct Registers *regs);
 int is_register_dx_merged(const struct Registers *regs);
 int is_register_ds_merged(const struct Registers *regs);
 
 const char *get_register_ax_value_origin(const struct Registers *regs);
 const char *get_register_dx_value_origin(const struct Registers *regs);
+const char *get_register_bp_value_origin(const struct Registers *regs);
 const char *get_word_register_value_origin(const struct Registers *regs, unsigned int index);
 const char *get_segment_register_value_origin(const struct Registers *regs, unsigned int index);
 
@@ -162,6 +171,8 @@ void set_register_ss_relative(struct Registers *regs, const char *last_update, c
 void set_register_ds_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_segment_register_relative(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
 void set_segment_register_undefined(struct Registers *regs, unsigned int index, const char *last_update);
+
+void set_register_sp_relative_from_bp(struct Registers *regs, const char *last_update, int value);
 
 void copy_registers(struct Registers *target_regs, const struct Registers *source_regs);
 void merge_registers(struct Registers *regs, const struct Registers *other_regs);

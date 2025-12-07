@@ -26,26 +26,33 @@ static void print_word_or_byte_register(const struct Registers *regs, unsigned i
 }
 
 static void print_word_register(const struct Registers *regs, unsigned int index, const char *word_reg) {
+	fprintf(stderr, " %s=", word_reg);
+
 	if (is_word_register_defined_relative(regs, index)) {
-		fprintf(stderr, " %s=+%x;", word_reg, get_word_register(regs, index));
+		fprintf(stderr, "+%x;", get_word_register(regs, index));
 	}
 	else if (is_word_register_defined(regs, index)) {
-		fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
+		fprintf(stderr, "%x;", get_word_register(regs, index));
+	}
+	else if (index == 4 && is_register_sp_relative_from_bp(regs)) {
+		fprintf(stderr, "BP+%x;", get_word_register(regs, 4));
 	}
 	else {
-		fprintf(stderr, " %s=?;", word_reg);
+		fprintf(stderr, "?;");
 	}
 }
 
 static void print_segment_register(const struct Registers *regs, unsigned int index, const char *word_reg) {
+	fprintf(stderr, " %s=", word_reg);
+
 	if (is_segment_register_defined_relative(regs, index)) {
-		fprintf(stderr, " %s=+%x;", word_reg, get_segment_register(regs, index));
+		fprintf(stderr, "+%x;", get_segment_register(regs, index));
 	}
 	else if (is_segment_register_defined(regs, index)) {
-		fprintf(stderr, " %s=%x;", word_reg, get_segment_register(regs, index));
+		fprintf(stderr, "%x;", get_segment_register(regs, index));
 	}
 	else {
-		fprintf(stderr, " %s=?;", word_reg);
+		fprintf(stderr, "?;");
 	}
 }
 

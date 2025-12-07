@@ -200,6 +200,10 @@ int is_segment_register_defined_relative(const struct Registers *regs, unsigned 
 	return regs->relative & 0x1000 << index && is_segment_register_defined(regs, index);
 }
 
+int is_register_sp_relative_from_bp(const struct Registers *regs) {
+	return (regs->defined & 0x0200) == 0 && regs->relative & 1;
+}
+
 int is_register_cx_merged(const struct Registers *regs) {
 	return (regs->merged & 0x000C) == 0x000C;
 }
@@ -220,6 +224,10 @@ const char *get_register_ax_value_origin(const struct Registers *regs) {
 const char *get_register_dx_value_origin(const struct Registers *regs) {
 	const char *value_origin = regs->value_origin[4];
 	return (value_origin == regs->value_origin[5])? value_origin : NULL;
+}
+
+const char *get_register_bp_value_origin(const struct Registers *regs) {
+	return regs->value_origin[9];
 }
 
 const char *get_word_register_value_origin(const struct Registers *regs, unsigned int index) {
@@ -692,6 +700,10 @@ void set_word_register_undefined(struct Registers *regs, unsigned int index, con
 		const int mask = ~(0x10 << index);
 		regs->defined &= mask;
 		regs->merged &= mask;
+
+		if (index == 4) {
+			regs->relative &= 0xFFFE;
+		}
 	}
 }
 
@@ -707,7 +719,7 @@ void set_register_sp(struct Registers *regs, const char *last_update, const char
 	regs->value_origin[8] = value_origin;
 	regs->defined |= 0x0100;
 	regs->relative &= ~0x100;
-	regs->merged &= 0xFEFF;
+	regs->merged &= 0xFEFE;
 }
 
 void set_register_es(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value) {
@@ -822,6 +834,21 @@ void set_segment_register_relative(struct Registers *regs, unsigned int index, c
 	else {
 		/* Assuming index == 3 */
 		set_register_ds_relative(regs, last_update, value_origin, value);
+	}
+}
+
+void set_register_sp_relative_from_bp(struct Registers *regs, const char *last_update, int value) {
+	if (is_register_bp_defined_absolute(regs)) {
+		uint16_t new_value = get_register_bp(regs) + value;
+		const char *value_origin = (value == 0)? get_register_bp_value_origin(regs) : NULL;
+		set_register_sp(regs, last_update, value_origin, new_value);
+	}
+	else {
+		regs->defined &= 0xFEFF;
+		regs->relative |= 1;
+		regs->sp = value;
+		regs->last_update[8] = last_update;
+		regs->merged &= 0xFEFF;
 	}
 }
 
@@ -996,6 +1023,7 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
 void set_all_registers_undefined(struct Registers *regs) {
 	int i;
 	regs->defined = 0;
+	regs->relative = 0;
 	regs->merged = 0;
 
 	for (i = 0; i < 16; i++) {
@@ -1007,6 +1035,7 @@ void set_all_registers_undefined(struct Registers *regs) {
 void set_all_registers_undefined_except_cs(struct Registers *regs) {
 	int i;
 	regs->defined &= 0x2000;
+	regs->relative &= 0x2000;
 	regs->merged = 0;
 
 	for (i = 0; i < 16; i++) {

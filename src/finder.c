@@ -781,58 +781,60 @@ static int read_block_instruction_internal(
 	else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
 		const int value1 = read_next_byte(reader);
 
-		if ((value1 & 0xC7) == 6) {
-			int result_address = read_next_word(reader);
-			const int read_access = value0 == 0x8B;
-			const int write_access = value0 == 0x89;
-			const int write_value_defined = is_word_register_defined(regs, (value1 >> 3) & 7);
-			const int write_value_defined_relative = is_word_register_defined_relative(regs, (value1 >> 3) & 7);
-			const int write_value = get_word_register(regs, (value1 >> 3) & 7);
-			DEBUG_PRINT0("\n");
+		if ((value1 & 0xC0) == 0) {
+			if ((value1 & 0xC7) == 6) {
+				int result_address = read_next_word(reader);
+				const int read_access = value0 == 0x8B;
+				const int write_access = value0 == 0x89;
+				const int write_value_defined = is_word_register_defined(regs, (value1 >> 3) & 7);
+				const int write_value_defined_relative = is_word_register_defined_relative(regs, (value1 >> 3) & 7);
+				const int write_value = get_word_register(regs, (value1 >> 3) & 7);
+				DEBUG_PRINT0("\n");
 
-			if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-				segment_index = SEGMENT_INDEX_DS;
-			}
+				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
+					segment_index = SEGMENT_INDEX_DS;
+				}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
-				return error_code;
-			}
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
+					return error_code;
+				}
 
-			if ((value0 & 0xFD) == 0x89 && is_segment_register_defined_relative(regs, segment_index)) {
-				/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
-				unsigned int segment_value = get_segment_register(regs, segment_index);
-				unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
-				const char *target = segment_start + relative_address;
-				const int var_index = index_of_gvar_with_start(gvar_list, target);
-				if (var_index >= 0) {
-					const int reg_index = (value1 >> 3) & 7;
-					if (value0 == 0x8B) {
-						const int var_index_in_map = index_of_gvar_in_gvwvmap_with_start(var_values, target);
-						if (var_index_in_map >= 0) {
-							uint16_t var_value = get_gvwvalue_at_index(var_values, var_index_in_map);
-							if (is_gvwvalue_defined_relative_at_index(var_values, var_index_in_map)) {
-								set_word_register_relative(regs, reg_index, opcode_reference, opcode_reference, var_value);
+				if ((value0 & 0xFD) == 0x89 && is_segment_register_defined_relative(regs, segment_index)) {
+					/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
+					unsigned int segment_value = get_segment_register(regs, segment_index);
+					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
+					const char *target = segment_start + relative_address;
+					const int var_index = index_of_gvar_with_start(gvar_list, target);
+					if (var_index >= 0) {
+						const int reg_index = (value1 >> 3) & 7;
+						if (value0 == 0x8B) {
+							const int var_index_in_map = index_of_gvar_in_gvwvmap_with_start(var_values, target);
+							if (var_index_in_map >= 0) {
+								uint16_t var_value = get_gvwvalue_at_index(var_values, var_index_in_map);
+								if (is_gvwvalue_defined_relative_at_index(var_values, var_index_in_map)) {
+									set_word_register_relative(regs, reg_index, opcode_reference, opcode_reference, var_value);
+								}
+								else {
+									set_word_register(regs, reg_index, opcode_reference, opcode_reference, var_value);
+								}
 							}
 							else {
-								set_word_register(regs, reg_index, opcode_reference, opcode_reference, var_value);
+								set_word_register_undefined(regs, reg_index, opcode_reference);
 							}
-						}
-						else {
-							set_word_register_undefined(regs, reg_index, opcode_reference);
 						}
 					}
 				}
 			}
 		}
-		else if ((value1 & 0xC0) == 0x80) {
-			read_next_word(reader);
-			DEBUG_PRINT0("\n");
-		}
 		else if ((value1 & 0xC0) == 0x40) {
 			read_next_byte(reader);
 			DEBUG_PRINT0("\n");
 		}
-		else {
+		else if ((value1 & 0xC0) == 0x80) {
+			read_next_word(reader);
+			DEBUG_PRINT0("\n");
+		}
+		else { /* value1 >= 0xC0 */
 			DEBUG_PRINT0("\n");
 
 			if ((value0 & 0xFD) == 0x89) {
@@ -853,6 +855,9 @@ static int read_block_instruction_internal(
 				}
 				else if (is_word_register_defined(regs, source_register)) {
 					set_word_register(regs, target_register, opcode_reference, get_word_register_value_origin(regs, source_register), get_word_register(regs, source_register));
+				}
+				else if (source_register == 4 && target_register == 5 || source_register == 5 && target_register == 4) {
+					set_register_sp_relative_from_bp(regs, opcode_reference, 0);
 				}
 				else {
 					set_word_register_undefined(regs, target_register, opcode_reference);
