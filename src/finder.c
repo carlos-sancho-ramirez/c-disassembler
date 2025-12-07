@@ -728,6 +728,7 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0x80) {
 		const int value1 = read_next_byte(reader);
+		int imm_value;
 
 		if ((value1 & 0xC7) == 6) {
 			int result_address = read_next_word(reader);
@@ -747,13 +748,39 @@ static int read_block_instruction_internal(
 		}
 
 		if (value0 & 1) {
-			read_next_word(reader);
+			imm_value = read_next_word(reader);
 		}
 		else {
 			read_next_byte(reader);
 		}
 
 		DEBUG_PRINT0("\n");
+
+		if ((value1 & 0xF8) == 0xE8) { /* sub reg,immValue */
+			const int reg_index = value1 & 7;
+			if (is_word_register_defined_relative(regs, reg_index)) {
+				set_word_register_relative(regs, reg_index, opcode_reference, NULL, get_word_register(regs, reg_index) - imm_value);
+			}
+			else if (is_word_register_defined(regs, reg_index)) {
+				set_word_register(regs, reg_index, opcode_reference, NULL, get_word_register(regs, reg_index) - imm_value);
+			}
+			else if (reg_index == 4 && is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) - imm_value);
+			}
+			else if (reg_index == 5 && is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) + imm_value);
+			}
+
+			if (reg_index == 4 && (imm_value & 1) == 0) {
+				const int push_count = imm_value >> 1 & 0x7FFF;
+				int push_index;
+				for (push_index = 0; push_index < push_count; push_index++) {
+					if ((error_code = push_undefined_in_stack(stack))) {
+						return error_code;
+					}
+				}
+			}
+		}
 		return 0;
 	}
 	else if (value0 == 0x83) {
