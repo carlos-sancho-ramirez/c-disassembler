@@ -783,6 +783,15 @@ void set_segment_register_undefined(struct Registers *regs, unsigned int index, 
 	regs->merged &= ~(0x1000 << index);
 }
 
+void set_register_sp_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value) {
+	regs->sp = value;
+	regs->last_update[8] = last_update;
+	regs->value_origin[8] = value_origin;
+	regs->defined |= 0x0100;
+	regs->relative |= 0x0100;
+	regs->merged &= ~0xFEFF;
+}
+
 void set_register_es_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value) {
 	regs->es = value;
 	regs->last_update[12] = last_update;

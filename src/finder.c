@@ -686,6 +686,16 @@ static int read_block_instruction_internal(
 				pop_from_stack(stack);
 				set_word_register_undefined(regs, rindex, opcode_reference);
 			}
+
+			if (is_register_sp_defined_relative(regs)) {
+				set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) + 2);
+			}
+			else if (is_register_sp_defined(regs)) {
+				set_register_sp(regs, opcode_reference, NULL, get_register_sp(regs) + 2);
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) + 2);
+			}
 		}
 		else {
 			if (is_word_register_defined_relative(regs, rindex)) {
@@ -696,6 +706,16 @@ static int read_block_instruction_internal(
 			}
 			else {
 				push_undefined_in_stack(stack);
+			}
+
+			if (is_register_sp_defined_relative(regs)) {
+				set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+			}
+			else if (is_register_sp_defined(regs)) {
+				set_register_sp(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) - 2);
 			}
 		}
 
@@ -1290,58 +1310,61 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
-			int result_address;
+			int diff_address;
 			int immediate_value;
-			if (value1 == 0x06) {
-				result_address = read_next_word(reader);
-				if (value0 & 1) {
-					immediate_value = read_next_word(reader);
+			if ((value1 & 0xC0) == 0x40) {
+				diff_address = read_next_byte(reader);
+				if (diff_address >= 0x80) {
+					diff_address -= 0x100;
 				}
-				else {
-					read_next_byte(reader);
-				}
-				DEBUG_PRINT0("\n");
+			}
+			else if (value1 == 0x06 || (value1 & 0xC0) == 0x80) {
+				diff_address = read_next_word(reader);
+			}
 
+			if (value0 & 1) {
+				immediate_value = read_next_word(reader);
+			}
+			else {
+				read_next_byte(reader);
+			}
+			DEBUG_PRINT0("\n");
+
+			if (value1 == 0x06) {
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, diff_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 					return error_code;
 				}
-			}
-			else {
-				if ((value1 & 0xC0) == 0x80) {
-					read_next_word(reader);
-				}
-				else if ((value1 & 0xC0) == 0x40) {
-					read_next_byte(reader);
-				}
 
-				if (value0 & 1) {
-					immediate_value = read_next_word(reader);
-				}
-				else {
-					read_next_byte(reader);
-				}
-				DEBUG_PRINT0("\n");
-			}
-
-			if (value0 & 1 && value1 == 0x06 && is_segment_register_defined_relative(regs, segment_index)) {
-				/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
-				unsigned int segment_value = get_segment_register(regs, segment_index);
-				unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
-				const char *target = segment_start + relative_address;
-				if (index_of_gvar_with_start(gvar_list, target) >= 0) {
-					const uint16_t original_value = *((uint16_t *) target);
-					if (immediate_value != original_value) {
-						if ((error_code = put_gvar_in_gvwvmap(var_values, target, immediate_value))) {
+				if (value0 & 1 && is_segment_register_defined_relative(regs, segment_index)) {
+					/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
+					unsigned int segment_value = get_segment_register(regs, segment_index);
+					unsigned int relative_address = (segment_value * 16 + diff_address) & 0xFFFF;
+					const char *target = segment_start + relative_address;
+					if (index_of_gvar_with_start(gvar_list, target) >= 0) {
+						const uint16_t original_value = *((uint16_t *) target);
+						if (immediate_value != original_value) {
+							if ((error_code = put_gvar_in_gvwvmap(var_values, target, immediate_value))) {
+								return error_code;
+							}
+						}
+						else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
 							return error_code;
 						}
 					}
-					else if ((error_code = remove_gvwvalue_with_start(var_values, target))) {
-						return error_code;
-					}
+				}
+			}
+			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
+					const int from_top = (diff_address + get_register_bp(regs) - get_register_sp(regs)) >> 1;
+					DEBUG_PRINT1("  From top resolved to: %d\n", from_top);
+					set_in_stack_from_top(stack, from_top, immediate_value);
+				}
+				else if (is_register_sp_relative_from_bp(regs)) {
+					set_in_stack_from_top(stack, (diff_address - get_register_sp(regs)) >> 1, immediate_value);
 				}
 			}
 

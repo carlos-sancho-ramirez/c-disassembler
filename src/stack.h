@@ -25,6 +25,8 @@ int push_in_stack(struct Stack *stack, uint16_t value);
 int push_relative_in_stack(struct Stack *stack, uint16_t value);
 uint16_t pop_from_stack(struct Stack *stack);
 
+int set_in_stack_from_top(struct Stack *stack, unsigned int index, uint16_t value);
+
 int copy_stack(struct Stack *target_stack, const struct Stack *source_stack);
 void merge_stacks(struct Stack *stack, const struct Stack *other_stack);
 int changes_on_merging_stacks(const struct Stack *stack, const struct Stack *other_stack);

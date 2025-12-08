@@ -165,6 +165,8 @@ void set_register_ss(struct Registers *regs, const char *last_update, const char
 void set_register_ds(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_segment_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
 
+void set_register_sp_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
+
 void set_register_es_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_register_cs_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_register_ss_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);

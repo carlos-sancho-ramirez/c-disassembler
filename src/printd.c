@@ -71,34 +71,60 @@ void print_regs(const struct Registers *regs) {
 	print_segment_register(regs, 3, "DS");
 }
 
+#define STACK_UNKNOWN_COUNT_LIMIT 3
+
 void print_stack(const struct Stack *stack) {
 	int defined_value_printed = 0;
+	int unknown_count = 0;
 	int i;
 	fprintf(stderr, " Stack(");
 	for (i = 0; i < stack->word_count; i++) {
 		const unsigned int definition = stack->defined_and_relative[i >> 3] >> ((i & 7) * 2);
 		if ((definition & 1) == 0) {
 			if (defined_value_printed) {
-				fprintf(stderr, ", ?");
-			}
-		}
-		else if (definition & 2) {
-			if (defined_value_printed) {
-				fprintf(stderr, ", +%x", stack->values[i]);
-			}
-			else {
-				fprintf(stderr, "+%x", stack->values[i]);
-				defined_value_printed = 1;
+				unknown_count++;
 			}
 		}
 		else {
-			if (defined_value_printed) {
-				fprintf(stderr, ", %x", stack->values[i]);
+			if (unknown_count > STACK_UNKNOWN_COUNT_LIMIT) {
+				fprintf(stderr, ", ?x%d", unknown_count);
 			}
 			else {
-				fprintf(stderr, "%x", stack->values[i]);
-				defined_value_printed = 1;
+				int j;
+				for (j = 0; j < unknown_count; j++) {
+					fprintf(stderr, ", ?");
+				}
 			}
+			unknown_count = 0;
+
+			if (definition & 2) {
+				if (defined_value_printed) {
+					fprintf(stderr, ", +%x", stack->values[i]);
+				}
+				else {
+					fprintf(stderr, "+%x", stack->values[i]);
+					defined_value_printed = 1;
+				}
+			}
+			else {
+				if (defined_value_printed) {
+					fprintf(stderr, ", %x", stack->values[i]);
+				}
+				else {
+					fprintf(stderr, "%x", stack->values[i]);
+					defined_value_printed = 1;
+				}
+			}
+		}
+	}
+
+	if (unknown_count > STACK_UNKNOWN_COUNT_LIMIT) {
+		fprintf(stderr, ", ?x%d", unknown_count);
+	}
+	else {
+		int j;
+		for (j = 0; j < unknown_count; j++) {
+			fprintf(stderr, ", ?");
 		}
 	}
 
@@ -156,7 +182,7 @@ void print_itable(const struct InterruptionTable *table) {
 		}
 	}
 
-	fprintf(stderr, ")\n");
+	fprintf(stderr, ")");
 }
 
 void print_cblist(const struct CodeBlockList *list) {

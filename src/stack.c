@@ -1,8 +1,9 @@
 #include "stack.h"
 #include <stdlib.h>
 
+#define STACK_DEFINED_ENTRIES_PER_WORD 8
 #define STACK_DEFINED_AND_RELATIVE_GRANULARITY 4
-#define STACK_VALUES_GRANULARITY (8 * STACK_DEFINED_AND_RELATIVE_GRANULARITY)
+#define STACK_VALUES_GRANULARITY (STACK_DEFINED_ENTRIES_PER_WORD * STACK_DEFINED_AND_RELATIVE_GRANULARITY)
 
 void initialize_stack(struct Stack *stack) {
 	stack->allocated_word_count = 0;
@@ -115,6 +116,43 @@ int top_is_defined_relative_in_stack(const struct Stack *stack) {
 
 uint16_t get_from_top(const struct Stack *stack, unsigned int count) {
 	return (stack->word_count > count)? stack->values[stack->word_count - count - 1] : 0;
+}
+
+int set_in_stack_from_top(struct Stack *stack, unsigned int index, uint16_t value) {
+	int abs_index;
+	if (stack->word_count < index) {
+		const int required_pages = (index - stack->word_count + STACK_VALUES_GRANULARITY - 1) / STACK_VALUES_GRANULARITY;
+		const int previous_allocated_pages = stack->allocated_word_count / STACK_VALUES_GRANULARITY;
+		int index;
+
+		stack->allocated_word_count += STACK_VALUES_GRANULARITY * required_pages;
+		stack->values = realloc(stack->values, stack->allocated_word_count * 2);
+		stack->defined_and_relative = realloc(stack->defined_and_relative, stack->allocated_word_count >> 2);
+		if (!stack->values || !stack->defined_and_relative) {
+			return 1;
+		}
+
+		for (index = stack->word_count; index >= 0; index--) {
+			stack->values[index + required_pages * STACK_VALUES_GRANULARITY] = stack->values[index];
+		}
+
+		STACK_DEFINED_AND_RELATIVE_GRANULARITY * required_pages;
+		for (index = previous_allocated_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY - 1; index >= 0; index--) {
+			stack->defined_and_relative[index + required_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY] = stack->defined_and_relative[index];
+		}
+
+		for (index = 0; index < required_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY; index++) {
+			stack->defined_and_relative[index] = 0;
+		}
+
+		stack->word_count += required_pages * STACK_VALUES_GRANULARITY;
+	}
+
+	abs_index = stack->word_count - index;
+	stack->values[abs_index] = value;
+	stack->defined_and_relative[abs_index / STACK_DEFINED_ENTRIES_PER_WORD] &= ~(3 << (abs_index % STACK_DEFINED_ENTRIES_PER_WORD) * 2);
+	stack->defined_and_relative[abs_index / STACK_DEFINED_ENTRIES_PER_WORD] |= 1 << (abs_index % STACK_DEFINED_ENTRIES_PER_WORD) * 2;
+	return 0;
 }
 
 int copy_stack(struct Stack *target_stack, const struct Stack *source_stack) {

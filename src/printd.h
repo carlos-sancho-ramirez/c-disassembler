@@ -60,9 +60,13 @@ DEBUG_PRINT3(msg, arg1, arg2, arg3)
 #define DEBUG_PRINT_STATE(ip, regs, stack, map, buffer, table) \
 DEBUG_PRINT1("  IP=%x", ip); \
 print_regs(regs); \
+fprintf(stderr, "\n "); \
 print_stack(stack); \
+fprintf(stderr, "\n "); \
 print_gvwvmap(map, buffer); \
-print_itable(table)
+fprintf(stderr, "\n "); \
+print_itable(table); \
+fprintf(stderr, "\n")
 
 #define DEBUG_CBLIST(list) print_cblist(list)
 
