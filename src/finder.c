@@ -262,7 +262,6 @@ static int update_call_origins(
 						}
 					}
 
-					DEBUG_INDENTED_PRINT1(depth + 2, "Jump from opcode 0xFF 0x%x.\n", jmp_opcode1);
 					if ((error_code = ensure_call_return_origin(cblock_list, origin, regs, stack, var_values, is_returning_far, jmp_instruction_length))) {
 						return error_code;
 					}
@@ -630,10 +629,7 @@ static int read_block_instruction_internal(
 		DEBUG_PRINT0("\n");
 
 		if (value0 & 1) {
-			if (stack_is_empty(stack)) {
-				set_segment_register_undefined(regs, sindex, opcode_reference);
-			}
-			else if (top_is_defined_relative_in_stack(stack)) {
+			if (top_is_defined_relative_in_stack(stack)) {
 				uint16_t stack_value = pop_from_stack(stack);
 				set_segment_register_relative(regs, sindex, opcode_reference, opcode_reference, stack_value);
 			}
@@ -671,10 +667,7 @@ static int read_block_instruction_internal(
 		const unsigned int rindex = value0 & 7;
 		DEBUG_PRINT0("\n");
 		if (value0 & 0x08) {
-			if (stack_is_empty(stack)) {
-				set_word_register_undefined(regs, rindex, opcode_reference);
-			}
-			else if (top_is_defined_relative_in_stack(stack)) {
+			if (top_is_defined_relative_in_stack(stack)) {
 				uint16_t stack_value = pop_from_stack(stack);
 				set_word_register_relative(regs, rindex, opcode_reference, opcode_reference, stack_value);
 			}
@@ -1322,12 +1315,7 @@ static int read_block_instruction_internal(
 				diff_address = read_next_word(reader);
 			}
 
-			if (value0 & 1) {
-				immediate_value = read_next_word(reader);
-			}
-			else {
-				read_next_byte(reader);
-			}
+			immediate_value = (value0 & 1)? read_next_word(reader) : read_next_byte(reader);
 			DEBUG_PRINT0("\n");
 
 			if (value1 == 0x06) {
@@ -1357,14 +1345,22 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
-			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+			else if (value0 == 0xC6 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
 				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
-					const int from_top = (diff_address + get_register_bp(regs) - get_register_sp(regs)) >> 1;
-					DEBUG_PRINT1("  From top resolved to: %d\n", from_top);
-					set_in_stack_from_top(stack, from_top, immediate_value);
+					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
+					set_byte_in_stack_from_top(stack, offset, immediate_value);
 				}
 				else if (is_register_sp_relative_from_bp(regs)) {
-					set_in_stack_from_top(stack, (diff_address - get_register_sp(regs)) >> 1, immediate_value);
+					set_byte_in_stack_from_top(stack, diff_address - get_register_sp(regs), immediate_value);
+				}
+			}
+			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
+					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
+					set_word_in_stack_from_top(stack, offset, immediate_value);
+				}
+				else if (is_register_sp_relative_from_bp(regs)) {
+					set_word_in_stack_from_top(stack, diff_address - get_register_sp(regs), immediate_value);
 				}
 			}
 
@@ -1381,7 +1377,7 @@ static int read_block_instruction_internal(
 		checked_blocks.count = 0;
 		checked_blocks.allocated_pages = 0;
 
-		error_code = update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0);
+		error_code = update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 2);
 		if (checked_blocks.blocks != NULL) {
 			free(checked_blocks.blocks);
 		}

@@ -25,4 +25,8 @@ int copy_gvwvmap(struct GlobalVariableWordValueMap *target_map, const struct Glo
 int merge_gvwvmap(struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map);
 int changes_on_merging_gvwvmap(const struct GlobalVariableWordValueMap *map, const struct GlobalVariableWordValueMap *other_map);
 
+#ifdef DEBUG
+void print_gvwvmap(const struct GlobalVariableWordValueMap *map, const char *buffer);
+#endif /* DEBUG */
+
 #endif /* _GLOBAL_VARIABLE_WORD_VALUE_MAP_H_ */

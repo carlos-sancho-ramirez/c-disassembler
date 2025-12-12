@@ -182,4 +182,8 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
 void set_all_registers_undefined(struct Registers *regs);
 void set_all_registers_undefined_except_cs(struct Registers *regs);
 
+#ifdef DEBUG
+void print_regs(const struct Registers *regs);
+#endif /* DEBUG */
+
 #endif /* _REGISTER_H_ */

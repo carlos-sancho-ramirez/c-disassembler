@@ -1054,3 +1054,79 @@ void set_all_registers_undefined_except_cs(struct Registers *regs) {
 		}
 	}
 }
+
+#ifdef DEBUG
+
+#include <stdio.h>
+
+static void print_word_or_byte_register(const struct Registers *regs, unsigned int index, const char *word_reg, const char *high_byte_reg, const char *low_byte_reg) {
+	if (is_word_register_defined(regs, index)) {
+		if (is_word_register_defined_relative(regs, index)) {
+			fprintf(stderr, " %s=+%x;", word_reg, get_word_register(regs, index));
+		}
+		else {
+			fprintf(stderr, " %s=%x;", word_reg, get_word_register(regs, index));
+		}
+	}
+	else if (is_byte_register_defined(regs, index + 4)) {
+		fprintf(stderr, " %s=%x;", high_byte_reg, get_byte_register(regs, index + 4));
+
+		if (is_byte_register_defined(regs, index)) {
+			fprintf(stderr, " %s=%x;", low_byte_reg, get_byte_register(regs, index));
+		}
+	}
+	else if (is_byte_register_defined(regs, index)) {
+		fprintf(stderr, " %s=%x;", low_byte_reg, get_byte_register(regs, index));
+	}
+	else {
+		fprintf(stderr, " %s=?;", word_reg);
+	}
+}
+
+static void print_word_register(const struct Registers *regs, unsigned int index, const char *word_reg) {
+	fprintf(stderr, " %s=", word_reg);
+
+	if (is_word_register_defined_relative(regs, index)) {
+		fprintf(stderr, "+%x;", get_word_register(regs, index));
+	}
+	else if (is_word_register_defined(regs, index)) {
+		fprintf(stderr, "%x;", get_word_register(regs, index));
+	}
+	else if (index == 4 && is_register_sp_relative_from_bp(regs)) {
+		fprintf(stderr, "BP+%x;", get_word_register(regs, 4));
+	}
+	else {
+		fprintf(stderr, "?;");
+	}
+}
+
+static void print_segment_register(const struct Registers *regs, unsigned int index, const char *word_reg) {
+	fprintf(stderr, " %s=", word_reg);
+
+	if (is_segment_register_defined_relative(regs, index)) {
+		fprintf(stderr, "+%x;", get_segment_register(regs, index));
+	}
+	else if (is_segment_register_defined(regs, index)) {
+		fprintf(stderr, "%x;", get_segment_register(regs, index));
+	}
+	else {
+		fprintf(stderr, "?;");
+	}
+}
+
+void print_regs(const struct Registers *regs) {
+	print_word_or_byte_register(regs, 0, "AX", "AH", "AL");
+	print_word_or_byte_register(regs, 1, "CX", "CH", "CL");
+	print_word_or_byte_register(regs, 2, "DX", "DH", "DL");
+	print_word_or_byte_register(regs, 3, "BX", "BH", "BL");
+	print_word_register(regs, 4, "SP");
+	print_word_register(regs, 5, "BP");
+	print_word_register(regs, 6, "SI");
+	print_word_register(regs, 7, "DI");
+	print_segment_register(regs, 0, "ES");
+	print_segment_register(regs, 1, "CS");
+	print_segment_register(regs, 2, "SS");
+	print_segment_register(regs, 3, "DS");
+}
+
+#endif /* DEBUG */

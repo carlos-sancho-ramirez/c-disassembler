@@ -345,3 +345,33 @@ int changes_on_merging_gvwvmap(const struct GlobalVariableWordValueMap *map, con
 
 	return 0;
 }
+
+#ifdef DEBUG
+
+#include <stdio.h>
+
+void print_gvwvmap(const struct GlobalVariableWordValueMap *map, const char *buffer) {
+	int i;
+	fprintf(stderr, "Vars(");
+	for (i = 0; i < map->entry_count; i++) {
+		if (i > 0) {
+			fprintf(stderr, ", ");
+		}
+
+		fprintf(stderr, "%lx->", map->keys[i] - buffer);
+		if (is_gvwvalue_defined_at_index(map, i)) {
+			if (is_gvwvalue_defined_relative_at_index(map, i)) {
+				fprintf(stderr, "+");
+			}
+
+			fprintf(stderr, "%x", map->values[i]);
+		}
+		else {
+			fprintf(stderr, "?");
+		}
+	}
+
+	fprintf(stderr, ")");
+}
+
+#endif /* DEBUG */
