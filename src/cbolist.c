@@ -144,7 +144,9 @@ int accumulate_stack_from_cbolist(struct Stack *stack, const struct CodeBlockOri
 		}
 
 		for (i = 1; i < list->origin_count; i++) {
-			merge_stacks(stack, &list->sorted_origins[i]->stack);
+			if ((error_code = merge_stacks(stack, &list->sorted_origins[i]->stack))) {
+				return error_code;
+			}
 		}
 	}
 

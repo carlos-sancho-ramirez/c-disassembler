@@ -5,6 +5,10 @@
 #define CODE_BLOCK_FLAG_VALID_EVALUATION 2
 #define CODE_BLOCK_FLAG_UNDER_EVALUATION 4
 
+int cblock_evaluated_at_least_once(const struct CodeBlock *block) {
+	return block->flags & CODE_BLOCK_FLAG_EVALUATED_AT_LEAST_ONCE;
+}
+
 int cblock_requires_evaluation(struct CodeBlock *block) {
 	return !(block->flags & CODE_BLOCK_FLAG_VALID_EVALUATION);
 }

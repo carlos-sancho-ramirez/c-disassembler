@@ -50,3 +50,39 @@ void set_all_interruption_table_undefined(struct InterruptionTable *table) {
 		table->segment_defined[i] = 0;
 	}
 }
+
+#ifdef DEBUG
+
+#include <stdio.h>
+
+void print_itable(const struct InterruptionTable *table) {
+	int i;
+	fprintf(stderr, "IntTable(");
+	for (i = 0; i < 256; i++) {
+		int offset_defined = table->offset_defined[i >> 4] & 1 << (i & 15);
+		int segment_defined = table->segment_defined[i >> 4] & 1 << (i & 15);
+		if (offset_defined && segment_defined) {
+			if (table->relative[i >> 4] & 1 << (i & 15)) {
+				fprintf(stderr, "%x->+%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
+			}
+			else {
+				fprintf(stderr, "%x->%x:%x", i, table->pointers[i].segment, table->pointers[i].offset);
+			}
+		}
+		else if (offset_defined) {
+			fprintf(stderr, "%x->?:%x", i, table->pointers[i].offset);
+		}
+		else if (segment_defined) {
+			if (table->relative[i >> 4] & 1 << (i & 15)) {
+				fprintf(stderr, "%x->+%x:?", i, table->pointers[i].segment);
+			}
+			else {
+				fprintf(stderr, "%x->%x:?", i, table->pointers[i].segment);
+			}
+		}
+	}
+
+	fprintf(stderr, ")");
+}
+
+#endif /* DEBUG */

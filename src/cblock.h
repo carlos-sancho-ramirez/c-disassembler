@@ -25,8 +25,14 @@ struct CodeBlock {
 	 * List of origins found for this code block.
 	 */
 	struct CodeBlockOriginList origin_list;
+
+	/**
+	 * This is to avoid infinite loops, and should be removed as soon we can guarantee that no infinite evaluation loops are present.
+	 */
+	unsigned int evaluation_times;
 };
 
+int cblock_evaluated_at_least_once(const struct CodeBlock *block);
 int cblock_requires_evaluation(struct CodeBlock *block);
 
 /**

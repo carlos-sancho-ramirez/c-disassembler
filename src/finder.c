@@ -8,6 +8,8 @@
 #include "relocu.h"
 #include "printd.h"
 
+#include <assert.h>
+
 static void read_block_instruction_address(
 		struct Reader *reader,
 		int value1) {
@@ -25,15 +27,17 @@ static int ensure_call_return_origin(
 		const struct Registers *regs,
 		const struct Stack *stack,
 		const struct GlobalVariableWordValueMap *var_values,
+		unsigned int return_bytes,
 		int is_returning_far,
 		unsigned int instruction_length) {
 	int jmp_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
 	struct CodeBlock *jmp_block = cblock_list->sorted_blocks[jmp_block_index];
 	uint16_t expected_ip = jmp_block->ip + (origin->instruction + instruction_length - jmp_block->start);
-	const int stack_top_matches_expected_ip = top_is_defined_in_stack(stack) && !top_is_defined_relative_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
-	const int origin_stack_top_matches_expected_ip = top_is_defined_in_stack(&origin->stack) && !top_is_defined_relative_in_stack(&origin->stack) && get_from_top(&origin->stack, 0) == expected_ip;
+	const int stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
+	const int origin_stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(&origin->stack) && get_from_top(&origin->stack, 0) == expected_ip;
 	const int stack_matches_expected_cs = is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == jmp_block->relative_cs;
 	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(&origin->stack, 1) && get_from_top(&origin->stack, 1) == jmp_block->relative_cs;
+	assert((return_bytes & 1) == 0);
 
 	if ((stack_top_matches_expected_ip || !top_is_defined_in_stack(stack) && origin_stack_top_matches_expected_ip) &&
 			(!is_returning_far || stack_matches_expected_cs || !is_defined_in_stack_from_top(stack, 1) && origin_stack_matches_expected_cs)) {
@@ -63,8 +67,8 @@ static int ensure_call_return_origin(
 				return error_code;
 			}
 
-			if (is_register_sp_defined_absolute(&return_origin->regs)) {
-				set_register_sp(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+			if (is_register_sp_defined_absolute(&return_origin->regs) || is_register_sp_relative_from_bp(regs)) {
+				set_register_sp(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2) + return_bytes);
 			}
 
 			pop_from_stack(&return_origin->stack);
@@ -74,6 +78,11 @@ static int ensure_call_return_origin(
 				pop_from_stack(&return_origin->stack);
 			}
 			return_block->relative_cs = jmp_block->relative_cs;
+
+			while (return_bytes > 0) {
+				pop_from_stack(&return_origin->stack);
+				return_bytes -= 2;
+			}
 
 			set_cborigin_ready_to_be_evaluated(return_origin);
 			if ((error_code = insert_cborigin(&return_block->origin_list, return_origin))) {
@@ -181,6 +190,7 @@ static int update_call_origins(
 		const struct Registers *regs,
 		const struct Stack *stack,
 		const struct GlobalVariableWordValueMap *var_values,
+		uint16_t return_bytes,
 		int is_returning_far,
 		unsigned int depth) {
 	struct CodeBlockOriginList *origin_list = &block->origin_list;
@@ -214,7 +224,7 @@ static int update_call_origins(
 
 			if (cblock_index > 0 && (previous_block = cblock_list->sorted_blocks[cblock_index - 1])->end == block->start) {
 				unsigned int current_count = checked_blocks->count;
-				if ((error_code = update_call_origins(previous_block, cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
+				if ((error_code = update_call_origins(previous_block, cblock_list, checked_blocks, regs, stack, var_values, return_bytes, is_returning_far, depth + 1))) {
 					return error_code;
 				}
 				checked_blocks->count = current_count;
@@ -234,14 +244,14 @@ static int update_call_origins(
 #endif /* DEBUG */
 
 			if (jmp_opcode0 == 0xE8) { /* CALL */
-				if ((error_code = ensure_call_return_origin(cblock_list, origin, regs, stack, var_values, is_returning_far, 3))) {
+				if ((error_code = ensure_call_return_origin(cblock_list, origin, regs, stack, var_values, return_bytes, is_returning_far, 3))) {
 					return error_code;
 				}
 			}
 			else if (jmp_opcode0 == 0xE9 || (jmp_opcode0 & 0xF0) == 0x70 || (jmp_opcode0 & 0xFC) == 0xE0 || jmp_opcode0 == 0xEB) { /* JMP and its conditionals */
 				if (jumping_block_index >= 0) {
 					unsigned int current_count = checked_blocks->count;
-					if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
+					if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, 0, is_returning_far, depth + 1))) {
 						return error_code;
 					}
 
@@ -262,8 +272,7 @@ static int update_call_origins(
 						}
 					}
 
-					DEBUG_INDENTED_PRINT1(depth + 2, "Jump from opcode 0xFF 0x%x.\n", jmp_opcode1);
-					if ((error_code = ensure_call_return_origin(cblock_list, origin, regs, stack, var_values, is_returning_far, jmp_instruction_length))) {
+					if ((error_code = ensure_call_return_origin(cblock_list, origin, regs, stack, var_values, return_bytes, is_returning_far, jmp_instruction_length))) {
 						return error_code;
 					}
 				}
@@ -271,7 +280,7 @@ static int update_call_origins(
 					int jumping_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
 					if (jumping_block_index >= 0) {
 						unsigned int current_count = checked_blocks->count;
-						if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
+						if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, 0, is_returning_far, depth + 1))) {
 							return error_code;
 						}
 
@@ -630,10 +639,7 @@ static int read_block_instruction_internal(
 		DEBUG_PRINT0("\n");
 
 		if (value0 & 1) {
-			if (stack_is_empty(stack)) {
-				set_segment_register_undefined(regs, sindex, opcode_reference);
-			}
-			else if (top_is_defined_relative_in_stack(stack)) {
+			if (top_is_defined_relative_in_stack(stack)) {
 				uint16_t stack_value = pop_from_stack(stack);
 				set_segment_register_relative(regs, sindex, opcode_reference, opcode_reference, stack_value);
 			}
@@ -691,10 +697,7 @@ static int read_block_instruction_internal(
 		const unsigned int rindex = value0 & 7;
 		DEBUG_PRINT0("\n");
 		if (value0 & 0x08) {
-			if (stack_is_empty(stack)) {
-				set_word_register_undefined(regs, rindex, opcode_reference);
-			}
-			else if (top_is_defined_relative_in_stack(stack)) {
+			if (top_is_defined_relative_in_stack(stack)) {
 				uint16_t stack_value = pop_from_stack(stack);
 				set_word_register_relative(regs, rindex, opcode_reference, opcode_reference, stack_value);
 			}
@@ -1225,9 +1228,10 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0xC2) {
 		struct CheckedBlocks checked_blocks;
+		uint16_t return_bytes = 0;
 
 		if (value0 == 0xC2) {
-			read_next_word(reader);
+			return_bytes = read_next_word(reader);
 		}
 		DEBUG_PRINT0("\n  Finding origins of this function.\n");
 		block->end = block->start + reader->buffer_index;
@@ -1236,7 +1240,7 @@ static int read_block_instruction_internal(
 		checked_blocks.count = 0;
 		checked_blocks.allocated_pages = 0;
 
-		update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 3);
+		update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, return_bytes, 0, 3);
 		if (checked_blocks.blocks != NULL) {
 			free(checked_blocks.blocks);
 		}
@@ -1344,12 +1348,7 @@ static int read_block_instruction_internal(
 				diff_address = read_next_word(reader);
 			}
 
-			if (value0 & 1) {
-				immediate_value = read_next_word(reader);
-			}
-			else {
-				read_next_byte(reader);
-			}
+			immediate_value = (value0 & 1)? read_next_word(reader) : read_next_byte(reader);
 			DEBUG_PRINT0("\n");
 
 			if (value1 == 0x06) {
@@ -1379,14 +1378,22 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
-			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+			else if (value0 == 0xC6 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
 				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
-					const int from_top = (diff_address + get_register_bp(regs) - get_register_sp(regs)) >> 1;
-					DEBUG_PRINT1("  From top resolved to: %d\n", from_top);
-					set_in_stack_from_top(stack, from_top, immediate_value);
+					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
+					set_byte_in_stack_from_top(stack, offset, immediate_value);
 				}
 				else if (is_register_sp_relative_from_bp(regs)) {
-					set_in_stack_from_top(stack, (diff_address - get_register_sp(regs)) >> 1, immediate_value);
+					set_byte_in_stack_from_top(stack, diff_address - get_register_sp(regs), immediate_value);
+				}
+			}
+			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
+					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
+					set_word_in_stack_from_top(stack, offset, immediate_value);
+				}
+				else if (is_register_sp_relative_from_bp(regs)) {
+					set_word_in_stack_from_top(stack, diff_address - get_register_sp(regs), immediate_value);
 				}
 			}
 
@@ -1403,7 +1410,7 @@ static int read_block_instruction_internal(
 		checked_blocks.count = 0;
 		checked_blocks.allocated_pages = 0;
 
-		error_code = update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0);
+		error_code = update_call_origins(block, code_block_list, &checked_blocks, regs, stack, var_values, 0, 0, 2);
 		if (checked_blocks.blocks != NULL) {
 			free(checked_blocks.blocks);
 		}
@@ -1877,6 +1884,33 @@ static int read_block_instruction_internal(
 				DEBUG_PRINT0("\n");
 			}
 
+			if ((value1 & 0x38) == 0x10) {
+				push_in_stack(stack, block->ip + reader->buffer_index);
+
+				if (is_register_sp_defined_relative(regs)) {
+					set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+				}
+				else if (is_register_sp_defined(regs)) {
+					set_register_sp(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+				}
+				else if (is_register_sp_relative_from_bp(regs)) {
+					set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) - 2);
+				}
+			}
+			else if ((value1 & 0x38) == 0x30) {
+				push_undefined_in_stack(stack);
+
+				if (is_register_sp_defined_relative(regs)) {
+					set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+				}
+				else if (is_register_sp_defined(regs)) {
+					set_register_sp(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+				}
+				else if (is_register_sp_relative_from_bp(regs)) {
+					set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) - 2);
+				}
+			}
+
 			if ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20) {
 				block->end = block->start + reader->buffer_index;
 			}
@@ -2003,6 +2037,9 @@ static int read_block(
 	return 0;
 }
 
+#include <assert.h>
+#define CBLOCK_EVALUATION_LIMIT 5
+
 int find_cblocks_and_gvars(
 		struct SegmentReadResult *read_result,
 		void (*print_error)(const char *),
@@ -2082,6 +2119,16 @@ int find_cblocks_and_gvars(
 
 					clear_stack(&stack);
 					clear_gvwvmap(&var_values);
+					if (cblock_evaluated_at_least_once(block)) {
+						if (++block->evaluation_times >= CBLOCK_EVALUATION_LIMIT) {
+							DEBUG_PRINT1("This is intentionally stopping after evaluating this block %d times to avoid infinite loops. Please remove the assertion when it can be guaranteed that no infinite loops anymore.", CBLOCK_EVALUATION_LIMIT);
+							assert(0);
+						}
+					}
+					else {
+						block->evaluation_times = 1;
+					}
+
 					mark_cblock_as_evaluated(block);
 					DEBUG_CBLIST(cblock_list);
 				}
