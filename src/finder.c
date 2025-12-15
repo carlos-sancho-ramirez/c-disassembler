@@ -1041,6 +1041,8 @@ static int read_block_instruction_internal(
 		else {
 			read_block_instruction_address(reader, value1);
 			DEBUG_PRINT0("\n");
+
+			set_word_register_undefined(regs, (value1 >> 3) & 7, opcode_reference);
 			return 0;
 		}
 	}
