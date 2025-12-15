@@ -645,6 +645,16 @@ static int read_block_instruction_internal(
 				pop_from_stack(stack);
 				set_segment_register_undefined(regs, sindex, opcode_reference);
 			}
+
+			if (is_register_sp_defined_relative(regs)) {
+				set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) + 2);
+			}
+			else if (is_register_sp_defined(regs)) {
+				set_register_sp(regs, opcode_reference, NULL, get_register_sp(regs) + 2);
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) + 2);
+			}
 		}
 		else {
 			if (is_segment_register_defined_relative(regs, sindex)) {
@@ -655,6 +665,16 @@ static int read_block_instruction_internal(
 			}
 			else {
 				push_undefined_in_stack(stack);
+			}
+
+			if (is_register_sp_defined_relative(regs)) {
+				set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+			}
+			else if (is_register_sp_defined(regs)) {
+				set_register_sp(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) - 2);
 			}
 		}
 
