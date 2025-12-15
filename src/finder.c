@@ -1769,12 +1769,10 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
-			int instruction_length;
 			if ((value1 & 0xC7) == 0x06) {
 				int result_address = read_next_word(reader);
 				DEBUG_PRINT0("\n");
 
-				instruction_length = 4;
 				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
 					segment_index = SEGMENT_INDEX_DS;
 				}
@@ -1848,16 +1846,13 @@ static int read_block_instruction_internal(
 			else if ((value1 & 0xC0) == 0x80) {
 				read_next_word(reader);
 				DEBUG_PRINT0("\n");
-				instruction_length = 4;
 			}
 			else if ((value1 & 0xC0) == 0x40) {
 				read_next_byte(reader);
 				DEBUG_PRINT0("\n");
-				instruction_length = 3;
 			}
 			else{
 				DEBUG_PRINT0("\n");
-				instruction_length = 2;
 			}
 
 			if ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20) {
