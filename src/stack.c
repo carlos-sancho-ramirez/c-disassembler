@@ -1,113 +1,59 @@
 #include "stack.h"
 #include <stdlib.h>
 
-#define STACK_DEFINED_ENTRIES_PER_WORD 8
-#define STACK_DEFINED_AND_RELATIVE_GRANULARITY 4
-#define STACK_VALUES_GRANULARITY (STACK_DEFINED_ENTRIES_PER_WORD * STACK_DEFINED_AND_RELATIVE_GRANULARITY)
+#define STACK_BYTES_IN_REL_PER_PAGE 4
+#define STACK_BYTES_PER_PAGE (STACK_BYTES_IN_REL_PER_PAGE * 16)
+#define STACK_BYTES_IN_DNM_PER_PAGE (STACK_BYTES_IN_REL_PER_PAGE * 4)
+
+/* This must be at least STACK_BYTES_PER_PAGE / 2 */
+#define STACK_SHRINK_TOP_THRESHOLD STACK_BYTES_PER_PAGE
+
+#include <assert.h>
 
 void initialize_stack(struct Stack *stack) {
-	stack->allocated_word_count = 0;
-	stack->word_count = 0;
-	stack->values = NULL;
-	stack->defined_and_relative = NULL;
+	stack->allocated_pages = 0;
+	stack->top = 0;
+	stack->data = NULL;
+	stack->defined_and_merged = NULL;
+	stack->relative = NULL;
 }
 
 void clear_stack(struct Stack *stack) {
-	if (stack->allocated_word_count > 0) {
-		free(stack->values);
-		free(stack->defined_and_relative);
+	if (stack->allocated_pages > 0) {
+		free(stack->data);
+		free(stack->defined_and_merged);
+		free(stack->relative);
 	}
 
 	initialize_stack(stack);
 }
 
-int stack_is_empty(const struct Stack *stack) {
-	return stack->word_count == 0;
-}
-
-int push_undefined_in_stack(struct Stack *stack) {
-	const unsigned int index = stack->word_count >> 3;
-	if (stack->word_count == stack->allocated_word_count) {
-		stack->allocated_word_count += STACK_VALUES_GRANULARITY;
-		stack->values = realloc(stack->values, stack->allocated_word_count * 2);
-		stack->defined_and_relative = realloc(stack->defined_and_relative, stack->allocated_word_count >> 2);
-		if (!stack->values || !stack->defined_and_relative) {
-			return 1;
-		}
-	}
-
-	stack->defined_and_relative[index] &= ~(1 << ((stack->word_count & 0x07) * 2));
-	stack->word_count++;
-	return 0;
-}
-
-int push_in_stack(struct Stack *stack, uint16_t value) {
-	const unsigned int index = stack->word_count >> 3;
-	if (stack->word_count == stack->allocated_word_count) {
-		stack->allocated_word_count += STACK_VALUES_GRANULARITY;
-		stack->values = realloc(stack->values, stack->allocated_word_count * 2);
-		stack->defined_and_relative = realloc(stack->defined_and_relative, stack->allocated_word_count >> 2);
-		if (!stack->values || !stack->defined_and_relative) {
-			return 1;
-		}
-	}
-
-	stack->values[stack->word_count] = value;
-	stack->defined_and_relative[index] |= 1 << ((stack->word_count & 0x07) * 2);
-	stack->defined_and_relative[index] &= ~(1 << ((stack->word_count & 0x07) * 2 + 1));
-	stack->word_count++;
-	return 0;
-}
-
-int push_relative_in_stack(struct Stack *stack, uint16_t value) {
-	const unsigned int index = stack->word_count >> 3;
-	if (stack->word_count == stack->allocated_word_count) {
-		stack->allocated_word_count += STACK_VALUES_GRANULARITY;
-		stack->values = realloc(stack->values, stack->allocated_word_count * 2);
-		stack->defined_and_relative = realloc(stack->defined_and_relative, stack->allocated_word_count >> 2);
-		if (!stack->values || !stack->defined_and_relative) {
-			return 1;
-		}
-	}
-
-	stack->values[stack->word_count] = value;
-	stack->defined_and_relative[index] |= 3 << ((stack->word_count & 0x07) * 2);
-	stack->word_count++;
-	return 0;
-}
-
-uint16_t pop_from_stack(struct Stack *stack) {
-	if (stack->word_count > 0) {
-		return stack->values[--stack->word_count];
-	}
-	else {
-		return 0;
-	}
-}
-
 int is_defined_in_stack_from_top(const struct Stack *stack, unsigned int count) {
-	if (stack->word_count > count) {
-		unsigned int index = stack->word_count - count - 1;
-		return stack->defined_and_relative[index >> 3] & (1 << ((index & 0x07) * 2));
-	}
-	else {
+	const unsigned int allocated_bytes = stack->allocated_pages * STACK_BYTES_PER_PAGE;
+	const unsigned int data_index = (stack->top + count) * 2;
+	if (data_index >= allocated_bytes) {
 		return 0;
 	}
+	else {
+		const unsigned int mask = 5 << (data_index % (4 * sizeof(packed_data_t)) * 2);
+		return (stack->defined_and_merged[data_index / (4 * sizeof(packed_data_t))] & mask) == mask;
+	}
+}
+
+int is_defined_absolute_in_stack_from_top(const struct Stack *stack, unsigned int count) {
+	return is_defined_in_stack_from_top(stack, count) && (stack->relative[(stack->top + count) / (8 * sizeof(packed_data_t))] & 1 << (stack->top + count) % (8 * sizeof(packed_data_t))) == 0;
 }
 
 int is_defined_relative_in_stack_from_top(const struct Stack *stack, unsigned int count) {
-	if (stack->word_count > count) {
-		unsigned int index = stack->word_count - count - 1;
-		uint16_t mask = 3 << ((index & 0x07) * 2);
-		return (stack->defined_and_relative[index >> 3] & mask) == mask;
-	}
-	else {
-		return 0;
-	}
+	return is_defined_in_stack_from_top(stack, count) && stack->relative[(stack->top + count) / (8 * sizeof(packed_data_t))] & 1 << (stack->top + count) % (8 * sizeof(packed_data_t));
 }
 
 int top_is_defined_in_stack(const struct Stack *stack) {
 	return is_defined_in_stack_from_top(stack, 0);
+}
+
+int top_is_defined_absolute_in_stack(const struct Stack *stack) {
+	return is_defined_absolute_in_stack_from_top(stack, 0);
 }
 
 int top_is_defined_relative_in_stack(const struct Stack *stack) {
@@ -115,148 +61,422 @@ int top_is_defined_relative_in_stack(const struct Stack *stack) {
 }
 
 uint16_t get_from_top(const struct Stack *stack, unsigned int count) {
-	return (stack->word_count > count)? stack->values[stack->word_count - count - 1] : 0;
+	const unsigned int allocated_bytes = stack->allocated_pages * STACK_BYTES_PER_PAGE;
+	const unsigned int data_index = (stack->top + count) * 2;
+	uint16_t result = stack->data[data_index + 1] & 0xFF;
+	result = (result << 8) + (stack->data[data_index] & 0xFF);
+	return result;
 }
 
-int set_in_stack_from_top(struct Stack *stack, unsigned int index, uint16_t value) {
-	int abs_index;
-	if (stack->word_count < index) {
-		const int required_pages = (index - stack->word_count + STACK_VALUES_GRANULARITY - 1) / STACK_VALUES_GRANULARITY;
-		const int previous_allocated_pages = stack->allocated_word_count / STACK_VALUES_GRANULARITY;
-		int index;
+static int add_new_pages_at_start(struct Stack *stack, unsigned int count) {
+	unsigned int offset;
+	int i;
 
-		stack->allocated_word_count += STACK_VALUES_GRANULARITY * required_pages;
-		stack->values = realloc(stack->values, stack->allocated_word_count * 2);
-		stack->defined_and_relative = realloc(stack->defined_and_relative, stack->allocated_word_count >> 2);
-		if (!stack->values || !stack->defined_and_relative) {
+	stack->allocated_pages += count;
+	stack->data = realloc(stack->data, stack->allocated_pages * STACK_BYTES_PER_PAGE);
+	stack->defined_and_merged = realloc(stack->defined_and_merged, stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
+	stack->relative = realloc(stack->relative, stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
+	if (!stack->data || !stack->defined_and_merged || !stack->relative) {
+		return 1;
+	}
+
+	offset = count * STACK_BYTES_PER_PAGE;
+	for (i = stack->allocated_pages * STACK_BYTES_PER_PAGE - 1; i >= offset; i--) {
+		stack->data[i] = stack->data[i - offset];
+	}
+
+	offset = count * STACK_BYTES_IN_DNM_PER_PAGE / sizeof(packed_data_t);
+	for (i = stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE / sizeof(packed_data_t) - 1; i >= offset; i--) {
+		stack->defined_and_merged[i] = stack->defined_and_merged[i - offset];
+	}
+
+	offset = count * STACK_BYTES_IN_REL_PER_PAGE / sizeof(packed_data_t);
+	for (i = stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE / sizeof(packed_data_t) - 1; i >= offset; i--) {
+		stack->relative[i] = stack->relative[i - offset];
+	}
+
+	stack->top += (count * STACK_BYTES_PER_PAGE) / 2;
+	return 0;
+}
+
+static int add_new_pages_at_end(struct Stack *stack, unsigned int count) {
+	unsigned int end;
+	int i;
+
+	stack->allocated_pages += count;
+	stack->data = realloc(stack->data, stack->allocated_pages * STACK_BYTES_PER_PAGE);
+	stack->defined_and_merged = realloc(stack->defined_and_merged, stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
+	stack->relative = realloc(stack->relative, stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
+	if (!stack->data || !stack->defined_and_merged || !stack->relative) {
+		return 1;
+	}
+
+	end = stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE / sizeof(packed_data_t);
+	for (i = (stack->allocated_pages - count) * STACK_BYTES_IN_DNM_PER_PAGE / sizeof(packed_data_t); i < end; i++) {
+		stack->defined_and_merged[i] = 0;
+	}
+
+	return 0;
+}
+
+static int remove_pages_at_start(struct Stack *stack, unsigned int count) {
+	if (count >= stack->allocated_pages) {
+		clear_stack(stack);
+	}
+	else {
+		unsigned int end;
+		unsigned int offset;
+		int i;
+
+		assert(stack->top >= (count * STACK_BYTES_PER_PAGE) / 2);
+
+		end = stack->allocated_pages * STACK_BYTES_PER_PAGE;
+		offset = count * STACK_BYTES_PER_PAGE;
+		for (i = offset; i < end; i++) {
+			stack->data[i - offset] = stack->data[i];
+		}
+
+		end = (stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE) / sizeof(packed_data_t);
+		offset = (count * STACK_BYTES_IN_DNM_PER_PAGE) / sizeof(packed_data_t);
+		for (i = offset; i < end; i++) {
+			stack->defined_and_merged[i - offset] = stack->defined_and_merged[i];
+		}
+
+		end = (stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE) / sizeof(packed_data_t);
+		offset = (count * STACK_BYTES_IN_REL_PER_PAGE) / sizeof(packed_data_t);
+		for (i = offset; i < end; i++) {
+			stack->relative[i - offset] = stack->relative[i];
+		}
+
+		stack->allocated_pages -= count;
+		stack->data = realloc(stack->data, stack->allocated_pages * STACK_BYTES_PER_PAGE);
+		stack->defined_and_merged = realloc(stack->defined_and_merged, stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
+		stack->relative = realloc(stack->relative, stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
+		if (!stack->data || !stack->defined_and_merged || !stack->relative) {
 			return 1;
 		}
 
-		for (index = stack->word_count; index >= 0; index--) {
-			stack->values[index + required_pages * STACK_VALUES_GRANULARITY] = stack->values[index];
-		}
-
-		for (index = previous_allocated_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY - 1; index >= 0; index--) {
-			stack->defined_and_relative[index + required_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY] = stack->defined_and_relative[index];
-		}
-
-		for (index = 0; index < required_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY; index++) {
-			stack->defined_and_relative[index] = 0;
-		}
-
-		stack->word_count += required_pages * STACK_VALUES_GRANULARITY;
+		stack->top -= (count * STACK_BYTES_PER_PAGE) / 2;
 	}
 
-	abs_index = stack->word_count - index;
-	stack->values[abs_index] = value;
-	stack->defined_and_relative[abs_index / STACK_DEFINED_ENTRIES_PER_WORD] &= ~(3 << (abs_index % STACK_DEFINED_ENTRIES_PER_WORD) * 2);
-	stack->defined_and_relative[abs_index / STACK_DEFINED_ENTRIES_PER_WORD] |= 1 << (abs_index % STACK_DEFINED_ENTRIES_PER_WORD) * 2;
+	return 0;
+}
+
+int push_undefined_in_stack(struct Stack *stack) {
+	int error_code;
+	if (stack->top == 0 && (error_code = add_new_pages_at_start(stack, 1))) {
+		return error_code;
+	}
+
+	stack->top--;
+	stack->defined_and_merged[(stack->top >> 1) / sizeof(packed_data_t)] &= ~(15 << ((stack->top << 1) % (sizeof(packed_data_t) * 4)) * 2);
+	return 0;
+}
+
+int push_in_stack(struct Stack *stack, uint16_t value) {
+	int error_code;
+	if (stack->top == 0 && (error_code = add_new_pages_at_start(stack, 1))) {
+		return error_code;
+	}
+
+	stack->top--;
+	stack->defined_and_merged[(stack->top >> 1) / sizeof(packed_data_t)] &= ~(10 << ((stack->top << 1) % (sizeof(packed_data_t) * 4)) * 2);
+	stack->defined_and_merged[(stack->top >> 1) / sizeof(packed_data_t)] |= 5 << ((stack->top << 1) % (sizeof(packed_data_t) * 4) * 2);
+	stack->relative[(stack->top >> 3) / sizeof(packed_data_t)] &= ~(1 << (stack->top % (sizeof(packed_data_t) * 8)));
+	stack->data[stack->top * 2] = value & 0xFF;
+	stack->data[stack->top * 2 + 1] = (value >> 8) & 0xFF;
+	return 0;
+}
+
+int push_relative_in_stack(struct Stack *stack, uint16_t value) {
+	int error_code;
+	if (stack->top == 0 && (error_code = add_new_pages_at_start(stack, 1))) {
+		return error_code;
+	}
+
+	stack->top--;
+	stack->defined_and_merged[(stack->top >> 1) / sizeof(packed_data_t)] &= ~(10 << ((stack->top << 1) % (sizeof(packed_data_t) * 4)) * 2);
+	stack->defined_and_merged[(stack->top >> 1) / sizeof(packed_data_t)] |= 5 << ((stack->top << 1) % (sizeof(packed_data_t) * 4) * 2);
+	stack->relative[(stack->top >> 3) / sizeof(packed_data_t)] |= 1 << (stack->top % (sizeof(packed_data_t) * 8));
+	stack->data[stack->top * 2] = value & 0xFF;
+	stack->data[stack->top * 2 + 1] = (value >> 8) & 0xFF;
+	return 0;
+}
+
+uint16_t pop_from_stack(struct Stack *stack) {
+	const int allocated_bytes = stack->allocated_pages * STACK_BYTES_PER_PAGE;
+	uint16_t result;
+
+	if (stack->top * 2 == allocated_bytes) {
+		return 0;
+	}
+
+	result = stack->data[stack->top * 2 + 1];
+	result <<= 8;
+	result += stack->data[stack->top * 2];
+	stack->top++;
+
+	if (stack->top >= STACK_SHRINK_TOP_THRESHOLD) {
+		remove_pages_at_start(stack, 1); /* We cannot report any error here, as the return type is in use... */
+	}
+
+	return result;
+}
+
+int set_byte_in_stack_from_top(struct Stack *stack, unsigned int offset, unsigned char value) {
+	const int byte_index = stack->top * 2 + offset;
+	if (byte_index > stack->allocated_pages * STACK_BYTES_PER_PAGE) {
+		const int required_extra_pages = (byte_index - stack->allocated_pages * STACK_BYTES_PER_PAGE + STACK_BYTES_PER_PAGE - 1) / STACK_BYTES_PER_PAGE;
+		int error_code;
+
+		if (required_extra_pages > 0 && (error_code = add_new_pages_at_end(stack, required_extra_pages))) {
+			return error_code;
+		}
+	}
+
+	stack->data[byte_index] = value;
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(2 << byte_index % (4 * sizeof(packed_data_t)) * 2);
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] |= 1 << byte_index % (4 * sizeof(packed_data_t)) * 2;
+
+	return 0;
+}
+
+int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value) {
+	const int byte_index = stack->top * 2 + offset;
+	if (byte_index > stack->allocated_pages * STACK_BYTES_PER_PAGE) {
+		const int required_extra_pages = (byte_index - stack->allocated_pages * STACK_BYTES_PER_PAGE + STACK_BYTES_PER_PAGE - 1) / STACK_BYTES_PER_PAGE;
+		int error_code;
+
+		if (required_extra_pages > 0 && (error_code = add_new_pages_at_end(stack, required_extra_pages))) {
+			return error_code;
+		}
+	}
+
+	stack->data[byte_index] = value & 0xFF;
+	stack->data[byte_index + 1] = (value >> 8) & 0xFF;
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(2 << byte_index % (4 * sizeof(packed_data_t)) * 2);
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] |= 1 << byte_index % (4 * sizeof(packed_data_t) * 2);
+	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] &= ~(2 << (byte_index + 1) % (4 * sizeof(packed_data_t)) * 2);
+	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] |= 1 << (byte_index + 1) % (4 * sizeof(packed_data_t) * 2);
+	if ((offset & 1) == 0) {
+		stack->relative[byte_index / 16 / sizeof(packed_data_t)] &= ~(1 << byte_index % (16 * sizeof(packed_data_t)));
+	}
+
+	return 0;
+}
+
+int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value) {
+	const int byte_index = stack->top * 2 + offset;
+	assert((offset & 1) == 0);
+
+	if (byte_index > stack->allocated_pages * STACK_BYTES_PER_PAGE) {
+		const int required_extra_pages = (byte_index - stack->allocated_pages * STACK_BYTES_PER_PAGE + STACK_BYTES_PER_PAGE - 1) / STACK_BYTES_PER_PAGE;
+		int error_code;
+
+		if (required_extra_pages > 0 && (error_code = add_new_pages_at_end(stack, required_extra_pages))) {
+			return error_code;
+		}
+	}
+
+	stack->data[byte_index] = value & 0xFF;
+	stack->data[byte_index + 1] = (value >> 8) & 0xFF;
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(2 << byte_index % (4 * sizeof(packed_data_t)) * 2);
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] |= 1 << byte_index % (4 * sizeof(packed_data_t) * 2);
+	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] &= ~(2 << (byte_index + 1) % (4 * sizeof(packed_data_t)) * 2);
+	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] |= 1 << (byte_index + 1) % (4 * sizeof(packed_data_t) * 2);
+	stack->relative[byte_index / 16 / sizeof(packed_data_t)] |= 1 << byte_index % (16 * sizeof(packed_data_t));
+
 	return 0;
 }
 
 int copy_stack(struct Stack *target_stack, const struct Stack *source_stack) {
-	const int word_count = source_stack->word_count;
-	int index;
-
-	if (target_stack->allocated_word_count > 0) {
-		free(target_stack->values);
-		free(target_stack->defined_and_relative);
+	if (source_stack->allocated_pages == 0) {
+		clear_stack(target_stack);
 	}
+	else {
+		int index;
 
-	target_stack->word_count = word_count;
-	target_stack->allocated_word_count = ((source_stack->word_count + (STACK_VALUES_GRANULARITY - 1)) / STACK_VALUES_GRANULARITY) * STACK_VALUES_GRANULARITY;
-	target_stack->values = malloc(target_stack->allocated_word_count * 2);
-	target_stack->defined_and_relative = malloc(target_stack->allocated_word_count >> 2);
-	if (!target_stack->values || !target_stack->defined_and_relative) {
-		return 1;
-	}
+		if (target_stack->allocated_pages != source_stack->allocated_pages) {
+			if (target_stack->allocated_pages > 0) {
+				free(target_stack->data);
+				free(target_stack->defined_and_merged);
+				free(target_stack->relative);
+			}
 
-	for (index = 0; index < word_count; index++) {
-		target_stack->values[index] = source_stack->values[index];
-	}
+			target_stack->allocated_pages = source_stack->allocated_pages;
+			target_stack->data = malloc(target_stack->allocated_pages * STACK_BYTES_PER_PAGE);
+			target_stack->defined_and_merged = malloc(target_stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
+			target_stack->relative = malloc(target_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
+			if (!target_stack->data || !target_stack->defined_and_merged || !target_stack->relative) {
+				return 1;
+			}
+		}
 
-	for (index = 0; index < ((word_count + 7) >> 3); index++) {
-		target_stack->defined_and_relative[index] = source_stack->defined_and_relative[index];
+		for (index = 0; index < source_stack->allocated_pages * STACK_BYTES_PER_PAGE; index++) {
+			target_stack->data[index] = source_stack->data[index];
+		}
+
+		for (index = 0; index < source_stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE / sizeof(packed_data_t); index++) {
+			target_stack->defined_and_merged[index] = source_stack->defined_and_merged[index];
+		}
+
+		for (index = 0; index < source_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE / sizeof(packed_data_t); index++) {
+			target_stack->relative[index] = source_stack->relative[index];
+		}
+
+		target_stack->top = source_stack->top;
 	}
 
 	return 0;
 }
 
-void merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
-	const int this_count = stack->word_count;
-	const int other_count = other_stack->word_count;
-	int this_index;
-	if (this_count <= other_count) {
-		for (this_index = 0; this_index < this_count; this_index++) {
-			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
-			if (this_defined_and_relative & 1) {
-				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
-				if (this_defined_and_relative == other_defined_and_relative) {
-					const uint16_t this_value = stack->values[this_index];
-					const uint16_t other_value = other_stack->values[other_index];
-					if (this_value != other_value) {
-						stack->defined_and_relative[this_index >> 3] &= ~(3 << ((other_index & 7) * 2));
-					}
-				}
-				else {
-					stack->defined_and_relative[this_index >> 3] &= ~(3 << ((other_index & 7) * 2));
-				}
+int merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
+	int this_bytes = stack->allocated_pages * STACK_BYTES_PER_PAGE - stack->top * 2;
+	int other_bytes = other_stack->allocated_pages * STACK_BYTES_PER_PAGE - other_stack->top * 2;
+	int required_bytes = (this_bytes < other_bytes)? other_bytes : this_bytes;
+
+	unsigned int new_allocated_pages;
+	unsigned int new_top;
+	unsigned char *new_data;
+	packed_data_t *new_dnm;
+	packed_data_t *new_rel;
+	int this_relative;
+	int other_relative;
+	int i;
+
+	while (required_bytes > 0) {
+		const int this_defined_or_merged = required_bytes + stack->top * 2 - 1 < stack->allocated_pages * STACK_BYTES_PER_PAGE && stack->defined_and_merged[(required_bytes + stack->top * 2 - 1) / 4 / sizeof(packed_data_t)] & 3 << ((required_bytes + stack->top * 2 - 1) % (4 * sizeof(packed_data_t))) * 2;
+
+		if (this_defined_or_merged) {
+			break;
+		}
+		else {
+			const int other_defined_or_merged = required_bytes + other_stack->top * 2 - 1 < other_stack->allocated_pages * STACK_BYTES_PER_PAGE && other_stack->defined_and_merged[(required_bytes + other_stack->top * 2 - 1) / 4 / sizeof(packed_data_t)] & 3 << ((required_bytes + other_stack->top * 2 - 1) % (4 * sizeof(packed_data_t))) * 2;
+			if (other_defined_or_merged) {
+				break;
+			}
+			else {
+				required_bytes--;
 			}
 		}
 	}
-	else {
-		for (this_index = 0; this_index < this_count - other_count; this_index++) {
-			stack->defined_and_relative[this_index >> 3] &= ~(3 << ((this_index & 7) * 2));
+
+	if (required_bytes & 1) {
+		required_bytes++;
+	}
+
+	new_allocated_pages = (required_bytes + STACK_BYTES_PER_PAGE - 1) / STACK_BYTES_PER_PAGE;
+	new_top = (new_allocated_pages * STACK_BYTES_PER_PAGE - required_bytes) / 2;
+	new_data = malloc(new_allocated_pages * STACK_BYTES_PER_PAGE);
+	new_dnm = malloc(new_allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
+	new_rel = malloc(new_allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
+
+	if (!new_data || !new_dnm || !new_rel) {
+		return 1;
+	}
+
+	for (i = 0; i < required_bytes; i++) {
+		const int this_index = stack->top * 2 + i;
+		const int other_index = other_stack->top * 2 + i;
+		const int new_index = new_top * 2 + i;
+		const int this_defined = this_index < stack->allocated_pages * STACK_BYTES_PER_PAGE && stack->defined_and_merged[this_index / 4 / sizeof(packed_data_t)] & 1 << (this_index % (4 * sizeof(packed_data_t))) * 2;
+		const int other_defined = other_index < other_stack->allocated_pages * STACK_BYTES_PER_PAGE && other_stack->defined_and_merged[other_index / 4 / sizeof(packed_data_t)] & 1 << (other_index % (4 * sizeof(packed_data_t))) * 2;
+		const int this_merged = this_index < stack->allocated_pages * STACK_BYTES_PER_PAGE && stack->defined_and_merged[this_index / 4 / sizeof(packed_data_t)] & 2 << (this_index % (4 * sizeof(packed_data_t))) * 2;
+		const int other_merged = other_index < other_stack->allocated_pages * STACK_BYTES_PER_PAGE && other_stack->defined_and_merged[other_index / 4 / sizeof(packed_data_t)] & 2 << (other_index % (4 * sizeof(packed_data_t))) * 2;
+		int is_defined;
+
+		if ((i & 1) == 0) {
+			this_relative = (this_index / 16 / sizeof(packed_data_t)) < stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE && stack->relative[this_index / 16 / sizeof(packed_data_t)] & 1 << (this_index / 2) % (8 * sizeof(packed_data_t));
+			other_relative = (other_index / 16 / sizeof(packed_data_t)) < other_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE && other_stack->relative[other_index / 16 / sizeof(packed_data_t)] & 1 << (other_index / 2) % (8 * sizeof(packed_data_t));
 		}
 
-		for (this_index = this_count - other_count; this_index < this_count; this_index++) {
-			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
-			if (this_defined_and_relative & 1) {
-				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
-				if (this_defined_and_relative == other_defined_and_relative) {
-					const uint16_t this_value = stack->values[this_index];
-					const uint16_t other_value = other_stack->values[other_index];
-					if (this_value != other_value) {
-						stack->defined_and_relative[this_index >> 3] &= ~(3 << ((other_index & 7) * 2));
-					}
-				}
-				else {
-					stack->defined_and_relative[this_index >> 3] &= ~(3 << ((other_index & 7) * 2));
-				}
+		is_defined = this_defined && other_defined && stack->data[this_index] == other_stack->data[other_index] && this_relative == other_relative;
+
+		if (is_defined) {
+			new_data[new_index] = stack->data[this_index];
+			new_dnm[new_index / 4 / sizeof(packed_data_t)] |= 1 << (new_index % (4 * sizeof(packed_data_t))) * 2;
+		}
+		else if (this_defined || this_merged || other_defined || other_merged) {
+			new_dnm[new_index / 4 / sizeof(packed_data_t)] &= ~(1 << (new_index % (4 * sizeof(packed_data_t))) * 2);
+			new_dnm[new_index / 4 / sizeof(packed_data_t)] |= 2 << (new_index % (4 * sizeof(packed_data_t))) * 2;
+		}
+		else {
+			new_dnm[new_index / 4 / sizeof(packed_data_t)] &= ~(3 << (new_index % (4 * sizeof(packed_data_t))) * 2);
+		}
+
+		if (i & 1) {
+			if (this_relative && other_relative) {
+				new_rel[new_index / 16 / sizeof(packed_data_t)] |= 1 << (new_index / 2) % (8 * sizeof(packed_data_t));
+			}
+			else {
+				new_rel[new_index / 16 / sizeof(packed_data_t)] &= ~(1 << (new_index / 2) % (8 * sizeof(packed_data_t)));
 			}
 		}
 	}
+
+	clear_stack(stack);
+	stack->allocated_pages = new_allocated_pages;
+	stack->top = new_top;
+	stack->data = new_data;
+	stack->defined_and_merged = new_dnm;
+	stack->relative = new_rel;
+
+	return 0;
 }
 
 int changes_on_merging_stacks(const struct Stack *stack, const struct Stack *other_stack) {
-	const int this_count = stack->word_count;
-	const int other_count = other_stack->word_count;
-	int this_index;
+	int this_bytes = stack->allocated_pages * STACK_BYTES_PER_PAGE - stack->top * 2;
+	int other_bytes = other_stack->allocated_pages * STACK_BYTES_PER_PAGE - other_stack->top * 2;
+	int required_bytes = (this_bytes < other_bytes)? other_bytes : this_bytes;
 
-	if (this_count <= other_count) {
-		for (this_index = 0; this_index < this_count; this_index++) {
-			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
-			if (this_defined_and_relative & 1) {
-				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
-				if (this_defined_and_relative != other_defined_and_relative || stack->values[this_index] != other_stack->values[other_index]) {
-					return 1;
-				}
+	int new_allocated_pages;
+	int new_top;
+	int this_relative;
+	int other_relative;
+	int is_defined = 0;
+	int i;
+
+	while (required_bytes > 0) {
+		const int this_defined_or_merged = required_bytes + stack->top * 2 - 1 < stack->allocated_pages * STACK_BYTES_PER_PAGE && stack->defined_and_merged[(required_bytes + stack->top * 2 - 1) / 4 / sizeof(packed_data_t)] & 3 << ((required_bytes + stack->top * 2 - 1) % (4 * sizeof(packed_data_t))) * 2;
+
+		if (this_defined_or_merged) {
+			break;
+		}
+		else {
+			const int other_defined_or_merged = required_bytes + other_stack->top * 2 - 1 < other_stack->allocated_pages * STACK_BYTES_PER_PAGE && other_stack->defined_and_merged[(required_bytes + other_stack->top * 2 - 1) / 4 / sizeof(packed_data_t)] & 3 << ((required_bytes + other_stack->top * 2 - 1) % (4 * sizeof(packed_data_t))) * 2;
+			if (other_defined_or_merged) {
+				break;
+			}
+			else {
+				required_bytes--;
 			}
 		}
 	}
-	else {
-		for (this_index = this_count - other_count; this_index < this_count; this_index++) {
-			const int this_defined_and_relative = (stack->defined_and_relative[this_index >> 3] >> ((this_index & 7) * 2)) & 3;
-			if (this_defined_and_relative & 1) {
-				const int other_index = this_index + other_count - this_count;
-				const int other_defined_and_relative = (other_stack->defined_and_relative[other_index >> 3] >> ((other_index & 7) * 2)) & 3;
-				if (this_defined_and_relative != other_defined_and_relative || stack->values[this_index] != other_stack->values[other_index]) {
-					return 1;
-				}
-			}
+
+	if (required_bytes & 1) {
+		required_bytes++;
+	}
+
+	new_allocated_pages = (required_bytes + STACK_BYTES_PER_PAGE - 1) / STACK_BYTES_PER_PAGE;
+	new_top = (new_allocated_pages - required_bytes) / 2;
+
+	for (i = 0; i < required_bytes; i++) {
+		const int this_index = stack->top * 2 + i;
+		const int other_index = other_stack->top * 2 + i;
+		const int this_defined = this_index < stack->allocated_pages * STACK_BYTES_PER_PAGE && stack->defined_and_merged[this_index / 4 / sizeof(packed_data_t)] & 1 << (this_index % (4 * sizeof(packed_data_t))) * 2;
+		const int other_defined = other_index < other_stack->allocated_pages * STACK_BYTES_PER_PAGE && other_stack->defined_and_merged[other_index / 4 / sizeof(packed_data_t)] & 1 << (other_index % (4 * sizeof(packed_data_t))) * 2;
+		const int this_merged = this_index < stack->allocated_pages * STACK_BYTES_PER_PAGE && stack->defined_and_merged[this_index / 4 / sizeof(packed_data_t)] & 2 << (this_index % (4 * sizeof(packed_data_t))) * 2;
+		const int other_merged = other_index < other_stack->allocated_pages * STACK_BYTES_PER_PAGE && other_stack->defined_and_merged[other_index / 4 / sizeof(packed_data_t)] & 2 << (other_index % (4 * sizeof(packed_data_t))) * 2;
+
+		if ((i & 1) == 0) {
+			this_relative = (this_index / 16 / sizeof(packed_data_t)) < stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE && stack->relative[this_index / 16 / sizeof(packed_data_t)] & 1 << (this_index / 2) % (8 * sizeof(packed_data_t));
+			other_relative = (other_index / 16 / sizeof(packed_data_t)) < other_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE && other_stack->relative[other_index / 16 / sizeof(packed_data_t)] & 1 << (other_index / 2) % (8 * sizeof(packed_data_t));
+		}
+
+		is_defined = this_defined && other_defined && stack->data[this_index] == other_stack->data[other_index] && this_relative == other_relative;
+
+		if (this_defined && !is_defined) {
+			return 1;
 		}
 	}
 
@@ -266,60 +486,72 @@ int changes_on_merging_stacks(const struct Stack *stack, const struct Stack *oth
 #ifdef DEBUG
 
 #include <stdio.h>
+
 #define STACK_UNKNOWN_COUNT_LIMIT 3
 
 void print_stack(const struct Stack *stack) {
-	int defined_value_printed = 0;
+	const int end = stack->allocated_pages * STACK_BYTES_PER_PAGE / 2;
+	int comma_required = 0;
 	int unknown_count = 0;
 	int i;
+
 	fprintf(stderr, "Stack(");
-	for (i = 0; i < stack->word_count; i++) {
-		const unsigned int definition = stack->defined_and_relative[i >> 3] >> ((i & 7) * 2);
-		if ((definition & 1) == 0) {
-			if (defined_value_printed) {
-				unknown_count++;
-			}
+
+	for (i = stack->top; i < end; i++) {
+		const unsigned int definition = stack->defined_and_merged[(i * 2) / (4 * sizeof(packed_data_t))] >> ((i * 2) % (4 * sizeof(packed_data_t))) * 2;
+
+		if ((definition & 5) == 0) {
+			unknown_count++;
 		}
 		else {
+			const int relative = stack->relative[i / (8 * sizeof(packed_data_t))] & 1 << i % (8 * sizeof(packed_data_t));
+
+			if (comma_required) {
+				fprintf(stderr, ", ");
+			}
+			comma_required = 0;
+
 			if (unknown_count > STACK_UNKNOWN_COUNT_LIMIT) {
-				fprintf(stderr, ", ?x%d", unknown_count);
+				fprintf(stderr, "?x%d", unknown_count);
+				comma_required = 1;
 			}
 			else {
 				int j;
 				for (j = 0; j < unknown_count; j++) {
-					fprintf(stderr, ", ?");
+					if (comma_required) {
+						fprintf(stderr, ", ");
+					}
+
+					fprintf(stderr, "?");
+					comma_required = 1;
 				}
 			}
 			unknown_count = 0;
 
-			if (definition & 2) {
-				if (defined_value_printed) {
-					fprintf(stderr, ", +%x", stack->values[i]);
-				}
-				else {
-					fprintf(stderr, "+%x", stack->values[i]);
-					defined_value_printed = 1;
-				}
+			if (comma_required) {
+				fprintf(stderr, ", ");
+			}
+			comma_required = 0;
+
+			if (relative) {
+				fprintf(stderr, "+");
+			}
+
+			if (definition & 4) {
+				fprintf(stderr, "%02x", stack->data[i * 2 + 1]);
 			}
 			else {
-				if (defined_value_printed) {
-					fprintf(stderr, ", %x", stack->values[i]);
-				}
-				else {
-					fprintf(stderr, "%x", stack->values[i]);
-					defined_value_printed = 1;
-				}
+				fprintf(stderr, "??");
 			}
-		}
-	}
 
-	if (unknown_count > STACK_UNKNOWN_COUNT_LIMIT) {
-		fprintf(stderr, ", ?x%d", unknown_count);
-	}
-	else {
-		int j;
-		for (j = 0; j < unknown_count; j++) {
-			fprintf(stderr, ", ?");
+			if (definition & 1) {
+				fprintf(stderr, "%02x", stack->data[i * 2]);
+			}
+			else {
+				fprintf(stderr, "??");
+			}
+
+			comma_required = 1;
 		}
 	}
 

@@ -30,8 +30,8 @@ static int ensure_call_return_origin(
 	int jmp_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
 	struct CodeBlock *jmp_block = cblock_list->sorted_blocks[jmp_block_index];
 	uint16_t expected_ip = jmp_block->ip + (origin->instruction + instruction_length - jmp_block->start);
-	const int stack_top_matches_expected_ip = top_is_defined_in_stack(stack) && !top_is_defined_relative_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
-	const int origin_stack_top_matches_expected_ip = top_is_defined_in_stack(&origin->stack) && !top_is_defined_relative_in_stack(&origin->stack) && get_from_top(&origin->stack, 0) == expected_ip;
+	const int stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
+	const int origin_stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(&origin->stack) && get_from_top(&origin->stack, 0) == expected_ip;
 	const int stack_matches_expected_cs = is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == jmp_block->relative_cs;
 	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(&origin->stack, 1) && get_from_top(&origin->stack, 1) == jmp_block->relative_cs;
 
@@ -630,10 +630,7 @@ static int read_block_instruction_internal(
 		DEBUG_PRINT0("\n");
 
 		if (value0 & 1) {
-			if (stack_is_empty(stack)) {
-				set_segment_register_undefined(regs, sindex, opcode_reference);
-			}
-			else if (top_is_defined_relative_in_stack(stack)) {
+			if (top_is_defined_relative_in_stack(stack)) {
 				uint16_t stack_value = pop_from_stack(stack);
 				set_segment_register_relative(regs, sindex, opcode_reference, opcode_reference, stack_value);
 			}
@@ -691,10 +688,7 @@ static int read_block_instruction_internal(
 		const unsigned int rindex = value0 & 7;
 		DEBUG_PRINT0("\n");
 		if (value0 & 0x08) {
-			if (stack_is_empty(stack)) {
-				set_word_register_undefined(regs, rindex, opcode_reference);
-			}
-			else if (top_is_defined_relative_in_stack(stack)) {
+			if (top_is_defined_relative_in_stack(stack)) {
 				uint16_t stack_value = pop_from_stack(stack);
 				set_word_register_relative(regs, rindex, opcode_reference, opcode_reference, stack_value);
 			}
@@ -1381,12 +1375,11 @@ static int read_block_instruction_internal(
 			}
 			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
 				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
-					const int from_top = (diff_address + get_register_bp(regs) - get_register_sp(regs)) >> 1;
-					DEBUG_PRINT1("  From top resolved to: %d\n", from_top);
-					set_in_stack_from_top(stack, from_top, immediate_value);
+					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
+					set_word_in_stack_from_top(stack, offset, immediate_value);
 				}
 				else if (is_register_sp_relative_from_bp(regs)) {
-					set_in_stack_from_top(stack, (diff_address - get_register_sp(regs)) >> 1, immediate_value);
+					set_word_in_stack_from_top(stack, diff_address - get_register_sp(regs), immediate_value);
 				}
 			}
 
