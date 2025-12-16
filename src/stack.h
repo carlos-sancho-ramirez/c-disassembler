@@ -31,4 +31,8 @@ int copy_stack(struct Stack *target_stack, const struct Stack *source_stack);
 void merge_stacks(struct Stack *stack, const struct Stack *other_stack);
 int changes_on_merging_stacks(const struct Stack *stack, const struct Stack *other_stack);
 
+#ifdef DEBUG
+void print_stack(const struct Stack *stack);
+#endif /* DEBUG */
+
 #endif /* _STACK_H_ */

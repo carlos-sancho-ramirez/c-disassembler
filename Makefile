@@ -2,7 +2,7 @@
 
 headers = src/cblist.h src/cblock.h src/cbolist.h src/cborigin.h src/counter.h src/dumpers.h src/finder.h src/gvar.h src/gvlist.h src/gvwvmap.h src/itable.h src/printd.h src/printu.h src/reader.h src/ref.h src/reflist.h src/register.h src/relocu.h src/slmacros.h src/srresult.h src/sslist.h src/stack.h src/version.h
 sources = src/cblist.c src/cblock.c src/cbolist.c src/cborigin.c src/counter.c src/disasm.c src/dumpers.c src/finder.c src/gvlist.c src/gvwvmap.c src/itable.c src/printu.c src/reader.c src/ref.c src/reflist.c src/register.c src/relocu.c src/srresult.c src/sslist.c src/stack.c
-sourcesDebug = src/printd.c build/debug/src/version.c
+sourcesDebug = build/debug/src/version.c
 sourcesRelease = build/release/src/version.c
 
 build/release/bin/disasm: build/release/bin $(sources) $(sourcesRelease) $(headers) $(headersRelease)
