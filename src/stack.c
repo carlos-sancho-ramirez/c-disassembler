@@ -136,7 +136,6 @@ int set_in_stack_from_top(struct Stack *stack, unsigned int index, uint16_t valu
 			stack->values[index + required_pages * STACK_VALUES_GRANULARITY] = stack->values[index];
 		}
 
-		STACK_DEFINED_AND_RELATIVE_GRANULARITY * required_pages;
 		for (index = previous_allocated_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY - 1; index >= 0; index--) {
 			stack->defined_and_relative[index + required_pages * STACK_DEFINED_AND_RELATIVE_GRANULARITY] = stack->defined_and_relative[index];
 		}
