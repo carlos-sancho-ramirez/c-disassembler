@@ -255,9 +255,9 @@ int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_
 	stack->data[byte_index] = value & 0xFF;
 	stack->data[byte_index + 1] = (value >> 8) & 0xFF;
 	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(2 << byte_index % (4 * sizeof(packed_data_t)) * 2);
-	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] |= 1 << byte_index % (4 * sizeof(packed_data_t) * 2);
+	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] |= 1 << byte_index % (4 * sizeof(packed_data_t)) * 2;
 	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] &= ~(2 << (byte_index + 1) % (4 * sizeof(packed_data_t)) * 2);
-	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] |= 1 << (byte_index + 1) % (4 * sizeof(packed_data_t) * 2);
+	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] |= 1 << (byte_index + 1) % (4 * sizeof(packed_data_t)) * 2;
 	if ((offset & 1) == 0) {
 		stack->relative[byte_index / 16 / sizeof(packed_data_t)] &= ~(1 << byte_index % (16 * sizeof(packed_data_t)));
 	}

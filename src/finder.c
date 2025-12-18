@@ -1388,12 +1388,7 @@ static int read_block_instruction_internal(
 				diff_address = read_next_word(reader);
 			}
 
-			if (value0 & 1) {
-				immediate_value = read_next_word(reader);
-			}
-			else {
-				read_next_byte(reader);
-			}
+			immediate_value = (value0 & 1)? read_next_word(reader) : read_next_byte(reader);
 			DEBUG_PRINT0("\n");
 
 			if (value1 == 0x06) {
