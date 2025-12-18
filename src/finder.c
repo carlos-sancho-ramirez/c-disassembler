@@ -1418,13 +1418,24 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
-			else if (value0 == 0xC7 && (value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+			else if ((value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
 				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
 					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
-					set_word_in_stack_from_top(stack, offset, immediate_value);
+					if (value0 == 0xC6) {
+						set_byte_in_stack_from_top(stack, offset, immediate_value);
+					}
+					else {
+						set_word_in_stack_from_top(stack, offset, immediate_value);
+					}
 				}
 				else if (is_register_sp_relative_from_bp(regs)) {
-					set_word_in_stack_from_top(stack, diff_address - get_register_sp(regs), immediate_value);
+					const unsigned int offset = diff_address - get_register_sp(regs);
+					if (value0 == 0xC6) {
+						set_byte_in_stack_from_top(stack, offset, immediate_value);
+					}
+					else {
+						set_word_in_stack_from_top(stack, offset, immediate_value);
+					}
 				}
 			}
 
