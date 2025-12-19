@@ -2423,6 +2423,8 @@ static int read_block(
 	return 0;
 }
 
+#define CBLOCK_EVALUATION_LOOP_LIMIT 5
+
 int find_cblocks_and_gvars(
 		struct SegmentReadResult *read_result,
 		void (*print_error)(const char *),
@@ -2437,6 +2439,7 @@ int find_cblocks_and_gvars(
 	int any_not_ready;
 	int evaluate_all;
 	int variable_index;
+	int evaluation_loop = 1;
 
 	if (!first_block) {
 		return 1;
@@ -2515,7 +2518,11 @@ int find_cblocks_and_gvars(
 			evaluate_all = 1;
 		}
 	}
-	while (any_evaluated || any_not_ready);
+	while (++evaluation_loop <= CBLOCK_EVALUATION_LOOP_LIMIT && (any_evaluated || any_not_ready));
+
+	if (evaluation_loop > CBLOCK_EVALUATION_LOOP_LIMIT) {
+		DEBUG_PRINT0("Warning: Evalutation loop limit reached! Skipping to avoid infinite loops");
+	}
 
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
