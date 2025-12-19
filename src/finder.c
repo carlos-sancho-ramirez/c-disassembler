@@ -1071,10 +1071,131 @@ static int read_block_instruction_internal(
 			return 1;
 		}
 		else {
-			read_block_instruction_address(reader, value1);
-			DEBUG_PRINT0("\n");
+			const int target_reg_index = (value1 >> 3) & 7;
+			uint16_t addr;
 
-			set_word_register_undefined(regs, (value1 >> 3) & 7, opcode_reference);
+			if ((value1 & 0xC7) == 0x06 || (value1 & 0xC0) == 0x80) {
+				addr = read_next_word(reader);
+			}
+			else if ((value1 & 0xC0) == 0x40) {
+				addr = read_next_byte(reader);
+				if (addr >= 0x80) {
+					addr -= 0x100;
+				}
+			}
+			else {
+				addr = 0;
+			}
+
+			DEBUG_PRINT0("\n");
+			if ((value1 & 0x07) == 0) {
+				if (is_register_bx_defined_relative(regs) && is_register_si_defined_absolute(regs) || is_register_bx_defined_absolute(regs) && is_register_si_defined_relative(regs)) {
+					addr += get_register_bx(regs) + get_register_si(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_bx_defined_absolute(regs) && is_register_si_defined_absolute(regs)) {
+					addr += get_register_bx(regs) + get_register_si(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else if ((value1 & 0x07) == 1) {
+				if (is_register_bx_defined_relative(regs) && is_register_di_defined_absolute(regs) || is_register_bx_defined_absolute(regs) && is_register_di_defined_relative(regs)) {
+					addr += get_register_bx(regs) + get_register_di(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_bx_defined_absolute(regs) && is_register_di_defined_absolute(regs)) {
+					addr += get_register_bx(regs) + get_register_di(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else if ((value1 & 0x07) == 2) {
+				if (is_register_bp_defined_relative(regs) && is_register_si_defined_absolute(regs) || is_register_bp_defined_absolute(regs) && is_register_si_defined_relative(regs)) {
+					addr += get_register_bp(regs) + get_register_si(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_bp_defined_absolute(regs) && is_register_si_defined_absolute(regs)) {
+					addr += get_register_bp(regs) + get_register_si(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else if ((value1 & 0x07) == 3) {
+				if (is_register_bp_defined_relative(regs) && is_register_di_defined_absolute(regs) || is_register_bp_defined_absolute(regs) && is_register_di_defined_relative(regs)) {
+					addr += get_register_bp(regs) + get_register_di(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_bp_defined_absolute(regs) && is_register_di_defined_absolute(regs)) {
+					addr += get_register_bp(regs) + get_register_di(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else if ((value1 & 0x07) == 4) {
+				if (is_register_si_defined_relative(regs)) {
+					addr += get_register_si(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_si_defined_absolute(regs)) {
+					addr += get_register_si(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else if ((value1 & 0x07) == 5) {
+				if (is_register_di_defined_relative(regs)) {
+					addr += get_register_di(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_di_defined_absolute(regs)) {
+					addr += get_register_di(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else if ((value1 & 0xC7) == 6) {
+				set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+			}
+			else if ((value1 & 7) == 6) {
+				if (is_register_bp_defined_relative(regs)) {
+					addr += get_register_bp(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_bp_defined_absolute(regs)) {
+					addr += get_register_bp(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+			else {
+				if (is_register_bx_defined_relative(regs)) {
+					addr += get_register_bx(regs);
+					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else if (is_register_bx_defined_absolute(regs)) {
+					addr += get_register_bx(regs);
+					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
+				}
+				else {
+					set_word_register_undefined(regs, target_reg_index, opcode_reference);
+				}
+			}
+
 			*next_instruction_potentially_reached = 1;
 			return 0;
 		}
