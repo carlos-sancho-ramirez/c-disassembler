@@ -163,6 +163,11 @@ uint16_t pop_from_stack(struct Stack *stack);
 int set_byte_in_stack_from_top(struct Stack *stack, unsigned int offset, unsigned char value);
 
 /**
+ * Undefines the byte in the given offset.
+ */
+void set_undefined_byte_in_stack_from_top(struct Stack *stack, unsigned int offset);
+
+/**
  * Replace the word value located at byte position (top * 2 + offset) within the stack.
  * This method will no move the top of this stack.
  *
@@ -180,6 +185,11 @@ int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_
  * This is why top has to be multiplied by 2 before being used internally.
  */
 int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value);
+
+/**
+ * Undefines the bytes in the given offset and offset + 1
+ */
+void set_undefined_word_in_stack_from_top(struct Stack *stack, unsigned int offset);
 
 /**
  * Copy the contents in the source stack into the target stack.

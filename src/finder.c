@@ -565,6 +565,223 @@ int update_int2140_message_references(
 	return 0;
 }
 
+static uint16_t read_address_offset(struct Reader *reader, int value1) {
+	if ((value1 & 0xC7) == 0x06 || (value1 & 0xC0) == 0x80) {
+		return read_next_word(reader);
+	}
+	else if ((value1 & 0xC0) == 0x40) {
+		uint16_t addr = read_next_byte(reader);
+		if (addr >= 0x80) {
+			addr -= 0x100;
+		}
+
+		return addr;
+	}
+	else {
+		return 0;
+	}
+}
+
+static void resolve_address(int value1, const struct Registers *regs, uint16_t *addr, int *out_defined, int *out_relative, int *out_stack_related, int *out_stack_offset_defined, int *out_stack_offset) {
+	if ((value1 & 0x07) == 0) {
+		*out_stack_related = 0;
+
+		if (is_register_bx_defined_relative(regs) && is_register_si_defined_absolute(regs) || is_register_bx_defined_absolute(regs) && is_register_si_defined_relative(regs)) {
+			*addr += get_register_bx(regs) + get_register_si(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_bx_defined_absolute(regs) && is_register_si_defined_absolute(regs)) {
+			*addr += get_register_bx(regs) + get_register_si(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+	}
+	else if ((value1 & 0x07) == 1) {
+		*out_stack_related = 0;
+
+		if (is_register_bx_defined_relative(regs) && is_register_di_defined_absolute(regs) || is_register_bx_defined_absolute(regs) && is_register_di_defined_relative(regs)) {
+			*addr += get_register_bx(regs) + get_register_di(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_bx_defined_absolute(regs) && is_register_di_defined_absolute(regs)) {
+			*addr += get_register_bx(regs) + get_register_di(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+	}
+	else if ((value1 & 0x07) == 2) {
+		unsigned int stack_offset;
+		uint16_t stack_diff = *addr;
+		*out_stack_related = 1;
+
+		if (is_register_bp_defined_relative(regs) && is_register_si_defined_absolute(regs) || is_register_bp_defined_absolute(regs) && is_register_si_defined_relative(regs)) {
+			*addr += get_register_bp(regs) + get_register_si(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_bp_defined_absolute(regs) && is_register_si_defined_absolute(regs)) {
+			*addr += get_register_bp(regs) + get_register_si(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+
+		if (is_register_si_defined_absolute(regs)) {
+			stack_diff += get_register_si(regs);
+
+			if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs) || is_register_bp_defined_relative(regs) && is_register_sp_defined_relative(regs)) {
+				*out_stack_offset = get_register_bp(regs) - get_register_sp(regs) + stack_diff & 0xFFFF;
+				*out_stack_offset_defined = 1;
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				*out_stack_offset = stack_diff - get_register_sp(regs) & 0xFFFF;
+				*out_stack_offset_defined = 1;
+			}
+			else {
+				*out_stack_offset_defined = 0;
+			}
+		}
+		else {
+			*out_stack_offset_defined = 0;
+		}
+	}
+	else if ((value1 & 0x07) == 3) {
+		unsigned int stack_offset;
+		uint16_t stack_diff = *addr;
+		*out_stack_related = 1;
+
+		if (is_register_bp_defined_relative(regs) && is_register_di_defined_absolute(regs) || is_register_bp_defined_absolute(regs) && is_register_di_defined_relative(regs)) {
+			*addr += get_register_bp(regs) + get_register_di(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_bp_defined_absolute(regs) && is_register_di_defined_absolute(regs)) {
+			*addr += get_register_bp(regs) + get_register_di(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+
+		if (is_register_di_defined_absolute(regs)) {
+			stack_diff += get_register_di(regs);
+
+			if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs) || is_register_bp_defined_relative(regs) && is_register_sp_defined_relative(regs)) {
+				*out_stack_offset = get_register_bp(regs) - get_register_sp(regs) + stack_diff & 0xFFFF;
+				*out_stack_offset_defined = 1;
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				*out_stack_offset = stack_diff - get_register_sp(regs) & 0xFFFF;
+				*out_stack_offset_defined = 1;
+			}
+			else {
+				*out_stack_offset_defined = 0;
+			}
+		}
+		else {
+			*out_stack_offset_defined = 0;
+		}
+	}
+	else if ((value1 & 0x07) == 4) {
+		*out_stack_related = 0;
+
+		if (is_register_si_defined_relative(regs)) {
+			*addr += get_register_si(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_si_defined_absolute(regs)) {
+			*addr += get_register_si(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+	}
+	else if ((value1 & 0x07) == 5) {
+		*out_stack_related = 0;
+
+		if (is_register_di_defined_relative(regs)) {
+			*addr += get_register_di(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_di_defined_absolute(regs)) {
+			*addr += get_register_di(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+	}
+	else if ((value1 & 0xC7) == 6) {
+		*out_defined = 1;
+		*out_relative = 0;
+		*out_stack_related = 0;
+	}
+	else if ((value1 & 7) == 6) {
+		unsigned int stack_offset;
+		uint16_t stack_diff = *addr;
+		*out_stack_related = 1;
+
+		if (is_register_bp_defined_relative(regs)) {
+			*addr += get_register_bp(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_bp_defined_absolute(regs)) {
+			*addr += get_register_bp(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+
+		if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs) || is_register_bp_defined_relative(regs) && is_register_sp_defined_relative(regs)) {
+			*out_stack_offset = get_register_bp(regs) - get_register_sp(regs) + stack_diff & 0xFFFF;
+			*out_stack_offset_defined = 1;
+		}
+		else if (is_register_sp_relative_from_bp(regs)) {
+			*out_stack_offset = stack_diff - get_register_sp(regs) & 0xFFFF;
+			*out_stack_offset_defined = 1;
+		}
+		else {
+			*out_stack_offset_defined = 0;
+		}
+	}
+	else {
+		*out_stack_related = 0;
+
+		if (is_register_bx_defined_relative(regs)) {
+			*addr += get_register_bx(regs);
+			*out_defined = 1;
+			*out_relative = 1;
+		}
+		else if (is_register_bx_defined_absolute(regs)) {
+			*addr += get_register_bx(regs);
+			*out_defined = 1;
+			*out_relative = 0;
+		}
+		else {
+			*out_defined = 0;
+		}
+	}
+}
+
 #define SEGMENT_INDEX_UNDEFINED -1
 #define SEGMENT_INDEX_ES 0
 #define SEGMENT_INDEX_SS 2
@@ -877,43 +1094,55 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
 		const int value1 = read_next_byte(reader);
+		uint16_t addr = read_address_offset(reader, value1);
+		int addr_defined;
+		int addr_relative;
+		int addr_stack_related;
+		int addr_stack_offset_defined;
+		int addr_stack_offset;
+		DEBUG_PRINT0("\n");
 
-		if ((value1 & 0xC0) == 0) {
-			if ((value1 & 0xC7) == 6) {
-				int result_address = read_next_word(reader);
-				const int read_access = value0 == 0x8B;
-				const int write_access = value0 == 0x89;
-				const int write_value_defined = is_word_register_defined(regs, (value1 >> 3) & 7);
-				const int write_value_defined_relative = is_word_register_defined_relative(regs, (value1 >> 3) & 7);
-				const int write_value = get_word_register(regs, (value1 >> 3) & 7);
-				DEBUG_PRINT0("\n");
+		if (value1 < 0xC0) {
+			resolve_address(value1, regs, &addr, &addr_defined, &addr_relative, &addr_stack_related, &addr_stack_offset_defined, &addr_stack_offset);
+		}
 
-				if (segment_index == SEGMENT_INDEX_UNDEFINED) {
-					segment_index = SEGMENT_INDEX_DS;
-				}
+		if ((value1 & 0xC7) == 6) {
+			const int read_access = value0 == 0x8B;
+			const int write_access = value0 == 0x89;
+			const int write_value_defined = is_word_register_defined(regs, (value1 >> 3) & 7);
+			const int write_value_defined_relative = is_word_register_defined_relative(regs, (value1 >> 3) & 7);
+			const int write_value = get_word_register(regs, (value1 >> 3) & 7);
+			const int seg_index = (segment_index == SEGMENT_INDEX_UNDEFINED)? SEGMENT_INDEX_DS : segment_index;
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
-					return error_code;
-				}
+			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, seg_index, addr, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
+				return error_code;
+			}
+		}
 
-				if ((value0 & 0xFD) == 0x89 && is_segment_register_defined_relative(regs, segment_index)) {
-					/* All this logic comes from add_global_variable_reference method. We should find a way to centralise this */
-					unsigned int segment_value = get_segment_register(regs, segment_index);
-					unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
-					const char *target = segment_start + relative_address;
-					const int var_index = index_of_gvar_with_start(gvar_list, target);
-					if (var_index >= 0) {
-						const int reg_index = (value1 >> 3) & 7;
-						if (value0 == 0x8B) {
-							const int var_index_in_map = index_of_gvar_in_gvwvmap_with_start(var_values, target);
-							if (var_index_in_map >= 0) {
-								uint16_t var_value = get_gvwvalue_at_index(var_values, var_index_in_map);
-								if (is_gvwvalue_defined_relative_at_index(var_values, var_index_in_map)) {
-									set_word_register_relative(regs, reg_index, opcode_reference, opcode_reference, var_value);
-								}
-								else {
-									set_word_register(regs, reg_index, opcode_reference, opcode_reference, var_value);
-								}
+		if (value1 < 0xC0) {
+			const int reg_index = value1 >> 3 & 7;
+
+			if (addr_stack_related) {
+				if (addr_stack_offset_defined && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
+					if (value0 == 0x89) {
+						if (is_word_register_defined_relative(regs, reg_index)) {
+							set_relative_word_in_stack_from_top(stack, addr_stack_offset, get_word_register(regs, reg_index));
+						}
+						else if (is_word_register_defined(regs, reg_index)) {
+							set_word_in_stack_from_top(stack, addr_stack_offset, get_word_register(regs, reg_index));
+						}
+						else {
+							set_undefined_word_in_stack_from_top(stack, addr_stack_offset);
+						}
+					}
+					else if (value0 == 0x8B) {
+						if ((addr_stack_offset & 1) == 0) {
+							const int count = addr_stack_offset / 2;
+							if (is_defined_relative_in_stack_from_top(stack, count)) {
+								set_word_register_relative(regs, reg_index, opcode_reference, NULL, get_from_top(stack, count));
+							}
+							else if (is_defined_in_stack_from_top(stack, count)) {
+								set_word_register(regs, reg_index, opcode_reference, NULL, get_from_top(stack, count));
 							}
 							else {
 								set_word_register_undefined(regs, reg_index, opcode_reference);
@@ -922,18 +1151,52 @@ static int read_block_instruction_internal(
 					}
 				}
 			}
-		}
-		else if ((value1 & 0xC0) == 0x40) {
-			read_next_byte(reader);
-			DEBUG_PRINT0("\n");
-		}
-		else if ((value1 & 0xC0) == 0x80) {
-			read_next_word(reader);
-			DEBUG_PRINT0("\n");
+			else if (addr_defined && !addr_relative) {
+				const int seg_index = (segment_index == SEGMENT_INDEX_UNDEFINED)? SEGMENT_INDEX_DS : segment_index;
+				const int seg_defined_relative = is_segment_register_defined_relative(regs, seg_index);
+
+				if (seg_defined_relative) {
+					if (value0 == 0x89) {
+						unsigned int seg_value = get_segment_register(regs, seg_index);
+						unsigned int relative_address = (seg_value * 16 + addr) & 0xFFFFF;
+						const char *target = segment_start + relative_address;
+
+						if (is_word_register_defined_relative(regs, reg_index)) {
+							if ((error_code = put_gvar_in_gvwvmap_relative(var_values, target, get_word_register(regs, reg_index)))) {
+								return error_code;
+							}
+						}
+						else if (is_word_register_defined(regs, reg_index)) {
+							if ((error_code = put_gvar_in_gvwvmap(var_values, target, get_word_register(regs, reg_index)))) {
+								return error_code;
+							}
+						}
+						else if ((error_code = put_gvar_in_gvwvmap_undefined(var_values, target))) {
+							return error_code;
+						}
+					}
+					else if (value0 == 0x8B) {
+						unsigned int seg_value = get_segment_register(regs, seg_index);
+						unsigned int relative_address = (seg_value * 16 + addr) & 0xFFFFF;
+						const char *target = segment_start + relative_address;
+						const int var_index_in_map = index_of_gvar_in_gvwvmap_with_start(var_values, target);
+						if (var_index_in_map >= 0 && is_gvwvalue_defined_at_index(var_values, var_index_in_map)) {
+							uint16_t var_value = get_gvwvalue_at_index(var_values, var_index_in_map);
+							if (is_gvwvalue_defined_relative_at_index(var_values, var_index_in_map)) {
+								set_word_register_relative(regs, reg_index, opcode_reference, opcode_reference, var_value);
+							}
+							else {
+								set_word_register(regs, reg_index, opcode_reference, opcode_reference, var_value);
+							}
+						}
+						else {
+							set_word_register_undefined(regs, reg_index, opcode_reference);
+						}
+					}
+				}
+			}
 		}
 		else { /* value1 >= 0xC0 */
-			DEBUG_PRINT0("\n");
-
 			if ((value0 & 0xFD) == 0x89) {
 				int source_register;
 				int target_register;
@@ -1072,128 +1335,26 @@ static int read_block_instruction_internal(
 		}
 		else {
 			const int target_reg_index = (value1 >> 3) & 7;
-			uint16_t addr;
-
-			if ((value1 & 0xC7) == 0x06 || (value1 & 0xC0) == 0x80) {
-				addr = read_next_word(reader);
-			}
-			else if ((value1 & 0xC0) == 0x40) {
-				addr = read_next_byte(reader);
-				if (addr >= 0x80) {
-					addr -= 0x100;
-				}
-			}
-			else {
-				addr = 0;
-			}
+			uint16_t addr = read_address_offset(reader, value1);
+			int addr_defined;
+			int addr_relative;
+			int addr_stack_related;
+			int addr_stack_offset_defined;
+			int addr_stack_offset;
 
 			DEBUG_PRINT0("\n");
-			if ((value1 & 0x07) == 0) {
-				if (is_register_bx_defined_relative(regs) && is_register_si_defined_absolute(regs) || is_register_bx_defined_absolute(regs) && is_register_si_defined_relative(regs)) {
-					addr += get_register_bx(regs) + get_register_si(regs);
+			resolve_address(value1, regs, &addr, &addr_defined, &addr_relative, &addr_stack_related, &addr_stack_offset_defined, &addr_stack_offset);
+
+			if (addr_defined) {
+				if (addr_relative) {
 					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
 				}
-				else if (is_register_bx_defined_absolute(regs) && is_register_si_defined_absolute(regs)) {
-					addr += get_register_bx(regs) + get_register_si(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
 				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
-			}
-			else if ((value1 & 0x07) == 1) {
-				if (is_register_bx_defined_relative(regs) && is_register_di_defined_absolute(regs) || is_register_bx_defined_absolute(regs) && is_register_di_defined_relative(regs)) {
-					addr += get_register_bx(regs) + get_register_di(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_bx_defined_absolute(regs) && is_register_di_defined_absolute(regs)) {
-					addr += get_register_bx(regs) + get_register_di(regs);
 					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
-			}
-			else if ((value1 & 0x07) == 2) {
-				if (is_register_bp_defined_relative(regs) && is_register_si_defined_absolute(regs) || is_register_bp_defined_absolute(regs) && is_register_si_defined_relative(regs)) {
-					addr += get_register_bp(regs) + get_register_si(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_bp_defined_absolute(regs) && is_register_si_defined_absolute(regs)) {
-					addr += get_register_bp(regs) + get_register_si(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
-			}
-			else if ((value1 & 0x07) == 3) {
-				if (is_register_bp_defined_relative(regs) && is_register_di_defined_absolute(regs) || is_register_bp_defined_absolute(regs) && is_register_di_defined_relative(regs)) {
-					addr += get_register_bp(regs) + get_register_di(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_bp_defined_absolute(regs) && is_register_di_defined_absolute(regs)) {
-					addr += get_register_bp(regs) + get_register_di(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
-			}
-			else if ((value1 & 0x07) == 4) {
-				if (is_register_si_defined_relative(regs)) {
-					addr += get_register_si(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_si_defined_absolute(regs)) {
-					addr += get_register_si(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
-			}
-			else if ((value1 & 0x07) == 5) {
-				if (is_register_di_defined_relative(regs)) {
-					addr += get_register_di(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_di_defined_absolute(regs)) {
-					addr += get_register_di(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
-			}
-			else if ((value1 & 0xC7) == 6) {
-				set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-			}
-			else if ((value1 & 7) == 6) {
-				if (is_register_bp_defined_relative(regs)) {
-					addr += get_register_bp(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_bp_defined_absolute(regs)) {
-					addr += get_register_bp(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
 				}
 			}
 			else {
-				if (is_register_bx_defined_relative(regs)) {
-					addr += get_register_bx(regs);
-					set_word_register_relative(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else if (is_register_bx_defined_absolute(regs)) {
-					addr += get_register_bx(regs);
-					set_word_register(regs, target_reg_index, opcode_reference, NULL, addr);
-				}
-				else {
-					set_word_register_undefined(regs, target_reg_index, opcode_reference);
-				}
+				set_word_register_undefined(regs, target_reg_index, opcode_reference);
 			}
 
 			*next_instruction_potentially_reached = 1;

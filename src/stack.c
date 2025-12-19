@@ -289,6 +289,18 @@ int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset
 	return 0;
 }
 
+void set_undefined_byte_in_stack_from_top(struct Stack *stack, unsigned int offset) {
+	const int byte_index = stack->top * 2 + offset;
+	if (byte_index < stack->allocated_pages * STACK_BYTES_PER_PAGE) {
+		stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(3 << byte_index % (4 * sizeof(packed_data_t)) * 2);
+	}
+}
+
+void set_undefined_word_in_stack_from_top(struct Stack *stack, unsigned int offset) {
+	set_undefined_byte_in_stack_from_top(stack, offset);
+	set_undefined_byte_in_stack_from_top(stack, offset + 1);
+}
+
 int copy_stack(struct Stack *target_stack, const struct Stack *source_stack) {
 	if (source_stack->allocated_pages == 0) {
 		clear_stack(target_stack);
