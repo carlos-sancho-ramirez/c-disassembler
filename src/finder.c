@@ -1341,6 +1341,11 @@ static int read_block_instruction_internal(
 		*next_instruction_potentially_reached = 1;
 		return 0;
 	}
+	else if ((value0 & 0xFE) == 0x98) { /* cbw and cwd */
+		DEBUG_PRINT0("\n");
+		*next_instruction_potentially_reached = 1;
+		return 0;
+	}
 	else if ((value0 & 0xFC) == 0xA0) {
 		int offset;
 		unsigned int current_segment_index;

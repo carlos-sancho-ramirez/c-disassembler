@@ -120,6 +120,9 @@ int read_for_instruction_length(struct Reader *reader) {
 	else if ((value0 & 0xF8) == 0x90) {
 		return 0;
 	}
+	else if ((value0 & 0xFE) == 0x98) {
+		return 0;
+	}
 	else if ((value0 & 0xFC) == 0xA0) {
 		return move_reader_forward(reader, 2);
 	}

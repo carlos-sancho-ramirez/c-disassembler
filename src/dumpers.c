@@ -331,6 +331,14 @@ static int dump_instruction(
 			print("\n");
 			return 0;
 		}
+		else if (value0 == 0x98) {
+			print("cbw\n");
+			return 0;
+		}
+		else if (value0 == 0x99) {
+			print("cwd\n");
+			return 0;
+		}
 		else if ((value0 & 0xFC) == 0xA0) {
 			const char **registers;
 			int addr_value;
