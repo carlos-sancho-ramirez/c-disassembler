@@ -216,6 +216,10 @@ int is_register_ds_merged(const struct Registers *regs) {
 	return regs->merged & 0x8000;
 }
 
+const char *get_register_al_value_origin(const struct Registers *regs) {
+	return regs->value_origin[0];
+}
+
 const char *get_register_ax_value_origin(const struct Registers *regs) {
 	const char *value_origin = regs->value_origin[0];
 	return (value_origin == regs->value_origin[1])? value_origin : NULL;
@@ -404,6 +408,12 @@ unsigned int get_segment_register(const struct Registers *regs, unsigned int ind
 	}
 }
 
+void set_register_ah_undefined(struct Registers *regs, const char *last_update) {
+	regs->defined &= 0xFFFE;
+	regs->last_update[1] = last_update;
+	regs->merged &= 0xFFFE;
+}
+
 void set_byte_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, unsigned char value) {
 	assert(index < 8);
 
@@ -482,15 +492,7 @@ void set_word_register(struct Registers *regs, unsigned int index, const char *l
 	*/
 
 	if (index == 0) {
-		regs->al = value & 0xFF;
-		regs->ah = (value >> 8) & 0xFF;
-		regs->last_update[0] = last_update;
-		regs->last_update[1] = last_update;
-		regs->value_origin[0] = value_origin;
-		regs->value_origin[1] = value_origin;
-		regs->defined |= 0x0003;
-		regs->relative &= ~0x10;
-		regs->merged &= 0xFFFC;
+		set_register_ax(regs, last_update, value_origin, value);
 	}
 	else if (index == 1) {
 		regs->cl = value & 0xFF;
@@ -711,6 +713,18 @@ void set_register_al_undefined(struct Registers *regs, const char *last_update) 
 	regs->defined &= 0xFFFE;
 	regs->last_update[0] = last_update;
 	regs->merged &= 0xFFFE;
+}
+
+void set_register_ax(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value) {
+	regs->al = value & 0xFF;
+	regs->ah = value >> 8 & 0xFF;
+	regs->last_update[0] = last_update;
+	regs->last_update[1] = last_update;
+	regs->value_origin[0] = value_origin;
+	regs->value_origin[1] = value_origin;
+	regs->defined |= 0x0003;
+	regs->relative &= ~0x10;
+	regs->merged &= 0xFFFC;
 }
 
 void set_register_sp(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value) {

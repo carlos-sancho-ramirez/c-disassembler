@@ -111,6 +111,7 @@ int is_register_cx_merged(const struct Registers *regs);
 int is_register_dx_merged(const struct Registers *regs);
 int is_register_ds_merged(const struct Registers *regs);
 
+const char *get_register_al_value_origin(const struct Registers *regs);
 const char *get_register_ax_value_origin(const struct Registers *regs);
 const char *get_register_dx_value_origin(const struct Registers *regs);
 const char *get_register_bp_value_origin(const struct Registers *regs);
@@ -145,6 +146,8 @@ unsigned int get_word_register(const struct Registers *regs, unsigned int index)
 unsigned int get_segment_register(const struct Registers *regs, unsigned int index);
 
 void set_byte_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, unsigned char value);
+void set_register_ah_undefined(struct Registers *regs, const char *last_update);
+
 void set_word_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
 void set_word_register_relative(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
 void set_register_ax_undefined(struct Registers *regs, const char *last_update);
@@ -158,6 +161,7 @@ void set_word_register_undefined(struct Registers *regs, unsigned int index, con
 void set_register_al_undefined(struct Registers *regs, const char *last_update);
 void set_register_ax_undefined(struct Registers *regs, const char *last_update);
 
+void set_register_ax(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_register_sp(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_register_es(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);
 void set_register_cs(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value);

@@ -1341,7 +1341,24 @@ static int read_block_instruction_internal(
 		*next_instruction_potentially_reached = 1;
 		return 0;
 	}
-	else if ((value0 & 0xFE) == 0x98) { /* cbw and cwd */
+	else if (value0 == 0x98) { /* cbw */
+		DEBUG_PRINT0("\n");
+
+		if (is_register_al_defined(regs)) {
+			uint16_t value = get_register_al(regs);
+			if (value & 0x80) {
+				value |= 0xFF00;
+			}
+			set_register_ax(regs, opcode_reference, get_register_al_value_origin(regs), value);
+		}
+		else {
+			set_register_ah_undefined(regs, opcode_reference);
+		}
+
+		*next_instruction_potentially_reached = 1;
+		return 0;
+	}
+	else if (value0 == 0x99) { /* cwd - Not sure if this is a valid instruction for 8086 */
 		DEBUG_PRINT0("\n");
 		*next_instruction_potentially_reached = 1;
 		return 0;
