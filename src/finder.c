@@ -1691,7 +1691,7 @@ static int read_block_instruction_internal(
 			}
 			else if ((value1 == 0x46 || value1 == 0x86) && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
 				if (is_register_bp_defined_absolute(regs) && is_register_sp_defined_absolute(regs)) {
-					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs);
+					const int offset = diff_address + get_register_bp(regs) - get_register_sp(regs) & 0xFFFF;
 					if (value0 == 0xC6) {
 						set_byte_in_stack_from_top(stack, offset, immediate_value);
 					}
@@ -1700,7 +1700,7 @@ static int read_block_instruction_internal(
 					}
 				}
 				else if (is_register_sp_relative_from_bp(regs)) {
-					const unsigned int offset = diff_address - get_register_sp(regs);
+					const unsigned int offset = diff_address - get_register_sp(regs) & 0xFFFF;
 					if (value0 == 0xC6) {
 						set_byte_in_stack_from_top(stack, offset, immediate_value);
 					}
