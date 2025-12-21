@@ -422,6 +422,7 @@ static int register_next_block(
 int update_int2140_message_references(
 		const struct Registers *regs,
 		const char *segment_start,
+		unsigned int segment_size,
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
@@ -464,44 +465,50 @@ int update_int2140_message_references(
 			int error_code;
 			unsigned int segment_value = ds_value;
 			unsigned int relative_address = (segment_value * 16 + dx_value) & 0xFFFF;
-			const char *target = segment_start + relative_address;
-			struct GlobalVariable *var;
-
 			DEBUG_PRINT3(" with values 0x%x, 0x%x and +0x%x respectively.\n", cx_value, dx_value, ds_value);
-			if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
-				var = prepare_new_gvar(gvar_list);
-				var->start = target;
-				var->relative_address = relative_address;
-				var->end = target + length;
-				var->var_type = GVAR_TYPE_STRING;
 
-				if ((error_code = insert_gvar(gvar_list, var))) {
-					return error_code;
-				}
-			}
-			else {
-				DEBUG_INDENTED_PRINT0(depth, "Variable already registered.\n");
-				var = gvar_list->sorted_variables[index];
-			}
+			if (relative_address + length <= segment_size) {
+				const char *target = segment_start + relative_address;
+				struct GlobalVariable *var;
 
-			if (dx_value_origin && index_of_ref_with_instruction(ref_list, dx_value_origin) < 0) {
-				struct Reference *new_ref = prepare_new_ref(ref_list);
-				DEBUG_INDENTED_PRINT1(depth, "DX value origin at %x. Registering reference.\n", (int) (dx_value_origin - segment_start));
+				if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
+					var = prepare_new_gvar(gvar_list);
+					var->start = target;
+					var->relative_address = relative_address;
+					var->end = target + length;
+					var->var_type = GVAR_TYPE_STRING;
 
-				new_ref->instruction = dx_value_origin;
-				set_gvar_ref_from_instruction_immediate_value(new_ref, var);
-				if ((error_code = insert_ref(ref_list, new_ref))) {
-					return error_code;
-				}
-			}
-
-			if (segment_value && segment_value != 0xFFF0) {
-				const char *target_segment_start = segment_start + segment_value * 16;
-				if (!contains_segment_start(segment_start_list, target_segment_start)) {
-					if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
 					}
 				}
+				else {
+					DEBUG_INDENTED_PRINT0(depth, "Variable already registered.\n");
+					var = gvar_list->sorted_variables[index];
+				}
+
+				if (dx_value_origin && index_of_ref_with_instruction(ref_list, dx_value_origin) < 0) {
+					struct Reference *new_ref = prepare_new_ref(ref_list);
+					DEBUG_INDENTED_PRINT1(depth, "DX value origin at %x. Registering reference.\n", (int) (dx_value_origin - segment_start));
+
+					new_ref->instruction = dx_value_origin;
+					set_gvar_ref_from_instruction_immediate_value(new_ref, var);
+					if ((error_code = insert_ref(ref_list, new_ref))) {
+						return error_code;
+					}
+				}
+
+				if (segment_value && segment_value != 0xFFF0) {
+					const char *target_segment_start = segment_start + segment_value * 16;
+					if (!contains_segment_start(segment_start_list, target_segment_start)) {
+						if ((error_code = insert_segment_start(segment_start_list, target_segment_start))) {
+							return error_code;
+						}
+					}
+				}
+			}
+			else {
+				DEBUG_INDENTED_PRINT0(depth, "Message seems to be outside the initialised data. Skipping variable registration.\n");
 			}
 		}
 		else {
@@ -541,7 +548,7 @@ int update_int2140_message_references(
 					DEBUG_PRINT2(" from +%x:%x", origin_block->relative_cs, origin_block->ip + (int) (origin->instruction - origin_block->start));
 					DEBUG_PRINT2(" contained in block starting at +%x:%x\n", origin_block->relative_cs, origin_block->ip);
 
-					if ((error_code = update_int2140_message_references(&origin->regs, segment_start, origin_block, code_block_list,
+					if ((error_code = update_int2140_message_references(&origin->regs, segment_start, segment_size, origin_block, code_block_list,
 							gvar_list, segment_start_list, ref_list, checked_blocks,
 							new_cx_defined, new_cx_relative, new_cx_value,
 							new_dx_defined, new_dx_relative, new_dx_value, new_dx_value_origin,
@@ -1846,7 +1853,7 @@ static int read_block_instruction_internal(
 				checked_blocks.count = 0;
 				checked_blocks.allocated_pages = 0;
 
-				error_code = update_int2140_message_references(regs, segment_start, block, code_block_list, gvar_list, segment_start_list, ref_list, &checked_blocks, cx_defined, cx_relative, cx_value, dx_defined, dx_relative, dx_value, dx_value_origin, ds_defined, ds_relative, ds_value, 2);
+				error_code = update_int2140_message_references(regs, segment_start, segment_size, block, code_block_list, gvar_list, segment_start_list, ref_list, &checked_blocks, cx_defined, cx_relative, cx_value, dx_defined, dx_relative, dx_value, dx_value_origin, ds_defined, ds_relative, ds_value, 2);
 				if (checked_blocks.blocks != NULL) {
 					free(checked_blocks.blocks);
 				}
