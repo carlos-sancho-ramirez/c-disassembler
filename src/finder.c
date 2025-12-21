@@ -1126,14 +1126,26 @@ static int read_block_instruction_internal(
 						unsigned int relative_address = (seg_value * 16 + addr) & 0xFFFFF;
 						const char *target = segment_start + relative_address;
 						const int var_index_in_map = index_of_gvar_in_gvwvmap_with_start(var_values, target);
-						if (var_index_in_map >= 0 && is_gvwvalue_defined_at_index(var_values, var_index_in_map)) {
-							uint16_t var_value = get_gvwvalue_at_index(var_values, var_index_in_map);
-							if (is_gvwvalue_defined_relative_at_index(var_values, var_index_in_map)) {
-								set_word_register_relative(regs, reg_index, opcode_reference, opcode_reference, var_value);
+
+						if (var_index_in_map < 0) {
+							if (relative_address + 1 < segment_size) {
+								uint16_t value;
+								value = *(target + 1) & 0xFF;
+								value <<= 8;
+								value |= *target & 0xFF;
+								set_word_register(regs, reg_index, opcode_reference, opcode_reference, value);
 							}
 							else {
-								set_word_register(regs, reg_index, opcode_reference, opcode_reference, var_value);
+								set_word_register_undefined(regs, reg_index, opcode_reference);
 							}
+						}
+						else if (is_gvwvalue_defined_relative_at_index(var_values, var_index_in_map)) {
+							uint16_t value = get_gvwvalue_at_index(var_values, var_index_in_map);
+							set_word_register_relative(regs, reg_index, opcode_reference, opcode_reference, value);
+						}
+						else if (is_gvwvalue_defined_at_index(var_values, var_index_in_map)) {
+							uint16_t value = get_gvwvalue_at_index(var_values, var_index_in_map);
+							set_word_register(regs, reg_index, opcode_reference, opcode_reference, value);
 						}
 						else {
 							set_word_register_undefined(regs, reg_index, opcode_reference);
@@ -1206,14 +1218,26 @@ static int read_block_instruction_internal(
 						unsigned int relative_address = (segment_value * 16 + result_address) & 0xFFFF;
 						const char *target = segment_start + relative_address;
 						const int var_value_index = index_of_gvar_in_gvwvmap_with_start(var_values, target);
-						if (var_value_index >= 0) {
-							uint16_t var_value = get_gvwvalue_at_index(var_values, var_value_index);
-							if (is_gvwvalue_defined_relative_at_index(var_values, var_value_index)) {
-								set_segment_register_relative(regs, reg_index, opcode_reference, opcode_reference, var_value);
+
+						if (var_value_index < 0) {
+							if (relative_address + 1 < segment_size) {
+								uint16_t value;
+								value = *(target + 1) & 0xFF;
+								value <<= 8;
+								value |= *target & 0xFF;
+								set_segment_register(regs, reg_index, opcode_reference, opcode_reference, value);
 							}
 							else {
-								set_segment_register(regs, reg_index, opcode_reference, opcode_reference, var_value);
+								set_segment_register_undefined(regs, reg_index, opcode_reference);
 							}
+						}
+						else if (is_gvwvalue_defined_relative_at_index(var_values, var_value_index)) {
+							uint16_t value = get_gvwvalue_at_index(var_values, var_value_index);
+							set_segment_register_relative(regs, reg_index, opcode_reference, opcode_reference, value);
+						}
+						else if (is_gvwvalue_defined_at_index(var_values, var_value_index)) {
+							uint16_t value = get_gvwvalue_at_index(var_values, var_value_index);
+							set_segment_register(regs, reg_index, opcode_reference, opcode_reference, value);
 						}
 						else {
 							set_segment_register_undefined(regs, reg_index, opcode_reference);
