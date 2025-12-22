@@ -843,10 +843,10 @@ static int read_block_instruction_internal(
 		}
 		else {
 			if (is_segment_register_defined_relative(regs, sindex)) {
-				push_relative_in_stack(stack, get_segment_register(regs, sindex));
+				push_relative_in_stack(stack, get_segment_register_value_origin(regs, sindex), get_segment_register(regs, sindex));
 			}
 			else if (is_segment_register_defined(regs, sindex)) {
-				push_in_stack(stack, get_segment_register(regs, sindex));
+				push_in_stack(stack, get_segment_register_value_origin(regs, sindex), get_segment_register(regs, sindex));
 			}
 			else {
 				push_undefined_in_stack(stack);
@@ -903,10 +903,10 @@ static int read_block_instruction_internal(
 		}
 		else {
 			if (is_word_register_defined_relative(regs, rindex)) {
-				push_relative_in_stack(stack, get_word_register(regs, rindex));
+				push_relative_in_stack(stack, get_word_register_value_origin(regs, rindex), get_word_register(regs, rindex));
 			}
 			else if (is_word_register_defined(regs, rindex)) {
-				push_in_stack(stack, get_word_register(regs, rindex));
+				push_in_stack(stack, get_word_register_value_origin(regs, rindex), get_word_register(regs, rindex));
 			}
 			else {
 				push_undefined_in_stack(stack);
@@ -1072,10 +1072,10 @@ static int read_block_instruction_internal(
 				if (addr_flags & ADDRESS_FLAG_STACK_OFFSET_DEFINED && (segment_index == SEGMENT_INDEX_UNDEFINED || segment_index == SEGMENT_INDEX_SS)) {
 					if (value0 == 0x89) {
 						if (is_word_register_defined_relative(regs, reg_index)) {
-							set_relative_word_in_stack_from_top(stack, addr_stack_offset, get_word_register(regs, reg_index));
+							set_relative_word_in_stack_from_top(stack, addr_stack_offset, get_word_register_value_origin(regs, reg_index), get_word_register(regs, reg_index));
 						}
 						else if (is_word_register_defined(regs, reg_index)) {
-							set_word_in_stack_from_top(stack, addr_stack_offset, get_word_register(regs, reg_index));
+							set_word_in_stack_from_top(stack, addr_stack_offset, get_word_register_value_origin(regs, reg_index), get_word_register(regs, reg_index));
 						}
 						else {
 							set_undefined_word_in_stack_from_top(stack, addr_stack_offset);
@@ -1696,7 +1696,7 @@ static int read_block_instruction_internal(
 						set_byte_in_stack_from_top(stack, offset, immediate_value);
 					}
 					else {
-						set_word_in_stack_from_top(stack, offset, immediate_value);
+						set_word_in_stack_from_top(stack, offset, opcode_reference, immediate_value);
 					}
 				}
 				else if (is_register_sp_relative_from_bp(regs)) {
@@ -1705,7 +1705,7 @@ static int read_block_instruction_internal(
 						set_byte_in_stack_from_top(stack, offset, immediate_value);
 					}
 					else {
-						set_word_in_stack_from_top(stack, offset, immediate_value);
+						set_word_in_stack_from_top(stack, offset, opcode_reference, immediate_value);
 					}
 				}
 			}
@@ -1942,7 +1942,7 @@ static int read_block_instruction_internal(
 		}
 
 		if (value0 == 0xE8) {
-			push_in_stack(stack, block->ip + reader->buffer_index);
+			push_in_stack(stack, NULL, block->ip + reader->buffer_index);
 			if (is_register_sp_defined_absolute(regs)) {
 				set_register_sp(regs, opcode_reference, opcode_reference, get_register_sp(regs) - 2);
 			}
@@ -2131,6 +2131,7 @@ static int read_block_instruction_internal(
 			int value_defined = 0;
 			int value_relative = 0;
 			uint16_t value;
+			const char *value_origin = NULL;
 			DEBUG_PRINT0("\n");
 
 			if (value1 < 0xC0) {
@@ -2141,6 +2142,7 @@ static int read_block_instruction_internal(
 						value_defined = is_defined_in_stack_from_top(stack, addr_stack_offset / 2);
 						value_relative = is_defined_relative_in_stack_from_top(stack, addr_stack_offset / 2);
 						value = get_from_top(stack, addr_stack_offset / 2);
+						value_origin = get_value_origin_from_top(stack, addr_stack_offset / 2);
 					}
 				}
 				else if (addr_flags & ADDRESS_FLAG_DEFINED) {
@@ -2204,7 +2206,7 @@ static int read_block_instruction_internal(
 					}
 
 					if ((value1 & 0x38) == 0x10) {
-						push_in_stack(stack, block->ip + reader->buffer_index);
+						push_in_stack(stack, NULL, block->ip + reader->buffer_index);
 						if (is_register_sp_defined_relative(regs)) {
 							set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
 						}
@@ -2242,6 +2244,15 @@ static int read_block_instruction_internal(
 							return result;
 						}
 
+						if (value_origin && index_of_ref_with_instruction(ref_list, value_origin) < 0) {
+							struct Reference *new_ref = prepare_new_ref(ref_list);
+							new_ref->instruction = value_origin;
+							set_cblock_ref_from_instruction_immediate_value(new_ref, new_block);
+							if ((error_code = insert_ref(ref_list, new_ref))) {
+								return error_code;
+							}
+						}
+
 						if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
 							potential_container->end = jump_destination;
 							invalidate_cblock_check(potential_container);
@@ -2255,12 +2266,12 @@ static int read_block_instruction_internal(
 			else if ((value1 & 0x38) == 0x30) {
 				if (value_defined) {
 					if (value_relative) {
-						if ((error_code = push_relative_in_stack(stack, value))) {
+						if ((error_code = push_relative_in_stack(stack, value_origin, value))) {
 							return error_code;
 						}
 					}
 					else {
-						if ((error_code = push_in_stack(stack, value))) {
+						if ((error_code = push_in_stack(stack, value_origin, value))) {
 							return error_code;
 						}
 					}

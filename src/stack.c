@@ -4,6 +4,7 @@
 #define STACK_BYTES_IN_REL_PER_PAGE 4
 #define STACK_BYTES_PER_PAGE (STACK_BYTES_IN_REL_PER_PAGE * 16)
 #define STACK_BYTES_IN_DNM_PER_PAGE (STACK_BYTES_IN_REL_PER_PAGE * 4)
+#define STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE (STACK_BYTES_IN_REL_PER_PAGE * 8 * sizeof(const char *))
 
 /* This must be at least STACK_BYTES_PER_PAGE / 2 */
 #define STACK_SHRINK_TOP_THRESHOLD STACK_BYTES_PER_PAGE
@@ -16,6 +17,7 @@ void initialize_stack(struct Stack *stack) {
 	stack->data = NULL;
 	stack->defined_and_merged = NULL;
 	stack->relative = NULL;
+	stack->value_origin = NULL;
 }
 
 void clear_stack(struct Stack *stack) {
@@ -23,6 +25,7 @@ void clear_stack(struct Stack *stack) {
 		free(stack->data);
 		free(stack->defined_and_merged);
 		free(stack->relative);
+		free(stack->value_origin);
 	}
 
 	initialize_stack(stack);
@@ -68,6 +71,12 @@ uint16_t get_from_top(const struct Stack *stack, unsigned int count) {
 	return result;
 }
 
+const char *get_value_origin_from_top(const struct Stack *stack, unsigned int count) {
+	const unsigned int allocated_bytes = stack->allocated_pages * STACK_BYTES_PER_PAGE;
+	const unsigned int origin_index = stack->top + count;
+	return (origin_index * 2 < stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE)? stack->value_origin[origin_index] : NULL;
+}
+
 static int add_new_pages_at_start(struct Stack *stack, unsigned int count) {
 	unsigned int offset;
 	int i;
@@ -76,7 +85,8 @@ static int add_new_pages_at_start(struct Stack *stack, unsigned int count) {
 	stack->data = realloc(stack->data, stack->allocated_pages * STACK_BYTES_PER_PAGE);
 	stack->defined_and_merged = realloc(stack->defined_and_merged, stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
 	stack->relative = realloc(stack->relative, stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
-	if (!stack->data || !stack->defined_and_merged || !stack->relative) {
+	stack->value_origin = realloc(stack->value_origin, stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE);
+	if (!stack->data || !stack->defined_and_merged || !stack->relative || !stack->value_origin) {
 		return 1;
 	}
 
@@ -95,6 +105,11 @@ static int add_new_pages_at_start(struct Stack *stack, unsigned int count) {
 		stack->relative[i] = stack->relative[i - offset];
 	}
 
+	offset = count * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE / sizeof(const char *);
+	for (i = stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE / sizeof(const char *) - 1; i >= offset; i--) {
+		stack->value_origin[i] = stack->value_origin[i - offset];
+	}
+
 	stack->top += (count * STACK_BYTES_PER_PAGE) / 2;
 	return 0;
 }
@@ -107,7 +122,8 @@ static int add_new_pages_at_end(struct Stack *stack, unsigned int count) {
 	stack->data = realloc(stack->data, stack->allocated_pages * STACK_BYTES_PER_PAGE);
 	stack->defined_and_merged = realloc(stack->defined_and_merged, stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
 	stack->relative = realloc(stack->relative, stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
-	if (!stack->data || !stack->defined_and_merged || !stack->relative) {
+	stack->value_origin = realloc(stack->value_origin, stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE);
+	if (!stack->data || !stack->defined_and_merged || !stack->relative || !stack->value_origin) {
 		return 1;
 	}
 
@@ -148,11 +164,18 @@ static int remove_pages_at_start(struct Stack *stack, unsigned int count) {
 			stack->relative[i - offset] = stack->relative[i];
 		}
 
+		end = (stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE) / sizeof(const char *);
+		offset = (count * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE) / sizeof(const char *);
+		for (i = offset; i < end; i++) {
+			stack->value_origin[i - offset] = stack->value_origin[i];
+		}
+
 		stack->allocated_pages -= count;
 		stack->data = realloc(stack->data, stack->allocated_pages * STACK_BYTES_PER_PAGE);
 		stack->defined_and_merged = realloc(stack->defined_and_merged, stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
 		stack->relative = realloc(stack->relative, stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
-		if (!stack->data || !stack->defined_and_merged || !stack->relative) {
+		stack->value_origin = realloc(stack->value_origin, stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE);
+		if (!stack->data || !stack->defined_and_merged || !stack->relative || !stack->value_origin) {
 			return 1;
 		}
 
@@ -173,7 +196,7 @@ int push_undefined_in_stack(struct Stack *stack) {
 	return 0;
 }
 
-int push_in_stack(struct Stack *stack, uint16_t value) {
+int push_in_stack(struct Stack *stack, const char *value_origin, uint16_t value) {
 	int error_code;
 	if (stack->top == 0 && (error_code = add_new_pages_at_start(stack, 1))) {
 		return error_code;
@@ -185,10 +208,11 @@ int push_in_stack(struct Stack *stack, uint16_t value) {
 	stack->relative[(stack->top >> 3) / sizeof(packed_data_t)] &= ~(1 << (stack->top % (sizeof(packed_data_t) * 8)));
 	stack->data[stack->top * 2] = value & 0xFF;
 	stack->data[stack->top * 2 + 1] = (value >> 8) & 0xFF;
+	stack->value_origin[stack->top] = value_origin;
 	return 0;
 }
 
-int push_relative_in_stack(struct Stack *stack, uint16_t value) {
+int push_relative_in_stack(struct Stack *stack, const char *value_origin, uint16_t value) {
 	int error_code;
 	if (stack->top == 0 && (error_code = add_new_pages_at_start(stack, 1))) {
 		return error_code;
@@ -200,6 +224,7 @@ int push_relative_in_stack(struct Stack *stack, uint16_t value) {
 	stack->relative[(stack->top >> 3) / sizeof(packed_data_t)] |= 1 << (stack->top % (sizeof(packed_data_t) * 8));
 	stack->data[stack->top * 2] = value & 0xFF;
 	stack->data[stack->top * 2 + 1] = (value >> 8) & 0xFF;
+	stack->value_origin[stack->top] = value_origin;
 	return 0;
 }
 
@@ -237,11 +262,12 @@ int set_byte_in_stack_from_top(struct Stack *stack, unsigned int offset, unsigne
 	stack->data[byte_index] = value;
 	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(2 << byte_index % (4 * sizeof(packed_data_t)) * 2);
 	stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] |= 1 << byte_index % (4 * sizeof(packed_data_t)) * 2;
+	stack->value_origin[byte_index / 2] = NULL;
 
 	return 0;
 }
 
-int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value) {
+int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, const char *value_origin, uint16_t value) {
 	const int byte_index = stack->top * 2 + offset;
 	if (byte_index > stack->allocated_pages * STACK_BYTES_PER_PAGE) {
 		const int required_extra_pages = (byte_index - stack->allocated_pages * STACK_BYTES_PER_PAGE + STACK_BYTES_PER_PAGE - 1) / STACK_BYTES_PER_PAGE;
@@ -260,12 +286,17 @@ int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_
 	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] |= 1 << (byte_index + 1) % (4 * sizeof(packed_data_t)) * 2;
 	if ((offset & 1) == 0) {
 		stack->relative[byte_index / 16 / sizeof(packed_data_t)] &= ~(1 << byte_index % (16 * sizeof(packed_data_t)));
+		stack->value_origin[stack->top + offset / 2] = value_origin;
+	}
+	else {
+		stack->value_origin[byte_index / 2] = NULL;
+		stack->value_origin[byte_index / 2 + 1] = NULL;
 	}
 
 	return 0;
 }
 
-int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value) {
+int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset, const char *value_origin, uint16_t value) {
 	const int byte_index = stack->top * 2 + offset;
 	assert((offset & 1) == 0);
 
@@ -285,6 +316,13 @@ int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset
 	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] &= ~(2 << (byte_index + 1) % (4 * sizeof(packed_data_t)) * 2);
 	stack->defined_and_merged[(byte_index + 1) / 4 / sizeof(packed_data_t)] |= 1 << (byte_index + 1) % (4 * sizeof(packed_data_t) * 2);
 	stack->relative[byte_index / 16 / sizeof(packed_data_t)] |= 1 << byte_index % (16 * sizeof(packed_data_t));
+	if ((offset & 1) == 0) {
+		stack->value_origin[stack->top + offset / 2] = value_origin;
+	}
+	else {
+		stack->value_origin[byte_index / 2] = NULL;
+		stack->value_origin[byte_index / 2 + 1] = NULL;
+	}
 
 	return 0;
 }
@@ -293,6 +331,7 @@ void set_undefined_byte_in_stack_from_top(struct Stack *stack, unsigned int offs
 	const int byte_index = stack->top * 2 + offset;
 	if (byte_index < stack->allocated_pages * STACK_BYTES_PER_PAGE) {
 		stack->defined_and_merged[byte_index / 4 / sizeof(packed_data_t)] &= ~(3 << byte_index % (4 * sizeof(packed_data_t)) * 2);
+		stack->value_origin[byte_index / 2] = NULL;
 	}
 }
 
@@ -319,7 +358,8 @@ int copy_stack(struct Stack *target_stack, const struct Stack *source_stack) {
 			target_stack->data = malloc(target_stack->allocated_pages * STACK_BYTES_PER_PAGE);
 			target_stack->defined_and_merged = malloc(target_stack->allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
 			target_stack->relative = malloc(target_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
-			if (!target_stack->data || !target_stack->defined_and_merged || !target_stack->relative) {
+			target_stack->value_origin = malloc(target_stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE);
+			if (!target_stack->data || !target_stack->defined_and_merged || !target_stack->relative || !target_stack->value_origin) {
 				return 1;
 			}
 		}
@@ -334,6 +374,10 @@ int copy_stack(struct Stack *target_stack, const struct Stack *source_stack) {
 
 		for (index = 0; index < source_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE / sizeof(packed_data_t); index++) {
 			target_stack->relative[index] = source_stack->relative[index];
+		}
+
+		for (index = 0; index < source_stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE / sizeof(const char *); index++) {
+			target_stack->value_origin[index] = source_stack->value_origin[index];
 		}
 
 		target_stack->top = source_stack->top;
@@ -352,8 +396,11 @@ int merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 	unsigned char *new_data;
 	packed_data_t *new_dnm;
 	packed_data_t *new_rel;
+	const char **new_value_origin;
 	int this_relative;
 	int other_relative;
+	const char *this_value_origin;
+	const char *other_value_origin;
 	int i;
 
 	while (required_bytes > 0) {
@@ -382,8 +429,9 @@ int merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 	new_data = malloc(new_allocated_pages * STACK_BYTES_PER_PAGE);
 	new_dnm = malloc(new_allocated_pages * STACK_BYTES_IN_DNM_PER_PAGE);
 	new_rel = malloc(new_allocated_pages * STACK_BYTES_IN_REL_PER_PAGE);
+	new_value_origin = malloc(new_allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE);
 
-	if (!new_data || !new_dnm || !new_rel) {
+	if (!new_data || !new_dnm || !new_rel || !new_value_origin) {
 		return 1;
 	}
 
@@ -400,6 +448,8 @@ int merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 		if ((i & 1) == 0) {
 			this_relative = (this_index / 16 / sizeof(packed_data_t)) < stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE && stack->relative[this_index / 16 / sizeof(packed_data_t)] & 1 << (this_index / 2) % (8 * sizeof(packed_data_t));
 			other_relative = (other_index / 16 / sizeof(packed_data_t)) < other_stack->allocated_pages * STACK_BYTES_IN_REL_PER_PAGE && other_stack->relative[other_index / 16 / sizeof(packed_data_t)] & 1 << (other_index / 2) % (8 * sizeof(packed_data_t));
+			this_value_origin = (this_index < stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE)? stack->value_origin[this_index / 2] : NULL;
+			other_value_origin = (this_index < stack->allocated_pages * STACK_BYTES_IN_VALUE_ORIGIN_PER_PAGE)? other_stack->value_origin[other_index / 2] : NULL;
 		}
 
 		is_defined = this_defined && other_defined && stack->data[this_index] == other_stack->data[other_index] && this_relative == other_relative;
@@ -423,6 +473,9 @@ int merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 			else {
 				new_rel[new_index / 16 / sizeof(packed_data_t)] &= ~(1 << (new_index / 2) % (8 * sizeof(packed_data_t)));
 			}
+
+			new_value_origin[new_index / 2] = (this_value_origin == other_value_origin)?
+					this_value_origin : NULL;
 		}
 	}
 
@@ -432,6 +485,7 @@ int merge_stacks(struct Stack *stack, const struct Stack *other_stack) {
 	stack->data = new_data;
 	stack->defined_and_merged = new_dnm;
 	stack->relative = new_rel;
+	stack->value_origin = new_value_origin;
 
 	return 0;
 }

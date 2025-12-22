@@ -43,6 +43,12 @@ struct Stack {
 	 * in the data.
 	 */
 	packed_data_t *relative;
+
+	/**
+	 * Points to the opcode where the value in the corresponding word was set.
+	 * NULL if it is unknown.
+	 */
+	const char **value_origin;
 };
 
 /**
@@ -116,6 +122,12 @@ int is_defined_relative_in_stack_from_top(const struct Stack *stack, unsigned in
 uint16_t get_from_top(const struct Stack *stack, unsigned int index);
 
 /**
+ * Return the value origin associated with the value at the given index from the top of this stack.
+ * This will return NULL if the resulting index exceeds the current stack size.
+ */
+const char *get_value_origin_from_top(const struct Stack *stack, unsigned int count);
+
+/**
  * Push an undefined word value in the stack.
  *
  * This will move the top of the stack one position and will enlarge the memory reserved for the stack when required.
@@ -131,7 +143,7 @@ int push_undefined_in_stack(struct Stack *stack);
  *
  * This will return something different from 0 in case of error, mainly cause when requesting for memory.
  */
-int push_in_stack(struct Stack *stack, uint16_t value);
+int push_in_stack(struct Stack *stack, const char *value_origin, uint16_t value);
 
 /**
  * Push the given word value in the stack, assuming that the value is relative from the initial CS.
@@ -140,7 +152,7 @@ int push_in_stack(struct Stack *stack, uint16_t value);
  *
  * This will return something different from 0 in case of error, mainly cause when requesting for memory.
  */
-int push_relative_in_stack(struct Stack *stack, uint16_t value);
+int push_relative_in_stack(struct Stack *stack, const char *value_origin, uint16_t value);
 
 /**
  * This returns the word value in the top of the stack, and move the top one position.
@@ -174,7 +186,7 @@ void set_undefined_byte_in_stack_from_top(struct Stack *stack, unsigned int offs
  * Note that top refers to word values (16bit integers), while offset parameter here refers to byte position.
  * This is why top has to be multiplied by 2 before being used internally.
  */
-int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value);
+int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, const char *value_origin, uint16_t value);
 
 /**
  * Replace the word value located at byte position (top * 2 + offset) within the stack.
@@ -184,7 +196,7 @@ int set_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_
  * Note that top refers to word values (16bit integers), while offset parameter here refers to byte position.
  * This is why top has to be multiplied by 2 before being used internally.
  */
-int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset, uint16_t value);
+int set_relative_word_in_stack_from_top(struct Stack *stack, unsigned int offset, const char *value_origin, uint16_t value);
 
 /**
  * Undefines the bytes in the given offset and offset + 1
