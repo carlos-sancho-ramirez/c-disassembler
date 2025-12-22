@@ -219,7 +219,7 @@ int read_for_instruction_length(struct Reader *reader) {
 			if (move_reader_forward_for_address_length(reader, value1)) {
 				return READ_ERROR_MAX_EXCEEDED;
 			}
-			return (value0 & 0x38)? 0 : move_reader_forward(reader, (value0 & 1) + 1);
+			return (value1 & 0x38)? 0 : move_reader_forward(reader, (value0 & 1) + 1);
 		}
 	}
 	else if ((value0 & 0xFC) == 0xF8 || (value0 & 0xFE) == 0xFC) {

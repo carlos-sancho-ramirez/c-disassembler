@@ -703,7 +703,7 @@ static int dump_instruction(
 
 				registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
 				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
-				if ((value0 & 0x38) == 0) {
+				if ((value1 & 0x38) == 0) {
 					print(",");
 					if (value0 & 1) {
 						print_literal_hex_word(print, read_next_word(reader));
