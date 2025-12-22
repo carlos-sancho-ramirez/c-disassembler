@@ -71,3 +71,39 @@ void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instr
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin) {
 	origin->flags |= CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
 }
+
+#ifdef DEBUG
+#include <stdio.h>
+
+void print_cborigin(const struct CodeBlockOrigin *origin) {
+	const int origin_type = get_cborigin_type(origin);
+	if (origin_type == CBORIGIN_TYPE_OS) {
+		fprintf(stderr, "OS");
+	}
+	else if (origin_type == CBORIGIN_TYPE_INTERRUPTION) {
+		fprintf(stderr, "INT");
+	}
+	else if (origin_type == CBORIGIN_TYPE_CONTINUE) {
+		fprintf(stderr, "CONT(");
+		if (is_cborigin_ready_to_be_evaluated(origin)) {
+			fprintf(stderr, "V)");
+		}
+		else {
+			fprintf(stderr, "x)");
+		}
+	}
+	else if (origin_type == CBORIGIN_TYPE_CALL_RETURN) {
+		fprintf(stderr, "CR(%d,", get_cborigin_behind_count(origin));
+		if (is_cborigin_ready_to_be_evaluated(origin)) {
+			fprintf(stderr, "V)");
+		}
+		else {
+			fprintf(stderr, "x)");
+		}
+	}
+	else if (origin_type == CBORIGIN_TYPE_JUMP) {
+		fprintf(stderr, "JMP");
+	}
+}
+
+#endif /* DEBUG */

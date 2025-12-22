@@ -160,8 +160,8 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 	return 0;
 }
 
-int add_call_return_type_cborigin_in_block(struct CodeBlock *block, const struct Stack *stack, unsigned int behind_count) {
-	return add_call_return_type_cborigin(&block->origin_list, stack, behind_count);
+int add_call_return_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct Stack *stack, unsigned int behind_count) {
+	return add_call_return_type_cborigin(&block->origin_list, regs, stack, behind_count);
 }
 
 int add_jump_type_cborigin_in_block(struct CodeBlock *block, const char *origin_instruction, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {

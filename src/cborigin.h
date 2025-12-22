@@ -162,4 +162,8 @@ void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin);
  */
 void mark_cborigin_as_never_reached(struct CodeBlockOrigin *origin);
 
+#ifdef DEBUG
+void print_cborigin(const struct CodeBlockOrigin *origin);
+#endif /* DEBUG */
+
 #endif /* _CODE_BLOCK_ORIGIN_H_ */

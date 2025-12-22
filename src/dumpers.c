@@ -331,6 +331,14 @@ static int dump_instruction(
 			print("\n");
 			return 0;
 		}
+		else if (value0 == 0x98) {
+			print("cbw\n");
+			return 0;
+		}
+		else if (value0 == 0x99) {
+			print("cwd\n");
+			return 0;
+		}
 		else if ((value0 & 0xFC) == 0xA0) {
 			const char **registers;
 			int addr_value;
@@ -695,7 +703,7 @@ static int dump_instruction(
 
 				registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
 				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
-				if ((value0 & 0x38) == 0) {
+				if ((value1 & 0x38) == 0) {
 					print(",");
 					if (value0 & 1) {
 						print_literal_hex_word(print, read_next_word(reader));

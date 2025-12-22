@@ -236,7 +236,7 @@ int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list
 	return -1;
 }
 
-int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct Stack *stack, unsigned int behind_count) {
+int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct Registers *regs, const struct Stack *stack, unsigned int behind_count) {
 	if (index_of_cborigin_of_type_call_return(list, behind_count) < 0) {
 		int error_code;
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(list);
@@ -245,7 +245,7 @@ int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct
 		}
 
 		set_call_return_type_in_cborigin(new_origin, behind_count);
-		make_all_registers_undefined(&new_origin->regs);
+		copy_registers(&new_origin->regs, regs);
 		initialize_stack(&new_origin->stack);
 		if ((error_code = copy_stack(&new_origin->stack, stack))) {
 			return error_code;

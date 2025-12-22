@@ -9,12 +9,6 @@
 #include "itable.h"
 #include "cblist.h"
 
-void print_regs(const struct Registers *regs);
-void print_stack(const struct Stack *stack);
-void print_gvwvmap(const struct GlobalVariableWordValueMap *map, const char *buffer);
-void print_itable(const struct InterruptionTable *table);
-void print_cblist(const struct CodeBlockList *list);
-
 #include <stdio.h>
 
 #define DEBUG_PRINT0(msg) fprintf(stderr, msg)
@@ -60,9 +54,13 @@ DEBUG_PRINT3(msg, arg1, arg2, arg3)
 #define DEBUG_PRINT_STATE(ip, regs, stack, map, buffer, table) \
 DEBUG_PRINT1("  IP=%x", ip); \
 print_regs(regs); \
+fprintf(stderr, "\n  "); \
 print_stack(stack); \
+fprintf(stderr, "\n  "); \
 print_gvwvmap(map, buffer); \
-print_itable(table)
+fprintf(stderr, "\n  "); \
+print_itable(table); \
+fprintf(stderr, "\n")
 
 #define DEBUG_CBLIST(list) print_cblist(list)
 

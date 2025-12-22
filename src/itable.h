@@ -7,19 +7,19 @@ struct InterruptionTable {
 
 	/**
 	 * Points to the last instruction where the offset was assigned to a register.
-	 * NULL if the offset is not defined.
-	 * REGISTER_DEFINED_OUTSIDE if the offset comes registered by the OS.
+	 * This is irrelevant if the segment if not defined.
 	 */
-	const char *offset_defined[256];
+	const char *offset_origin[256];
 
 	/**
 	 * Points to the last instruction where the segment was assigned to a register.
-	 * NULL if the segment is not defined.
-	 * REGISTER_DEFINED_OUTSIDE if the segment comes registered by the OS.
+	 * This is irrelevant if the segment if not defined.
 	 */
-	const char *segment_defined[256];
+	const char *segment_origin[256];
 
-	char relative[32];
+	uint16_t segment_defined[16];
+	uint16_t offset_defined[16];
+	uint16_t relative[16];
 };
 
 int is_interruption_defined_and_relative_in_table(struct InterruptionTable *table, uint8_t index);
@@ -32,6 +32,10 @@ uint16_t get_interruption_table_relative_segment(struct InterruptionTable *table
 void set_interruption_table_offset(struct InterruptionTable *table, uint8_t index, const char *where, uint16_t value);
 void set_interruption_table_segment(struct InterruptionTable *table, uint8_t index, const char *where, uint16_t value);
 void set_interruption_table_segment_relative(struct InterruptionTable *table, uint8_t index, const char *where, uint16_t value);
-void make_all_interruption_table_undefined(struct InterruptionTable *table);
+void set_all_interruption_table_undefined(struct InterruptionTable *table);
+
+#ifdef DEBUG
+void print_itable(const struct InterruptionTable *table);
+#endif /* DEBUG */
 
 #endif /* _INTERRUPTION_TABLE_H_ */
