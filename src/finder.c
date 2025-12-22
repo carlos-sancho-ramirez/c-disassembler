@@ -63,8 +63,14 @@ static int ensure_call_return_origin(
 				return error_code;
 			}
 
-			if (is_register_sp_defined_absolute(&return_origin->regs)) {
+			if (is_register_sp_defined_relative(&return_origin->regs)) {
+				set_register_sp_relative(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+			}
+			else if (is_register_sp_defined_absolute(&return_origin->regs)) {
 				set_register_sp(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+			}
+			else if (is_register_sp_relative_from_bp(&return_origin->regs)) {
+				set_register_sp_relative_from_bp(&return_origin->regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 			}
 
 			pop_from_stack(&return_origin->stack);
@@ -101,12 +107,20 @@ static int ensure_call_return_origin(
 					return error_code;
 				}
 
-				if (is_register_sp_defined_absolute(&return_origin->regs)) {
+				if (is_register_sp_defined_relative(&return_origin->regs)) {
+					set_register_sp_relative(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				}
+				else if (is_register_sp_defined_absolute(&return_origin->regs)) {
 					set_register_sp(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 				}
+				else if (is_register_sp_relative_from_bp(&return_origin->regs)) {
+					set_register_sp_relative_from_bp(&return_origin->regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				}
 
-				return_block->ip = pop_from_stack(&return_origin->stack);
-				return_block->relative_cs = (is_returning_far)? pop_from_stack(&return_origin->stack) : jmp_block->relative_cs;
+				pop_from_stack(&return_origin->stack);
+				if (is_returning_far) {
+					pop_from_stack(&return_origin->stack);
+				}
 
 				set_cborigin_ready_to_be_evaluated(return_origin);
 				if ((error_code = insert_cborigin(&return_block->origin_list, return_origin))) {
