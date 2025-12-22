@@ -120,8 +120,14 @@ static int ensure_call_return_origin(
 				struct Registers updated_regs;
 				struct Stack updated_stack;
 				copy_registers(&updated_regs, regs);
-				if (is_register_sp_defined_absolute(regs)) {
+				if (is_register_sp_defined_relative(regs)) {
+					set_register_sp_relative(&updated_regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				}
+				else if (is_register_sp_defined_absolute(regs)) {
 					set_register_sp(&updated_regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				}
+				else if (is_register_sp_relative_from_bp(regs)) {
+					set_register_sp_relative_from_bp(&updated_regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 				}
 
 				initialize_stack(&updated_stack);
@@ -1943,8 +1949,14 @@ static int read_block_instruction_internal(
 
 		if (value0 == 0xE8) {
 			push_in_stack(stack, NULL, block->ip + reader->buffer_index);
-			if (is_register_sp_defined_absolute(regs)) {
+			if (is_register_sp_defined_relative(regs)) {
+				set_register_sp_relative(regs, opcode_reference, opcode_reference, get_register_sp(regs) - 2);
+			}
+			else if (is_register_sp_defined_absolute(regs)) {
 				set_register_sp(regs, opcode_reference, opcode_reference, get_register_sp(regs) - 2);
+			}
+			else if (is_register_sp_relative_from_bp(regs)) {
+				set_register_sp_relative_from_bp(regs, opcode_reference, get_register_sp(regs) - 2);
 			}
 		}
 
