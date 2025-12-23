@@ -2379,6 +2379,8 @@ static int read_block_instruction(
 }
 
 static int read_block(
+		int evaluation_number,
+		int evaluation_loop,
 		struct Registers *regs,
 		struct Stack *stack,
 		struct GlobalVariableWordValueMap *var_values,
@@ -2403,6 +2405,7 @@ static int read_block(
 
 	set_all_interruption_table_undefined(&int_table);
 
+	DEBUG_PRINT2("Evaluation #%d. Iteration %d. ", evaluation_number, evaluation_loop);
 	DEBUG_PRINT2("Reading block at +%x:%x\n", block->relative_cs, block->ip);
 	do {
 		int next_instruction_potentially_reached = 0;
@@ -2530,6 +2533,7 @@ int find_cblocks_and_gvars(
 	int evaluate_all;
 	int variable_index;
 	int evaluation_loop = 1;
+	int evaluation_number = 0;
 
 	if (!first_block) {
 		return 1;
@@ -2589,7 +2593,7 @@ int find_cblocks_and_gvars(
 					initialize_gvwvmap(&var_values);
 					accumulate_gvwvmap_from_cbolist(&var_values, &block->origin_list);
 
-					if ((error_code = read_block(&regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
+					if ((error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
 						return error_code;
 					}
 
