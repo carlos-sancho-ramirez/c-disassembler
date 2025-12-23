@@ -64,6 +64,8 @@ fprintf(stderr, "\n")
 
 #define DEBUG_CBLIST(list) print_cblist(list)
 
+#define WARN_PRINT0(msg) fprintf(stderr, "Warning: " msg)
+
 #else /* DEBUG */
 
 #define DEBUG_PRINT0(msg)
@@ -76,6 +78,8 @@ fprintf(stderr, "\n")
 #define DEBUG_INDENTED_PRINT3(depth, msg, arg1, arg2, arg3)
 #define DEBUG_PRINT_STATE(ip, regs, stack, map, buffer, table)
 #define DEBUG_CBLIST(list)
+
+#define WARN_PRINT0(msg)
 
 #endif /* DEBUG */
 #endif /* _PRINT_DEBUG_H_ */

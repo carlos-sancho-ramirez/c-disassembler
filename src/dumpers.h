@@ -4,6 +4,7 @@
 #include "cblock.h"
 #include "gvar.h"
 #include "ref.h"
+#include "funclist.h"
 
 int dump(
 	const char *buffer,
@@ -18,6 +19,7 @@ int dump(
 	unsigned int global_variable_reference_count,
 	const char **sorted_relocations,
 	unsigned int relocation_count,
+	struct FunctionList *func_list,
 	void (*print)(const char *),
 	void (*print_error)(const char *),
 	void (*print_segment_start_label)(void (*)(const char *), const char *),

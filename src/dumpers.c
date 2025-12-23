@@ -3,6 +3,7 @@
 #include "reader.h"
 #include "relocu.h"
 #include "counter.h"
+#include "funclist.h"
 
 const char *BYTE_REGISTERS[] = {
 	"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"
@@ -134,6 +135,7 @@ static int dump_instruction(
 		struct Reference *reference,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
+		struct FunctionList *func_list,
 		void (*print)(const char *),
 		void (*print_error)(const char *),
 		void (*print_segment_start_label)(void (*)(const char *), const char *),
@@ -215,8 +217,16 @@ static int dump_instruction(
 		else if ((value0 & 0xF0) == 0x70) {
 			const int value1 = read_next_byte(reader);
 			const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+			int index;
+
 			print(JUMP_INSTRUCTIONS[value0 & 0x0F]);
 			print(" ");
+			index = index_of_func_containing_block_start(func_list, block->start);
+			if (index >= 0) {
+				print("func");
+				print_literal_hex_word_no_prefix(print, index);
+				print("_");
+			}
 			print_code_label(print, target_ip, block->relative_cs);
 			print("\n");
 			return 0;
@@ -490,10 +500,17 @@ static int dump_instruction(
 					print_variable_label(print, ref_var_value);
 				}
 				else if (reference && (ref_block = get_cblock_from_ref_target(reference))) {
+					int index;
 					if (relocation_segment_present) {
 						print("+");
 					}
 
+					index = index_of_func_containing_block_start(func_list, block->start);
+					if (index >= 0) {
+						print("func");
+						print_literal_hex_word_no_prefix(print, index);
+						print("_");
+					}
 					print_code_label(print, ref_block->ip, ref_block->relative_cs);
 				}
 				else {
@@ -631,8 +648,16 @@ static int dump_instruction(
 		else if ((value0 & 0xFC) == 0xE0) {
 			const int value1 = read_next_byte(reader);
 			const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+			int index;
+
 			print(LOOP_INSTRUCTIONS[value0 & 0x0F]);
 			print(" ");
+			index = index_of_func_containing_block_start(func_list, block->start);
+			if (index >= 0) {
+				print("func");
+				print_literal_hex_word_no_prefix(print, index);
+				print("_");
+			}
 			print_code_label(print, target_ip, block->relative_cs);
 			print("\n");
 			return 0;
@@ -640,6 +665,7 @@ static int dump_instruction(
 		else if ((value0 & 0xFE) == 0xE8) {
 			const int diff = read_next_word(reader);
 			const uint16_t target_ip = block->ip + reader->buffer_index + diff;
+			int index;
 
 			if (value0 & 1) {
 				print("jmp ");
@@ -648,6 +674,12 @@ static int dump_instruction(
 				print("call ");
 			}
 
+			index = index_of_func_containing_block_start(func_list, block->start + reader->buffer_index + diff);
+			if (index >= 0) {
+				print("func");
+				print_literal_hex_word_no_prefix(print, index);
+				print("_");
+			}
 			print_code_label(print, target_ip, block->relative_cs);
 			print("\n");
 			return 0;
@@ -663,7 +695,15 @@ static int dump_instruction(
 		else if (value0 == 0xEB) {
 			const int value1 = read_next_byte(reader);
 			const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+			int index;
+
 			print("jmp ");
+			index = index_of_func_containing_block_start(func_list, block->start);
+			if (index >= 0) {
+				print("func");
+				print_literal_hex_word_no_prefix(print, index);
+				print("_");
+			}
 			print_code_label(print, target_ip, block->relative_cs);
 			print("\n");
 			return 0;
@@ -966,6 +1006,7 @@ int dump(
 		unsigned int gvar_ref_count,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
+		struct FunctionList *func_list,
 		void (*print)(const char *),
 		void (*print_error)(const char *),
 		void (*print_segment_start_label)(void (*)(const char *), const char *),
@@ -1040,7 +1081,14 @@ int dump(
 		}
 		else if (position_in_block && !position_in_variable) {
 			if (block->start == position && should_dump_label_for_block(block)) {
+				int index;
 				print("\n");
+				index = index_of_func_containing_block_start(func_list, block->start);
+				if (index >= 0) {
+					print("func");
+					print_literal_hex_word_no_prefix(print, index);
+					print("_");
+				}
 				print_code_label(print, block->ip, block->relative_cs);
 				print(":\n");
 			}
@@ -1113,7 +1161,7 @@ int dump(
 						gvar_ref_count--;
 					}
 
-					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, reference, sorted_relocations, relocation_count, print, print_error, print_segment_start_label, print_code_label, print_variable_label);
+					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, reference, sorted_relocations, relocation_count, func_list, print, print_error, print_segment_start_label, print_code_label, print_variable_label);
 					position = next_position;
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
@@ -1135,7 +1183,15 @@ int dump(
 			unsigned int current_variable_size;
 
 			if (block->start == position && should_dump_label_for_block(block)) {
+				int index;
+
 				print("\n");
+				index = index_of_func_containing_block_start(func_list, block->start);
+				if (index >= 0) {
+					print("func");
+					print_literal_hex_word_no_prefix(print, index);
+					print("_");
+				}
 				print_code_label(print, block->ip, block->relative_cs);
 				print(":\n");
 			}

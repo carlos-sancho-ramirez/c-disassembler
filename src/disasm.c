@@ -13,6 +13,8 @@
 #include "srresult.h"
 #include "sslist.h"
 #include "version.h"
+#include "funcfind.h"
+#include "printd.h"
 
 static void print_help(const char *executedFile) {
 	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n  -o <filename>     Uses this file as output.\n                    If not defined, the result will be printed in the standard output.\n", executedFile);
@@ -239,6 +241,7 @@ int main(int argc, const char *argv[]) {
 	struct GlobalVariableList gvar_list;
 	struct SegmentStartList segment_start_list;
 	struct ReferenceList ref_list;
+	struct FunctionList func_list;
 
 	printf("%s", application_name_and_version);
 
@@ -306,8 +309,18 @@ int main(int argc, const char *argv[]) {
 	initialize_ref_list(&ref_list);
 
 	if ((error_code = find_cblocks_and_gvars(&read_result, print_error, &cblock_list, &gvar_list, &segment_start_list, &ref_list))) {
+		goto end0;
+	}
+
+	DEBUG_PRINT1("Found %d blocks.\n", cblock_list.block_count);
+	initialize_func_list(&func_list);
+
+	if ((error_code = find_functions(cblock_list.sorted_blocks, cblock_list.block_count, &func_list))) {
 		goto end;
 	}
+#ifdef DEBUG
+	print_funclist(&func_list);
+#endif /* DEBUG */
 
 	if (out_filename) {
 		print_output_file = fopen(out_filename, "w");
@@ -338,6 +351,7 @@ int main(int argc, const char *argv[]) {
 			ref_list.reference_count,
 			read_result.sorted_relocations,
 			read_result.relocation_count,
+			&func_list,
 			print_output,
 			print_error,
 			print_segment_start_label,
@@ -349,6 +363,9 @@ int main(int argc, const char *argv[]) {
 	}
 
 	end:
+	clear_func_list(&func_list);
+
+	end0:
 	if (read_result.relocation_count) {
 		free(read_result.sorted_relocations);
 		free(read_result.relocation_table);

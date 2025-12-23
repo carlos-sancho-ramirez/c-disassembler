@@ -5,6 +5,7 @@ extern const char *buffer_start;
 
 void print_literal_hex_byte(void (*print)(const char *), int value);
 void print_literal_hex_word(void (*print)(const char *), int value);
+void print_literal_hex_word_no_prefix(void (*print)(const char *), int value);
 void print_differential_hex_byte(void (*print)(const char *), int value);
 void print_differential_hex_word(void (*print)(const char *), int value);
 

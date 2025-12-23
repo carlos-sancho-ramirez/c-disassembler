@@ -2,8 +2,7 @@
 #define _STACK_H_
 
 #include <stdint.h>
-
-typedef unsigned int packed_data_t;
+#include "packed.h"
 
 struct Stack {
 	/**
