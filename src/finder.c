@@ -542,14 +542,47 @@ int update_int2140_message_references(
 
 		for (index = 0; index < origin_count; index++) {
 			struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
+			int origin_type;
+
 #ifdef DEBUG
 			DEBUG_INDENTED_PRINT1(depth, "Checking origin at %d: ", index);
 			print_cborigin(origin);
 #endif /* DEBUG */
 
-			if (get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
+			origin_type = get_cborigin_type(origin);
+			if (origin_type == CBORIGIN_TYPE_CONTINUE) {
+				const int block_index = index_of_cblock_with_start(code_block_list, block->start);
+				if (block_index > 0) {
+					struct CodeBlock *previous_block = code_block_list->sorted_blocks[block_index - 1];
+					const int new_ds_defined = ds_defined || is_register_ds_defined(&origin->regs);
+					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(&origin->regs);
+					const uint16_t new_ds_value = ds_defined? ds_value : get_register_ds(&origin->regs);
+
+					const int new_dx_defined = dx_defined || is_register_dx_defined(&origin->regs);
+					const int new_dx_relative = dx_defined? dx_relative : is_register_dx_defined_relative(&origin->regs);
+					const uint16_t new_dx_value = dx_defined? dx_value : get_register_dx(&origin->regs);
+					const char *new_dx_value_origin = dx_defined? dx_value_origin : get_register_dx_value_origin(&origin->regs);
+
+					const int new_cx_defined = cx_defined || is_register_cx_defined(&origin->regs);
+					const int new_cx_relative = cx_defined? ds_relative : is_register_cx_defined_relative(&origin->regs);
+					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(&origin->regs);
+
+					int error_code;
+					DEBUG_PRINT2(" from block starting at +%x:%x\n", previous_block->relative_cs, previous_block->ip);
+
+					if ((error_code = update_int2140_message_references(&origin->regs, segment_start, segment_size, previous_block, code_block_list,
+							gvar_list, segment_start_list, ref_list, checked_blocks,
+							new_cx_defined, new_cx_relative, new_cx_value,
+							new_dx_defined, new_dx_relative, new_dx_value, new_dx_value_origin,
+							new_ds_defined, new_ds_relative, new_ds_value,
+							depth + 1))) {
+						return error_code;
+					}
+				}
+			}
+			else if (origin_type == CBORIGIN_TYPE_JUMP) {
 				const int origin_block_index = index_of_cblock_containing_position(code_block_list, origin->instruction);
-				if (origin_block_index >= 0 && get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
+				if (origin_block_index >= 0) {
 					struct CodeBlock *origin_block = code_block_list->sorted_blocks[origin_block_index];
 					const int new_ds_defined = ds_defined || is_register_ds_defined(&origin->regs);
 					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(&origin->regs);
@@ -584,7 +617,7 @@ int update_int2140_message_references(
 			}
 			else {
 				DEBUG_PRINT0("\n");
-				DEBUG_INDENTED_PRINT0(depth + 1, "Type is not JUMP. Skipping.\n");
+				DEBUG_INDENTED_PRINT0(depth + 1, "Type is neither CONT nor JUMP. Skipping.\n");
 			}
 		}
 	}
