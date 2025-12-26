@@ -48,17 +48,27 @@ void print_funclist(const struct FunctionList *list) {
 	for (i = 0; i < list->func_count; i++) {
 		const struct Function *func = list->sorted_funcs[i];
 		const struct CodeBlock *start_block = get_start_block(func);
+		unsigned int block_index;
 
 		if (i > 0) {
 			fprintf(stderr, ", ");
 		}
 
 		if (start_block) {
-			fprintf(stderr, "+%X:%X", start_block->relative_cs, start_block->ip);
+			fprintf(stderr, "+%X:%X(", start_block->relative_cs, start_block->ip);
 		}
 		else {
-			fprintf(stderr, "?");
+			fprintf(stderr, "?(");
 		}
+
+
+		for (block_index = 0; block_index < func->block_count; block_index++) {
+			if (block_index > 0) {
+				fprintf(stderr, ", ");
+			}
+			fprintf(stderr, "%X", func->blocks[block_index]->ip);
+		}
+		fprintf(stderr, ")");
 	}
 
 	fprintf(stderr, ")\n");

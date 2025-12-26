@@ -6,8 +6,21 @@
 /**
  * Collect some blocks as a function unit.
  *
- * A function must have at least one block, and at least one block ending with
- * the instruction "ret", "retf" or "iret".
+ * A collection of blocks are considered a function if, and only if, meet all the following conditions:
+ * - It must contain at least one block.
+ * - It must finish with one or more blocks ending with instruction "ret",
+ *   "retf" or "iret", if there is more than one endign blocks, all of them
+ *   must finish with the same instruction and number in case of "ret".
+ *   (E.g. if one finishes with "ret 0x0006", all the rest must finish with
+ *   "ret" and returning 6).
+ * - All blocks must be in the same code segment. which means that all of them
+ *   must have the same relative CS.
+ * - Blocks cannot be shared with other functions. So, all blocks that belongs
+ *   to a function cannot belong to other.
+ *
+ * On the other side, for simplicity, we will consider the following, but it
+ * can change in the future if required.
+ * - There is only one starting block for each function.
  */
 struct Function {
 	/**
