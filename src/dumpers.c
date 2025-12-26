@@ -224,7 +224,7 @@ static int dump_instruction(
 			index = index_of_func_containing_block_start(func_list, block->start);
 			if (index >= 0) {
 				print("func");
-				print_literal_hex_word_no_prefix(print, index);
+				print_uint(print, index + 1);
 				print("_");
 			}
 			print_code_label(print, target_ip, block->relative_cs);
@@ -508,7 +508,7 @@ static int dump_instruction(
 					index = index_of_func_containing_block_start(func_list, block->start);
 					if (index >= 0) {
 						print("func");
-						print_literal_hex_word_no_prefix(print, index);
+						print_uint(print, index + 1);
 						print("_");
 					}
 					print_code_label(print, ref_block->ip, ref_block->relative_cs);
@@ -655,7 +655,7 @@ static int dump_instruction(
 			index = index_of_func_containing_block_start(func_list, block->start);
 			if (index >= 0) {
 				print("func");
-				print_literal_hex_word_no_prefix(print, index);
+				print_uint(print, index + 1);
 				print("_");
 			}
 			print_code_label(print, target_ip, block->relative_cs);
@@ -677,7 +677,7 @@ static int dump_instruction(
 			index = index_of_func_containing_block_start(func_list, block->start + reader->buffer_index + diff);
 			if (index >= 0) {
 				print("func");
-				print_literal_hex_word_no_prefix(print, index);
+				print_uint(print, index + 1);
 				print("_");
 			}
 			print_code_label(print, target_ip, block->relative_cs);
@@ -701,7 +701,7 @@ static int dump_instruction(
 			index = index_of_func_containing_block_start(func_list, block->start);
 			if (index >= 0) {
 				print("func");
-				print_literal_hex_word_no_prefix(print, index);
+				print_uint(print, index + 1);
 				print("_");
 			}
 			print_code_label(print, target_ip, block->relative_cs);
@@ -1086,7 +1086,7 @@ int dump(
 				index = index_of_func_containing_block_start(func_list, block->start);
 				if (index >= 0) {
 					print("func");
-					print_literal_hex_word_no_prefix(print, index);
+					print_uint(print, index + 1);
 					print("_");
 				}
 				print_code_label(print, block->ip, block->relative_cs);
@@ -1189,7 +1189,7 @@ int dump(
 				index = index_of_func_containing_block_start(func_list, block->start);
 				if (index >= 0) {
 					print("func");
-					print_literal_hex_word_no_prefix(print, index);
+					print_uint(print, index + 1);
 					print("_");
 				}
 				print_code_label(print, block->ip, block->relative_cs);

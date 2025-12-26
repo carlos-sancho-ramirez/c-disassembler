@@ -67,6 +67,18 @@ void print_differential_hex_word(void (*print)(const char *), int value) {
 	print(number);
 }
 
+void print_uint(void (*print)(const char *), unsigned int value) {
+	char number[2];
+
+	if (value > 10) {
+		print_uint(print, value / 10);
+	}
+
+	number[0] = HEX_CHAR[value % 10];
+	number[1] = '\0';
+	print(number);
+}
+
 void print_bin_address_label(void (*print)(const char *), int ip, int cs) {
 	print("addr");
 	print_literal_hex_word_no_prefix(print, ip & 0xFFFF);

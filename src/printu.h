@@ -8,6 +8,7 @@ void print_literal_hex_word(void (*print)(const char *), int value);
 void print_literal_hex_word_no_prefix(void (*print)(const char *), int value);
 void print_differential_hex_byte(void (*print)(const char *), int value);
 void print_differential_hex_word(void (*print)(const char *), int value);
+void print_uint(void (*print)(const char *), unsigned int value);
 
 void print_segment_start_label(void (*print)(const char *), const char *start);
 void print_bin_address_label(void (*print)(const char *), int ip, int cs);
