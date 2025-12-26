@@ -89,6 +89,23 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 				return 1;
 			}
 		}
+		else if (value0 == 0xCD) {
+			const int value1 = read_next_byte(&reader);
+			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index);
+			if (target_block_index >= 0) {
+				if (get_bitset_value(available_blocks, target_block_index)) {
+					set_bitset_value(included_blocks, target_block_index, 1);
+				}
+				else {
+					WARN_PRINT0("Block found after the interruption call, but already in use.\n");
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT0("Unable to find a block after the interruption call.\n");
+				return 1;
+			}
+		}
 		else if (value0 == 0xEA) {
 			DEBUG_PRINT0("Opcode EA found. For now, we do not allow it. Skipping this function evaluation.\n");
 			return 1;
