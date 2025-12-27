@@ -3,6 +3,10 @@
 
 #include "cblist.h"
 
+#define FUNC_RET_TYPE_NEAR 1
+#define FUNC_RET_TYPE_FAR 2
+#define FUNC_RET_TYPE_INT 3
+
 /**
  * Collect some blocks as a function unit.
  *
@@ -24,9 +28,15 @@
  */
 struct Function {
 	/**
-	 * Flags for this function. Still nothing defined
+	 * Flags for this function.
+	 * bits 1-0: Type of return type. This must be near, far or int.
 	 */
 	unsigned int flags;
+
+	/**
+	 * Number of bytes that this function pops from the stack after its return.
+	 */
+	unsigned int return_size;
 
 	/**
 	 * Array of block pointers for all blocks composing this function.

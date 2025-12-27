@@ -5,6 +5,14 @@
 
 #include <assert.h>
 
+#define FUNC_RET_TYPE_UNKNOWN 0
+
+struct FuncState {
+	int return_type;
+	int return_size;
+	packed_data_t *included_blocks;
+};
+
 static int find_block_index(struct CodeBlock **blocks, unsigned int block_count, const char *start) {
 	unsigned int first = 0;
 	unsigned int last = block_count;
@@ -26,7 +34,7 @@ static int find_block_index(struct CodeBlock **blocks, unsigned int block_count,
 	return -1;
 }
 
-static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, packed_data_t *included_blocks) {
+static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, struct FuncState *state) {
 	const struct CodeBlock *block = blocks[block_index];
 	struct Reader reader;
 	int error_code;
@@ -56,7 +64,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index + diff);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
-					set_bitset_value(included_blocks, target_block_index, 1);
+					set_bitset_value(state->included_blocks, target_block_index, 1);
 				}
 				else {
 					WARN_PRINT0("7X or EX. Block found, but already in use.\n");
@@ -65,6 +73,55 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			}
 			else {
 				WARN_PRINT0("7X or EX. Unable to find a block matching the expected start position.\n");
+				return 1;
+			}
+		}
+		else if (value0 == 0xC2) {
+			const int ret_size = read_next_word(&reader);
+			if (state->return_type == FUNC_RET_TYPE_UNKNOWN) {
+				state->return_type = FUNC_RET_TYPE_NEAR;
+				state->return_size = ret_size;
+			}
+			else if (state->return_type == FUNC_RET_TYPE_NEAR) {
+				if (ret_size != state->return_size) {
+					WARN_PRINT0("Mismatch between return sizes.\n");
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT0("Mismatch between return types.\n");
+				return 1;
+			}
+		}
+		else if (value0 == 0xC3) {
+			if (state->return_type == FUNC_RET_TYPE_UNKNOWN) {
+				state->return_type = FUNC_RET_TYPE_NEAR;
+				state->return_size = 0;
+			}
+			else if (state->return_type == FUNC_RET_TYPE_NEAR) {
+				if (state->return_size != 0) {
+					WARN_PRINT0("Mismatch between return sizes.\n");
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT0("Mismatch between return types.\n");
+				return 1;
+			}
+		}
+		else if (value0 == 0xCB) {
+			if (state->return_type == FUNC_RET_TYPE_UNKNOWN) {
+				state->return_type = FUNC_RET_TYPE_FAR;
+				state->return_size = 0;
+			}
+			else if (state->return_type == FUNC_RET_TYPE_FAR) {
+				if (state->return_size != 0) {
+					WARN_PRINT0("Mismatch between return sizes.\n");
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT0("Mismatch between return types.\n");
 				return 1;
 			}
 		}
@@ -77,7 +134,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index + diff);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
-					set_bitset_value(included_blocks, target_block_index, 1);
+					set_bitset_value(state->included_blocks, target_block_index, 1);
 				}
 				else {
 					WARN_PRINT0("E9. Block found, but already in use.\n");
@@ -94,7 +151,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
-					set_bitset_value(included_blocks, target_block_index, 1);
+					set_bitset_value(state->included_blocks, target_block_index, 1);
 				}
 				else {
 					WARN_PRINT0("Block found after the interruption call, but already in use.\n");
@@ -125,7 +182,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		struct CodeBlock *next_block = blocks[block_index + 1];
 		if (next_block->start == reader.buffer + reader.buffer_index && index_of_cborigin_of_type_continue(&next_block->origin_list) >= 0) {
 			if (get_bitset_value(available_blocks, block_index + 1)) {
-				set_bitset_value(included_blocks, block_index + 1, 1);
+				set_bitset_value(state->included_blocks, block_index + 1, 1);
 			}
 			else {
 				WARN_PRINT0("Next block has origin of type 'continue', but it is already in use.\n");
@@ -137,7 +194,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 	return 0;
 }
 
-static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int block_count, packed_data_t *available_blocks, packed_data_t *included_blocks) {
+static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int block_count, packed_data_t *available_blocks, struct FuncState *state) {
 	packed_data_t *evaluated_blocks = allocate_bitset(block_count);
 	int block_index;
 
@@ -145,11 +202,11 @@ static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int b
 		return 1;
 	}
 
-	while(!are_bitsets_equal(included_blocks, evaluated_blocks, block_count)) {
+	while(!are_bitsets_equal(state->included_blocks, evaluated_blocks, block_count)) {
 		for (block_index = 0; block_index < block_count; block_index++) {
-			if (get_bitset_value(included_blocks, block_index) && !get_bitset_value(evaluated_blocks, block_index)) {
+			if (get_bitset_value(state->included_blocks, block_index) && !get_bitset_value(evaluated_blocks, block_index)) {
 				int error_code;
-				if ((error_code = evaluate_block(blocks, block_count, block_index, available_blocks, included_blocks))) {
+				if ((error_code = evaluate_block(blocks, block_count, block_index, available_blocks, state))) {
 					free(evaluated_blocks);
 					return error_code;
 				}
@@ -207,11 +264,13 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 			}
 
 			if (valid_origins) {
-				packed_data_t *included_blocks = allocate_bitset(block_count);
-				set_bitset_value(included_blocks, block_index, 1);
+				struct FuncState state;
+				state.return_type = FUNC_RET_TYPE_UNKNOWN;
+				state.included_blocks = allocate_bitset(block_count);
+				set_bitset_value(state.included_blocks, block_index, 1);
 
 				DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", block->relative_cs, block->ip);
-				if (find_all_blocks_in_function(blocks, block_count, available_blocks, included_blocks)) {
+				if (find_all_blocks_in_function(blocks, block_count, available_blocks, &state) || state.return_type == FUNC_RET_TYPE_UNKNOWN) {
 					set_bitset_value(available_blocks, block_index, 0);
 				}
 				else {
@@ -220,13 +279,14 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 					int new_blocks_index = 0;
 					int error_code;
 
-					new_func->flags = 0;
+					new_func->flags = state.return_type;
+					new_func->return_size = state.return_size;
 					new_func->start = block->start;
-					new_func->block_count = count_set_bits_in_bitset(included_blocks, block_count);
+					new_func->block_count = count_set_bits_in_bitset(state.included_blocks, block_count);
 					new_func->blocks = malloc(sizeof(struct CodeBlock *) * new_func->block_count);
 
 					for (all_block_index = 0; all_block_index < block_count; all_block_index++) {
-						if (get_bitset_value(included_blocks, all_block_index)) {
+						if (get_bitset_value(state.included_blocks, all_block_index)) {
 							new_func->blocks[new_blocks_index++] = blocks[all_block_index];
 							set_bitset_value(available_blocks, all_block_index, 0);
 						}
