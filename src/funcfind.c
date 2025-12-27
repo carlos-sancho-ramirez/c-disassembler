@@ -121,6 +121,19 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		reader.buffer_index = next_instruction_index;
 	}
 
+	if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+		struct CodeBlock *next_block = blocks[block_index + 1];
+		if (next_block->start == reader.buffer + reader.buffer_index && index_of_cborigin_of_type_continue(&next_block->origin_list) >= 0) {
+			if (get_bitset_value(available_blocks, block_index + 1)) {
+				set_bitset_value(included_blocks, block_index + 1, 1);
+			}
+			else {
+				WARN_PRINT0("Next block has origin of type 'continue', but it is already in use.\n");
+				return 1;
+			}
+		}
+	}
+
 	return 0;
 }
 
