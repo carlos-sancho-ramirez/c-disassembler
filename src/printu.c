@@ -70,7 +70,7 @@ void print_differential_hex_word(void (*print)(const char *), int value) {
 void print_uint(void (*print)(const char *), unsigned int value) {
 	char number[2];
 
-	if (value > 10) {
+	if (value >= 10) {
 		print_uint(print, value / 10);
 	}
 
