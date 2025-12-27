@@ -1839,55 +1839,57 @@ static int read_block_instruction_internal(
 					return error_code;
 				}
 			}
-			else if (ah_value == 0x25 && is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs)) { /* Set interruption vector. DS:DX point to the handler code */
-				uint16_t target_relative_cs = get_register_ds(regs);
-				uint16_t target_ip = get_register_dx(regs);
-				const char *jump_destination;
-				int result;
-				struct CodeBlock *potential_container;
-				struct CodeBlock *target_block;
-				const char *instruction;
-				unsigned int addr = target_relative_cs;
-				addr = (addr * 16 + target_ip) & 0xFFFFF;
+			else if (ah_value == 0x25) { /* Set interruption vector. DS:DX point to the handler code */
+				if (is_register_ds_defined_relative(regs) && is_register_dx_defined_absolute(regs)) {
+					uint16_t target_relative_cs = get_register_ds(regs);
+					uint16_t target_ip = get_register_dx(regs);
+					const char *jump_destination;
+					int result;
+					struct CodeBlock *potential_container;
+					struct CodeBlock *target_block;
+					const char *instruction;
+					unsigned int addr = target_relative_cs;
+					addr = (addr * 16 + target_ip) & 0xFFFFF;
 
-				jump_destination = segment_start + addr;
-				result = index_of_cblock_containing_position(code_block_list, jump_destination);
-				potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-				if (potential_container && potential_container->start == jump_destination) {
-					target_block = potential_container;
-				}
-				else {
-					target_block = prepare_new_cblock(code_block_list);
-					if (!target_block) {
-						return 1;
+					jump_destination = segment_start + addr;
+					result = index_of_cblock_containing_position(code_block_list, jump_destination);
+					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+					if (potential_container && potential_container->start == jump_destination) {
+						target_block = potential_container;
+					}
+					else {
+						target_block = prepare_new_cblock(code_block_list);
+						if (!target_block) {
+							return 1;
+						}
+
+						target_block->relative_cs = target_relative_cs;
+						target_block->ip = target_ip;
+						target_block->start = jump_destination;
+						target_block->end = jump_destination;
+						target_block->flags = 0;
+						initialize_cborigin_list(&target_block->origin_list);
+						if ((result = add_interruption_type_cborigin_in_block(target_block, regs, var_values))) {
+							return result;
+						}
+
+						if ((result = insert_cblock(code_block_list, target_block))) {
+							return result;
+						}
+
+						if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+							potential_container->end = jump_destination;
+							invalidate_cblock_check(potential_container);
+						}
 					}
 
-					target_block->relative_cs = target_relative_cs;
-					target_block->ip = target_ip;
-					target_block->start = jump_destination;
-					target_block->end = jump_destination;
-					target_block->flags = 0;
-					initialize_cborigin_list(&target_block->origin_list);
-					if ((result = add_interruption_type_cborigin_in_block(target_block, regs, var_values))) {
-						return result;
+					instruction = get_register_dx_value_origin(regs);
+					if (instruction && (((unsigned int) *instruction) & 0xFF) == 0xBA && index_of_ref_with_instruction(ref_list, instruction) < 0) {
+						struct Reference *new_ref = prepare_new_ref(ref_list);
+						new_ref->instruction = instruction;
+						set_cblock_ref_from_instruction_immediate_value(new_ref, target_block);
+						insert_ref(ref_list, new_ref);
 					}
-
-					if ((result = insert_cblock(code_block_list, target_block))) {
-						return result;
-					}
-
-					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
-						potential_container->end = jump_destination;
-						invalidate_cblock_check(potential_container);
-					}
-				}
-
-				instruction = get_register_dx_value_origin(regs);
-				if (instruction && (((unsigned int) *instruction) & 0xFF) == 0xBA && index_of_ref_with_instruction(ref_list, instruction) < 0) {
-					struct Reference *new_ref = prepare_new_ref(ref_list);
-					new_ref->instruction = instruction;
-					set_cblock_ref_from_instruction_immediate_value(new_ref, target_block);
-					insert_ref(ref_list, new_ref);
 				}
 
 				if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
