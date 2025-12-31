@@ -80,7 +80,7 @@ static int find_included_block_index(int block_index, const int *block_map, int 
 	return -1;
 }
 
-static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, struct FuncState *state) {
+static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
 	const struct CodeBlock *block = blocks[block_index];
 	struct Reader reader;
 	int error_code;
@@ -172,8 +172,36 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			}
 		}
 		else if (value0 == 0xE8) {
-			DEBUG_PRINT0("Opcode E8 found. For now, we do not allow nested calls. Skipping this function evaluation.\n");
-			return 1;
+			const int diff = read_next_word(&reader);
+			const char *target = block->start + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, target);
+			const int target_func_index = index_of_func_with_start(func_list, target);
+			if (target_block_index >= 0) {
+				if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+					struct CodeBlock *next_block = blocks[block_index + 1];
+					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
+						if (get_bitset_value(available_blocks, block_index + 1)) {
+							set_bitset_value(state->included_blocks, block_index + 1, 1);
+						}
+						else {
+							WARN_PRINT0("Next block has origin of type 'call return', but it is already in use.\n");
+							return 1;
+						}
+					}
+					else {
+						WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
+						return 1;
+					}
+				}
+				else {
+					WARN_PRINT0("call instruction found, but no return block found.\n");
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT0("No function already evaluated matching the given target.\n");
+				return 1;
+			}
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
@@ -240,7 +268,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 	return 0;
 }
 
-static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int block_count, packed_data_t *available_blocks, struct FuncState *state) {
+static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int block_count, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
 	packed_data_t *evaluated_blocks = allocate_bitset(block_count);
 	int block_index;
 
@@ -252,7 +280,7 @@ static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int b
 		for (block_index = 0; block_index < block_count; block_index++) {
 			if (get_bitset_value(state->included_blocks, block_index) && !get_bitset_value(evaluated_blocks, block_index)) {
 				int error_code;
-				if ((error_code = evaluate_block(blocks, block_count, block_index, available_blocks, state))) {
+				if ((error_code = evaluate_block(blocks, block_count, block_index, available_blocks, state, func_list))) {
 					free(evaluated_blocks);
 					return error_code;
 				}
@@ -266,7 +294,7 @@ static int find_all_blocks_in_function(struct CodeBlock **blocks, unsigned int b
 	return 0;
 }
 
-static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, unsigned int included_block_index, unsigned int included_blocks_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map) {
+static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, unsigned int included_block_index, unsigned int included_blocks_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map, const struct FunctionList *func_list) {
 	const struct CodeBlock *block = blocks[block_index];
 	struct Reader reader;
 	int error_code;
@@ -347,8 +375,49 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 			}
 		}
 		else if (value0 == 0xE8) {
-			DEBUG_PRINT0("Opcode E8 found. For now, we do not allow nested calls. Skipping this function evaluation.\n");
-			return 1;
+			const int diff = read_next_word(&reader);
+			const char *target = block->start + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, target);
+			const int target_func_index = index_of_func_with_start(func_list, target);
+			if (target_func_index >= 0) {
+				if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+					struct CodeBlock *next_block = blocks[block_index + 1];
+					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
+						const struct Function *target_func = func_list->sorted_funcs[target_func_index];
+						if (target_func->return_size & 1) {
+							WARN_PRINT0("Target function has an odd value in its return size.\n");
+							return 1;
+						}
+						else if (target_func->return_size > stack_word_count * 2) {
+							WARN_PRINT0("Target function has a return value bigger than the current stack count.\n");
+							return 1;
+						}
+						else {
+							int next_block_stack_size = stack_state->stack_size[included_block_index + 1];
+							stack_word_count -= target_func->return_size / 2;
+							if (next_block_stack_size < 0) {
+								stack_state->stack_size[included_block_index + 1] = stack_word_count;
+							}
+							else if (next_block_stack_size != stack_word_count) {
+								WARN_PRINT0("Stack word count mismatch for the next block");
+								return 1;
+							}
+						}
+					}
+					else {
+						WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
+						return 1;
+					}
+				}
+				else {
+					WARN_PRINT0("call instruction found, but no return block found.\n");
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT0("No function already evaluated matching the given target.\n");
+				return 1;
+			}
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
@@ -388,7 +457,7 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 	return 0;
 }
 
-static int check_stack_in_all_blocks(struct CodeBlock **blocks, unsigned int block_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map) {
+static int check_stack_in_all_blocks(struct CodeBlock **blocks, unsigned int block_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map, const struct FunctionList *func_list) {
 	const packed_data_t *included_blocks = state->included_blocks;
 	const unsigned int included_blocks_count = count_set_bits_in_bitset(included_blocks, block_count);
 	packed_data_t *evaluated_included_blocks = allocate_bitset(included_blocks_count);
@@ -399,7 +468,7 @@ static int check_stack_in_all_blocks(struct CodeBlock **blocks, unsigned int blo
 		if (get_bitset_value(included_blocks, block_index)) {
 			if (!get_bitset_value(evaluated_included_blocks, included_block_index) && stack_state->stack_size[included_block_index] >= 0) {
 				int error_code;
-				if ((error_code = check_block_stack(blocks, block_count, block_index, included_block_index, included_blocks_count, state, stack_state, block_map))) {
+				if ((error_code = check_block_stack(blocks, block_count, block_index, included_block_index, included_blocks_count, state, stack_state, block_map, func_list))) {
 					free(evaluated_included_blocks);
 					return error_code;
 				}
@@ -416,6 +485,7 @@ static int check_stack_in_all_blocks(struct CodeBlock **blocks, unsigned int blo
 int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct FunctionList *func_list) {
 	packed_data_t *available_blocks = allocate_bitset(block_count);
 	int block_index;
+	int new_function_added;
 
 	DEBUG_PRINT0("Finding functions\n");
 	if (!available_blocks) {
@@ -426,135 +496,137 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 		set_bitset_value(available_blocks, block_index, 1);
 	}
 
-	for (block_index = 0; block_index < block_count; block_index++) {
-		if (get_bitset_value(available_blocks, block_index)) {
-			const struct CodeBlock *block = blocks[block_index];
-			const struct CodeBlockOriginList *origin_list = &block->origin_list;
-			int origin_index;
-			int valid_origins = origin_list->origin_count > 0;
+	do {
+		new_function_added = 0;
 
-			for (origin_index = 0; origin_index < origin_list->origin_count; origin_index++) {
-				const struct CodeBlockOrigin *origin = origin_list->sorted_origins[origin_index];
+		for (block_index = 0; block_index < block_count; block_index++) {
+			if (get_bitset_value(available_blocks, block_index)) {
+				const struct CodeBlock *block = blocks[block_index];
+				const struct CodeBlockOriginList *origin_list = &block->origin_list;
+				int origin_index;
+				int valid_origins = origin_list->origin_count > 0;
 
-				if (get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
-					const int opcode = *(origin->instruction) & 0xFF;
-					if (opcode == 0xFF) {
-						const int opcode1 = (opcode == 0xFF)? *(origin->instruction + 1) & 0xFF : 0;
-						if ((opcode1 & 0x38) != 0x10 && (opcode1 & 0x38) != 0x20) {
+				for (origin_index = 0; origin_index < origin_list->origin_count; origin_index++) {
+					const struct CodeBlockOrigin *origin = origin_list->sorted_origins[origin_index];
+
+					if (get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
+						const int opcode = *(origin->instruction) & 0xFF;
+						if (opcode == 0xFF) {
+							const int opcode1 = (opcode == 0xFF)? *(origin->instruction + 1) & 0xFF : 0;
+							if ((opcode1 & 0x38) != 0x10 && (opcode1 & 0x38) != 0x20) {
+								valid_origins = 0;
+								break;
+							}
+						}
+						else if (opcode != 0xE8) {
 							valid_origins = 0;
 							break;
 						}
 					}
-					else if (opcode != 0xE8) {
+					else {
 						valid_origins = 0;
 						break;
 					}
 				}
-				else {
-					valid_origins = 0;
-					break;
-				}
-			}
 
-			if (valid_origins) {
-				struct FuncState state;
-				state.return_type = FUNC_RET_TYPE_UNKNOWN;
-				state.included_blocks = allocate_bitset(block_count);
-				set_bitset_value(state.included_blocks, block_index, 1);
+				if (valid_origins) {
+					struct FuncState state;
+					state.return_type = FUNC_RET_TYPE_UNKNOWN;
+					state.included_blocks = allocate_bitset(block_count);
+					set_bitset_value(state.included_blocks, block_index, 1);
 
-				DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", block->relative_cs, block->ip);
-				if (find_all_blocks_in_function(blocks, block_count, available_blocks, &state) || state.return_type == FUNC_RET_TYPE_UNKNOWN) {
-					set_bitset_value(available_blocks, block_index, 0);
-				}
-				else {
-					struct FuncStackState stack_state;
-					const unsigned int included_blocks_count = count_set_bits_in_bitset(state.included_blocks, block_count);
-					int included_block_index;
-					int block_index2;
-					int *block_map;
+					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", block->relative_cs, block->ip);
+					if (!find_all_blocks_in_function(blocks, block_count, available_blocks, &state, func_list) && state.return_type != FUNC_RET_TYPE_UNKNOWN) {
+						struct FuncStackState stack_state;
+						const unsigned int included_blocks_count = count_set_bits_in_bitset(state.included_blocks, block_count);
+						int included_block_index;
+						int block_index2;
+						int *block_map;
 
-					stack_state.stack_size = malloc(sizeof(int) * included_blocks_count);
-					if (!stack_state.stack_size) {
-						free(state.included_blocks);
-						free(available_blocks);
-						return 1;
-					}
-
-					block_map = malloc(sizeof(int) * included_blocks_count);
-					if (!block_map) {
-						free(stack_state.stack_size);
-						free(state.included_blocks);
-						free(available_blocks);
-						return 1;
-					}
-
-					for (included_block_index = 0; included_block_index < included_blocks_count; included_block_index++) {
-						stack_state.stack_size[included_block_index] = -1;
-					}
-
-					included_block_index = -1;
-					for (block_index2 = 0; block_index2 < block_count; block_index2++) {
-						if (get_bitset_value(state.included_blocks, block_index2)) {
-							++included_block_index;
-							if (block_index2 == block_index) {
-								stack_state.start_included_block_index = included_block_index;
-								stack_state.stack_size[included_block_index] = 0;
-								break;
-							}
+						stack_state.stack_size = malloc(sizeof(int) * included_blocks_count);
+						if (!stack_state.stack_size) {
+							free(state.included_blocks);
+							free(available_blocks);
+							return 1;
 						}
-					}
 
-					included_block_index = -1;
-					for (block_index2 = 0; block_index2 < block_count; block_index2++) {
-						if (get_bitset_value(state.included_blocks, block_index2)) {
-							block_map[++included_block_index] = block_index2;
-						}
-					}
-
-					if (check_stack_in_all_blocks(blocks, block_count, &state, &stack_state, block_map)) {
-						set_bitset_value(available_blocks, block_index, 0);
-					}
-					else {
-						struct Function *new_func = prepare_new_func(func_list);
-						int all_block_index;
-						int new_blocks_index = 0;
-						int error_code;
-
-						new_func->flags = state.return_type;
-						new_func->return_size = state.return_size;
-						new_func->start = block->start;
-						new_func->block_count = count_set_bits_in_bitset(state.included_blocks, block_count);
-						new_func->blocks = malloc(sizeof(struct CodeBlock *) * new_func->block_count);
-						if (!new_func->blocks) {
+						block_map = malloc(sizeof(int) * included_blocks_count);
+						if (!block_map) {
 							free(stack_state.stack_size);
 							free(state.included_blocks);
 							free(available_blocks);
 							return 1;
 						}
 
-						for (all_block_index = 0; all_block_index < block_count; all_block_index++) {
-							if (get_bitset_value(state.included_blocks, all_block_index)) {
-								new_func->blocks[new_blocks_index++] = blocks[all_block_index];
-								set_bitset_value(available_blocks, all_block_index, 0);
+						for (included_block_index = 0; included_block_index < included_blocks_count; included_block_index++) {
+							stack_state.stack_size[included_block_index] = -1;
+						}
+
+						included_block_index = -1;
+						for (block_index2 = 0; block_index2 < block_count; block_index2++) {
+							if (get_bitset_value(state.included_blocks, block_index2)) {
+								++included_block_index;
+								if (block_index2 == block_index) {
+									stack_state.start_included_block_index = included_block_index;
+									stack_state.stack_size[included_block_index] = 0;
+									break;
+								}
 							}
 						}
 
-						if ((error_code = insert_func(func_list, new_func))) {
-							free(stack_state.stack_size);
-							free(state.included_blocks);
-							free(available_blocks);
-							return error_code;
+						included_block_index = -1;
+						for (block_index2 = 0; block_index2 < block_count; block_index2++) {
+							if (get_bitset_value(state.included_blocks, block_index2)) {
+								block_map[++included_block_index] = block_index2;
+							}
 						}
+
+						DEBUG_PRINT0("  Checking if stack is properly balanced.\n");
+						if (!check_stack_in_all_blocks(blocks, block_count, &state, &stack_state, block_map, func_list)) {
+							struct Function *new_func = prepare_new_func(func_list);
+							int all_block_index;
+							int new_blocks_index = 0;
+							int error_code;
+
+							new_func->flags = state.return_type;
+							new_func->return_size = state.return_size;
+							new_func->start = block->start;
+							new_func->block_count = count_set_bits_in_bitset(state.included_blocks, block_count);
+							new_func->blocks = malloc(sizeof(struct CodeBlock *) * new_func->block_count);
+							if (!new_func->blocks) {
+								free(stack_state.stack_size);
+								free(state.included_blocks);
+								free(available_blocks);
+								return 1;
+							}
+
+							for (all_block_index = 0; all_block_index < block_count; all_block_index++) {
+								if (get_bitset_value(state.included_blocks, all_block_index)) {
+									new_func->blocks[new_blocks_index++] = blocks[all_block_index];
+									set_bitset_value(available_blocks, all_block_index, 0);
+								}
+							}
+
+							if ((error_code = insert_func(func_list, new_func))) {
+								free(stack_state.stack_size);
+								free(state.included_blocks);
+								free(available_blocks);
+								return error_code;
+							}
+
+							new_function_added = 1;
+						}
+
+						free(block_map);
+						free(stack_state.stack_size);
 					}
 
-					free(block_map);
-					free(stack_state.stack_size);
+					free(state.included_blocks);
 				}
-
-				free(state.included_blocks);
 			}
 		}
 	}
+	while (new_function_added);
 
 	free(available_blocks);
 	return 0;
