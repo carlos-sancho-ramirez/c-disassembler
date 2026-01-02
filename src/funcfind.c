@@ -175,31 +175,37 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			const int diff = read_next_word(&reader);
 			const char *target = block->start + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
-			const int target_func_index = index_of_func_with_start(func_list, target);
 			if (target_block_index >= 0) {
-				if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
-					struct CodeBlock *next_block = blocks[block_index + 1];
-					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
-						if (get_bitset_value(available_blocks, block_index + 1)) {
-							set_bitset_value(state->included_blocks, block_index + 1, 1);
+				const int target_func_index = index_of_func_with_start(func_list, target);
+				if (target_block_index >= 0) {
+					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+						struct CodeBlock *next_block = blocks[block_index + 1];
+						if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
+							if (get_bitset_value(available_blocks, block_index + 1)) {
+								set_bitset_value(state->included_blocks, block_index + 1, 1);
+							}
+							else {
+								WARN_PRINT0("Next block has origin of type 'call return', but it is already in use.\n");
+								return 1;
+							}
 						}
 						else {
-							WARN_PRINT0("Next block has origin of type 'call return', but it is already in use.\n");
+							WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
 							return 1;
 						}
 					}
 					else {
-						WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
+						WARN_PRINT0("call instruction found, but no return block found.\n");
 						return 1;
 					}
 				}
 				else {
-					WARN_PRINT0("call instruction found, but no return block found.\n");
+					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", blocks[target_block_index]->relative_cs, blocks[target_block_index]->ip);
 					return 1;
 				}
 			}
 			else {
-				WARN_PRINT0("No function already evaluated matching the given target.\n");
+				WARN_PRINT0("Target block not found.\n");
 				return 1;
 			}
 		}
@@ -378,44 +384,50 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 			const int diff = read_next_word(&reader);
 			const char *target = block->start + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
-			const int target_func_index = index_of_func_with_start(func_list, target);
-			if (target_func_index >= 0) {
-				if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
-					struct CodeBlock *next_block = blocks[block_index + 1];
-					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
-						const struct Function *target_func = func_list->sorted_funcs[target_func_index];
-						if (target_func->return_size & 1) {
-							WARN_PRINT0("Target function has an odd value in its return size.\n");
-							return 1;
-						}
-						else if (target_func->return_size > stack_word_count * 2) {
-							WARN_PRINT0("Target function has a return value bigger than the current stack count.\n");
-							return 1;
-						}
-						else {
-							int next_block_stack_size = stack_state->stack_size[included_block_index + 1];
-							stack_word_count -= target_func->return_size / 2;
-							if (next_block_stack_size < 0) {
-								stack_state->stack_size[included_block_index + 1] = stack_word_count;
-							}
-							else if (next_block_stack_size != stack_word_count) {
-								WARN_PRINT0("Stack word count mismatch for the next block");
+			if (target_block_index >= 0) {
+				const int target_func_index = index_of_func_with_start(func_list, target);
+				if (target_func_index >= 0) {
+					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+						struct CodeBlock *next_block = blocks[block_index + 1];
+						if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
+							const struct Function *target_func = func_list->sorted_funcs[target_func_index];
+							if (target_func->return_size & 1) {
+								WARN_PRINT0("Target function has an odd value in its return size.\n");
 								return 1;
 							}
+							else if (target_func->return_size > stack_word_count * 2) {
+								WARN_PRINT0("Target function has a return value bigger than the current stack count.\n");
+								return 1;
+							}
+							else {
+								int next_block_stack_size = stack_state->stack_size[included_block_index + 1];
+								stack_word_count -= target_func->return_size / 2;
+								if (next_block_stack_size < 0) {
+									stack_state->stack_size[included_block_index + 1] = stack_word_count;
+								}
+								else if (next_block_stack_size != stack_word_count) {
+									WARN_PRINT0("Stack word count mismatch for the next block");
+									return 1;
+								}
+							}
+						}
+						else {
+							WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
+							return 1;
 						}
 					}
 					else {
-						WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
+						WARN_PRINT0("call instruction found, but no return block found.\n");
 						return 1;
 					}
 				}
 				else {
-					WARN_PRINT0("call instruction found, but no return block found.\n");
+					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", blocks[target_block_index]->relative_cs, blocks[target_block_index]->ip);
 					return 1;
 				}
 			}
 			else {
-				WARN_PRINT0("No function already evaluated matching the given target.\n");
+				WARN_PRINT0("Target block not found.\n");
 				return 1;
 			}
 		}
