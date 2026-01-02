@@ -169,7 +169,9 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 		else if ((value0 & 0xF0) == 0x80 || (value0 & 0xFE) == 0xC0 || (value0 & 0xFC) == 0xC4 || (value0 & 0xFC) == 0xD0 || (value0 & 0xFE) == 0xF6 || value0 == 0xFF) {
 			const int value1 = read_next_byte(&reader);
-			if ((value1 & 0xC7) == 0x46 || (value1 & 0xC7) == 0x86) {
+			const int bp_relative = (value1 & 0xC7) == 0x46 || (value1 & 0xC7) == 0x86;
+
+			if (bp_relative) {
 				const int diff = read_addr_diff(&reader, value1);
 				state->flags |= STATE_FLAG_USES_BP;
 				if (diff > 0 && diff > state->max_bp_diff) {
@@ -184,7 +186,30 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 				state->flags |= STATE_FLAG_OWNS_BP;
 			}
 
-			if (value0 == 0xFF && ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20)) {
+			if (value0 == 0xFF && (value1 & 0x38) == 0x10 && bp_relative) {
+				if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+					struct CodeBlock *next_block = blocks[block_index + 1];
+					const int instruction_length = (value1 == 0x96)? 4 : 3;
+					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, instruction_length) >= 0) {
+						if (get_bitset_value(available_blocks, block_index + 1)) {
+							set_bitset_value(state->included_blocks, block_index + 1, 1);
+						}
+						else {
+							WARN_PRINT0("Next block has origin of type 'call return', but it is already in use.\n");
+							return 1;
+						}
+					}
+					else {
+						WARN_PRINT0("Block found after 'call' instruction, but does not have the expected origin of type 'call return'.\n");
+						return 1;
+					}
+				}
+				else {
+					WARN_PRINT0("call instruction found, but no return block found.\n");
+					return 1;
+				}
+			}
+			else if (value0 == 0xFF && ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20)) {
 				DEBUG_PRINT0("Opcode FF for call or jmp found. For now, we do not allow this. Skipping this function evaluation.\n");
 				return 1;
 			}
@@ -517,7 +542,10 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 		}
 		else if (value0 == 0xFF) {
 			const int value1 = read_next_byte(&reader);
-			if ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20) {
+			if (value1 == 0x56 || value1 == 0x96) {
+				/* Let's assume for now that the argument is a pointer to a function finishing with "ret" (without return size)... C-style, so nothing to substract from stack_word_count */
+			}
+			else if ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20) {
 				DEBUG_PRINT0("Opcode FF for call or jmp found. For now, we do not allow this. Skipping this function evaluation.\n");
 				return 1;
 			}
