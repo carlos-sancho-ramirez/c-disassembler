@@ -1,19 +1,6 @@
 #include "funclist.h"
 #include "printd.h"
 
-static struct CodeBlock *get_start_block(const struct Function *func) {
-	int i;
-
-	for (i = 0; i < func->block_count; i++) {
-		struct CodeBlock *block = func->blocks[i];
-		if (block->start == func->start) {
-			return block;
-		}
-	}
-
-	return NULL;
-}
-
 static void log_func_insertion(struct Function *func) {
 	const struct CodeBlock *start_block = get_start_block(func);
 	DEBUG_PRINT2("  Registering new function at +%x:%x\n", start_block->relative_cs, start_block->ip);
@@ -44,34 +31,18 @@ int index_of_func_containing_block_start(struct FunctionList *list, const char *
 
 void print_funclist(const struct FunctionList *list) {
 	int i;
-	fprintf(stderr, "FunctionList(");
+	fprintf(stderr, "FunctionList(\n ");
 	for (i = 0; i < list->func_count; i++) {
 		const struct Function *func = list->sorted_funcs[i];
 		const struct CodeBlock *start_block = get_start_block(func);
 		unsigned int block_index;
 
-		if (i > 0) {
-			fprintf(stderr, ", ");
+		print_func(func);
+		if (i + 1 == list->func_count) {
+			fprintf(stderr, ")");
 		}
-
-		if (start_block) {
-			fprintf(stderr, "+%X:%X(", start_block->relative_cs, start_block->ip);
-		}
-		else {
-			fprintf(stderr, "?(");
-		}
-
-
-		for (block_index = 0; block_index < func->block_count; block_index++) {
-			if (block_index > 0) {
-				fprintf(stderr, ", ");
-			}
-			fprintf(stderr, "%X", func->blocks[block_index]->ip);
-		}
-		fprintf(stderr, ")");
+		fprintf(stderr, "\n ");
 	}
-
-	fprintf(stderr, ")\n");
 }
 
 #endif /* DEBUG */

@@ -5,11 +5,20 @@
 
 #include <assert.h>
 
-#define FUNC_RET_TYPE_UNKNOWN 0
+#define STATE_FLAG_RET_TYPE_MASK 3
+#define STATE_FLAG_RET_TYPE_UNKNOWN 0
+#define STATE_FLAG_RET_TYPE_NEAR 1
+#define STATE_FLAG_RET_TYPE_FAR 2
+#define STATE_FLAG_RET_TYPE_INT 3
+
+#define STATE_FLAG_USES_BP 4
+#define STATE_FLAG_OWNS_BP 8
 
 struct FuncState {
-	int return_type;
+	int flags;
 	int return_size;
+	int min_bp_diff;
+	int max_bp_diff;
 	packed_data_t *included_blocks;
 };
 
@@ -80,10 +89,28 @@ static int find_included_block_index(int block_index, const int *block_map, int 
 	return -1;
 }
 
+static int read_addr_diff(struct Reader *reader, int modRm) {
+	if ((modRm & 0xC0) == 0) {
+		return ((modRm & 0xC7) == 6)? read_next_word(reader) : 0;
+	}
+	else if ((modRm & 0xC0) == 0x40) {
+		int diff = read_next_byte(reader);
+		return (diff >= 0x80)? diff - 0x100 : diff;
+	}
+	else if ((modRm & 0xC0) == 0x80) {
+		return read_next_word(reader);
+	}
+	else {
+		return 0;
+	}
+}
+
 static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
+	const int is_first_block = count_set_bits_in_bitset(state->included_blocks, block_count) == 1;
 	const struct CodeBlock *block = blocks[block_index];
 	struct Reader reader;
 	int error_code;
+	int starts_with_push_bp = 0;
 
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
@@ -103,7 +130,25 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		reader.buffer_index = buffer_index;
 
 		value0 = read_next_byte(&reader);
-		if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0 || value0 == 0xEB) {
+		if ((value0 & 0xC4) == 0) {
+			const int value1 = read_next_byte(&reader);
+			if ((value1 & 0xC7) == 0x46 || (value1 & 0xC7) == 0x86) {
+				const int diff = read_addr_diff(&reader, value1);
+				state->flags |= STATE_FLAG_USES_BP;
+				if (diff > 0 && diff > state->max_bp_diff) {
+					state->max_bp_diff = diff;
+				}
+				else if (diff < 0 && diff < state->min_bp_diff) {
+					state->min_bp_diff = diff;
+				}
+			}
+		}
+		else if (value0 == 0x55) {
+			if (reader.buffer_index == 1) {
+				starts_with_push_bp = 1;
+			}
+		}
+		else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0 || value0 == 0xEB) {
 			const int value1 = read_next_byte(&reader);
 			const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
 			const char *jump_destination = block->start + reader.buffer_index + diff;
@@ -122,13 +167,35 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 				return 1;
 			}
 		}
+		else if ((value0 & 0xF0) == 0x80 || (value0 & 0xFE) == 0xC0 || (value0 & 0xFC) == 0xC4 || (value0 & 0xFC) == 0xD0 || (value0 & 0xFE) == 0xF6 || value0 == 0xFF) {
+			const int value1 = read_next_byte(&reader);
+			if ((value1 & 0xC7) == 0x46 || (value1 & 0xC7) == 0x86) {
+				const int diff = read_addr_diff(&reader, value1);
+				state->flags |= STATE_FLAG_USES_BP;
+				if (diff > 0 && diff > state->max_bp_diff) {
+					state->max_bp_diff = diff;
+				}
+				else if (diff < 0 && diff < state->min_bp_diff) {
+					state->min_bp_diff = diff;
+				}
+			}
+
+			if (value0 == 0x8B && value1 == 0xEC && is_first_block && starts_with_push_bp && reader.buffer_index == 3) {
+				state->flags |= STATE_FLAG_OWNS_BP;
+			}
+
+			if (value0 == 0xFF && ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20)) {
+				DEBUG_PRINT0("Opcode FF for call or jmp found. For now, we do not allow this. Skipping this function evaluation.\n");
+				return 1;
+			}
+		}
 		else if (value0 == 0xC2) {
 			const int ret_size = read_next_word(&reader);
-			if (state->return_type == FUNC_RET_TYPE_UNKNOWN) {
-				state->return_type = FUNC_RET_TYPE_NEAR;
+			if ((state->flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_UNKNOWN) {
+				state->flags |= STATE_FLAG_RET_TYPE_NEAR;
 				state->return_size = ret_size;
 			}
-			else if (state->return_type == FUNC_RET_TYPE_NEAR) {
+			else if ((state->flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_NEAR) {
 				if (ret_size != state->return_size) {
 					WARN_PRINT0("Mismatch between return sizes.\n");
 					return 1;
@@ -140,11 +207,11 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			}
 		}
 		else if (value0 == 0xC3) {
-			if (state->return_type == FUNC_RET_TYPE_UNKNOWN) {
-				state->return_type = FUNC_RET_TYPE_NEAR;
+			if ((state->flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_UNKNOWN) {
+				state->flags |= STATE_FLAG_RET_TYPE_NEAR;
 				state->return_size = 0;
 			}
-			else if (state->return_type == FUNC_RET_TYPE_NEAR) {
+			else if ((state->flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_NEAR) {
 				if (state->return_size != 0) {
 					WARN_PRINT0("Mismatch between return sizes.\n");
 					return 1;
@@ -156,11 +223,11 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			}
 		}
 		else if (value0 == 0xCB) {
-			if (state->return_type == FUNC_RET_TYPE_UNKNOWN) {
-				state->return_type = FUNC_RET_TYPE_FAR;
+			if ((state->flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_UNKNOWN) {
+				state->flags |= STATE_FLAG_RET_TYPE_FAR;
 				state->return_size = 0;
 			}
-			else if (state->return_type == FUNC_RET_TYPE_FAR) {
+			else if ((state->flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_FAR) {
 				if (state->return_size != 0) {
 					WARN_PRINT0("Mismatch between return sizes.\n");
 					return 1;
@@ -246,13 +313,6 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		else if (value0 == 0xEA) {
 			DEBUG_PRINT0("Opcode EA found. For now, we do not allow it. Skipping this function evaluation.\n");
 			return 1;
-		}
-		else if (value0 == 0xFF) {
-			const int value1 = read_next_byte(&reader);
-			if ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20) {
-				DEBUG_PRINT0("Opcode FF for call or jmp found. For now, we do not allow this. Skipping this function evaluation.\n");
-				return 1;
-			}
 		}
 
 		reader.buffer_index = next_instruction_index;
@@ -543,12 +603,14 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 
 				if (valid_origins) {
 					struct FuncState state;
-					state.return_type = FUNC_RET_TYPE_UNKNOWN;
+					state.flags = 0;
+					state.min_bp_diff = 0;
+					state.max_bp_diff = 0;
 					state.included_blocks = allocate_bitset(block_count);
 					set_bitset_value(state.included_blocks, block_index, 1);
 
 					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", block->relative_cs, block->ip);
-					if (!find_all_blocks_in_function(blocks, block_count, available_blocks, &state, func_list) && state.return_type != FUNC_RET_TYPE_UNKNOWN) {
+					if (!find_all_blocks_in_function(blocks, block_count, available_blocks, &state, func_list) && (state.flags & STATE_FLAG_RET_TYPE_MASK) != STATE_FLAG_RET_TYPE_UNKNOWN) {
 						struct FuncStackState stack_state;
 						const unsigned int included_blocks_count = count_set_bits_in_bitset(state.included_blocks, block_count);
 						int included_block_index;
@@ -600,7 +662,26 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 							int new_blocks_index = 0;
 							int error_code;
 
-							new_func->flags = state.return_type;
+							initialize_func(new_func);
+							set_function_return_type(new_func, state.flags & STATE_FLAG_RET_TYPE_MASK);
+
+							if (state.flags & STATE_FLAG_USES_BP) {
+								if ((state.flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_NEAR) {
+									if (state.max_bp_diff >= 2) {
+										set_function_uses_bp(new_func, (state.max_bp_diff / 2) - 1);
+									}
+								}
+								else if ((state.flags & STATE_FLAG_RET_TYPE_MASK) == STATE_FLAG_RET_TYPE_FAR) {
+									if (state.max_bp_diff >= 4) {
+										set_function_uses_bp(new_func, (state.max_bp_diff / 2) - 2);
+									}
+								}
+							}
+
+							if (state.flags & STATE_FLAG_OWNS_BP) {
+								set_function_owns_bp(new_func);
+							}
+
 							new_func->return_size = state.return_size;
 							new_func->start = block->start;
 							new_func->block_count = count_set_bits_in_bitset(state.included_blocks, block_count);
