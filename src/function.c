@@ -22,13 +22,18 @@ int function_owns_bp(const struct Function *func) {
 	return func->flags & FUNC_FLAG_OWNS_BP;
 }
 
-const struct CodeBlock *get_start_block(const struct Function *func) {
-	int i;
+unsigned int get_starting_block_count(const struct Function *func) {
+	return count_set_bits_in_bitset(func->included_block_start, func->block_count);
+}
 
-	for (i = 0; i < func->block_count; i++) {
-		struct CodeBlock *block = func->blocks[i];
-		if (block->start == func->start) {
-			return block;
+const struct CodeBlock *get_starting_block(const struct Function *func, unsigned int index) {
+	int included_block_index;
+	int count = 0;
+	for (included_block_index = 0; included_block_index < func->block_count; included_block_index++) {
+		if (get_bitset_value(func->included_block_start, included_block_index)) {
+			if (count++ == index) {
+				return func->blocks[included_block_index];
+			}
 		}
 	}
 
@@ -55,24 +60,23 @@ void set_function_owns_bp(struct Function *func) {
 #include <stdio.h>
 
 void print_func(const struct Function *func) {
-	const struct CodeBlock *start_block = get_start_block(func);
+	const unsigned int block_count = func->block_count;
 	unsigned int block_index;
 
-	if (start_block) {
-		fprintf(stderr, "+%X:%X(", start_block->relative_cs, start_block->ip);
-	}
-	else {
-		fprintf(stderr, "?(");
-	}
-
-	for (block_index = 0; block_index < func->block_count; block_index++) {
+	fprintf(stderr, "+%X{", func->blocks[0]->relative_cs);
+	for (block_index = 0; block_index < block_count; block_index++) {
 		if (block_index > 0) {
 			fprintf(stderr, ", ");
 		}
+
+		if (get_bitset_value(func->included_block_start, block_index)) {
+			fprintf(stderr, "*");
+		}
+
 		fprintf(stderr, "%X", func->blocks[block_index]->ip);
 	}
 
-	fprintf(stderr, ")");
+	fprintf(stderr, "}");
 
 	if (function_uses_bp(func)) {
 		if (function_owns_bp(func)) {

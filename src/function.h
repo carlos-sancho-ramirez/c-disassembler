@@ -50,16 +50,20 @@ struct Function {
 	unsigned int min_known_word_argument_count;
 
 	/**
+	 * Bit set annotating all blocks that are the starting block among the included blocks.
+	 *
+	 * It is common to have only one start per function. But it may happen that there is more than one.
+	 * This field will be casted to a plain packed_data_t (instead of a pointer to it)
+	 * if the block_count is smaller or equal to sizeof(packed_data_t *) * 8.
+	 * This will avoid allocating memory if not required.
+	 */
+	packed_data_t *included_block_start;
+
+	/**
 	 * Array of block pointers for all blocks composing this function.
 	 * Blocks are sorted by its start position.
 	 */
 	struct CodeBlock **blocks;
-
-	/**
-	 * Pointer to the first instruction of this function.
-	 * This must be the first instruction of any of the blocks listed in the blocks array.
-	 */
-	const char *start;
 
 	/**
 	 * Number of blocks in the blocks array.
@@ -73,7 +77,8 @@ int get_function_return_type(const struct Function *func);
 int function_uses_bp(const struct Function *func);
 int function_owns_bp(const struct Function *func);
 
-const struct CodeBlock *get_start_block(const struct Function *func);
+unsigned int get_starting_block_count(const struct Function *func);
+const struct CodeBlock *get_starting_block(const struct Function *func, unsigned int index);
 
 void set_function_return_type(struct Function *func, int return_type);
 void set_function_uses_bp(struct Function *func, unsigned int min_known_word_argument_count);

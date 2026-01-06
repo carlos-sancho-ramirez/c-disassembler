@@ -20,6 +20,7 @@ struct FuncState {
 	int min_bp_diff;
 	int max_bp_diff;
 	packed_data_t *included_blocks;
+	packed_data_t *starting_blocks;
 };
 
 struct FuncStackState {
@@ -61,6 +62,33 @@ static int find_block_index(struct CodeBlock **blocks, unsigned int block_count,
 		}
 		else {
 			first = index + 1;
+		}
+	}
+
+	return -1;
+}
+
+static int find_block_index_containing_instruction(struct CodeBlock **blocks, unsigned int block_count, const char *instruction) {
+	unsigned int first = 0;
+	unsigned int last = block_count;
+
+	while (first < last) {
+		unsigned int index = (first + last) / 2;
+		const char *block_start = blocks[index]->start;
+		if (instruction < block_start) {
+			last = index;
+		}
+		else if (instruction == block_start) {
+			return index;
+		}
+		else {
+			const char *block_end = blocks[index]->end;
+			if (instruction < block_end) {
+				return index;
+			}
+			else {
+				first = index + 1;
+			}
 		}
 	}
 
@@ -111,6 +139,31 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 	struct Reader reader;
 	int error_code;
 	int starts_with_push_bp = 0;
+
+	struct CodeBlockOriginList *origin_list = &block->origin_list;
+	const unsigned int origin_count = origin_list->origin_count;
+	unsigned int origin_index;
+	for (origin_index = 0; origin_index < origin_count; origin_index++) {
+		struct CodeBlockOrigin *origin = origin_list->sorted_origins[origin_index];
+		const int origin_type = get_cborigin_type(origin);
+		if (origin_type == CBORIGIN_TYPE_CONTINUE || origin_type == CBORIGIN_TYPE_CALL_RETURN) {
+			if (block_index == 0) {
+				WARN_PRINT0("'Continue' or 'call return' origin type found in the first block.\n");
+				return 1;
+			}
+
+			set_bitset_value(state->included_blocks, block_index - 1, 1);
+		}
+		else if (origin_type == CBORIGIN_TYPE_JUMP) {
+			const int jmp_opcode0 = ((int) *origin->instruction) & 0xFF;
+			if (jmp_opcode0 == 0xE8) { /* CALL */
+				set_bitset_value(state->starting_blocks, block_index, 1);
+			}
+			else if (jmp_opcode0 == 0xE9 || (jmp_opcode0 & 0xF0) == 0x70 || (jmp_opcode0 & 0xFC) == 0xE0 || jmp_opcode0 == 0xEB) { /* JMP and its conditionals */
+				find_block_index_containing_instruction(adad
+			}
+		}
+	}
 
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
@@ -268,7 +321,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			const char *target = block->start + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
-				const int target_func_index = index_of_func_with_start(func_list, target);
+				const int target_func_index = index_of_func_with_block_start(func_list, target);
 				if (target_block_index >= 0) {
 					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
@@ -470,7 +523,7 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 			const char *target = block->start + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
-				const int target_func_index = index_of_func_with_start(func_list, target);
+				const int target_func_index = index_of_func_with_block_start(func_list, target);
 				if (target_func_index >= 0) {
 					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
