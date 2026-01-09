@@ -674,7 +674,7 @@ static int dump_instruction(
 				print("call ");
 			}
 
-			index = index_of_func_containing_block_start(func_list, block->start + reader->buffer_index + diff);
+			index = index_of_func_containing_block_start(func_list, block->start + target_ip - block->ip);
 			if (index >= 0) {
 				print("func");
 				print_uint(print, index + 1);

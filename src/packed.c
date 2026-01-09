@@ -31,7 +31,7 @@ unsigned int count_set_bits_in_bitset(const packed_data_t *bitset, unsigned int 
 		packed_data_t word = bitset[word_index];
 		const int limit = (word_index + 1 < allocated_words || bit_count % bits_per_word == 0)? bits_per_word : bit_count % bits_per_word;
 		int bit_index;
-		for (bit_index = 0; bit_index < bits_per_word; bit_index++) {
+		for (bit_index = 0; bit_index < limit; bit_index++) {
 			if (word & 1) {
 				count++;
 			}
@@ -62,3 +62,25 @@ void set_bitset_value(packed_data_t *bitset, unsigned int index, int value) {
 		bitset[word_index] &= ~mask;
 	}
 }
+
+#ifdef DEBUG
+#include <stdio.h>
+
+void print_bitset(const packed_data_t *bitset, unsigned int bit_count) {
+	unsigned int index;
+	int anything_printed = 0;
+	fprintf(stderr, "{");
+
+	for (index = 0; index < bit_count; index++) {
+		if (get_bitset_value(bitset, index)) {
+			if (anything_printed) {
+				fprintf(stderr, ", ");
+			}
+			fprintf(stderr, "%u", index);
+			anything_printed = 1;
+		}
+	}
+
+	fprintf(stderr, "}");
+}
+#endif /* DEBUG */

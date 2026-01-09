@@ -20,6 +20,7 @@ struct FuncState {
 	int min_bp_diff;
 	int max_bp_diff;
 	packed_data_t *included_blocks;
+	packed_data_t *starting_blocks;
 };
 
 struct FuncStackState {
@@ -61,6 +62,33 @@ static int find_block_index(struct CodeBlock **blocks, unsigned int block_count,
 		}
 		else {
 			first = index + 1;
+		}
+	}
+
+	return -1;
+}
+
+static int find_block_index_containing_instruction(struct CodeBlock **blocks, unsigned int block_count, const char *instruction) {
+	unsigned int first = 0;
+	unsigned int last = block_count;
+
+	while (first < last) {
+		unsigned int index = (first + last) / 2;
+		const char *block_start = blocks[index]->start;
+		if (instruction < block_start) {
+			last = index;
+		}
+		else if (instruction == block_start) {
+			return index;
+		}
+		else {
+			const char *block_end = blocks[index]->end;
+			if (instruction < block_end) {
+				return index;
+			}
+			else {
+				first = index + 1;
+			}
 		}
 	}
 
@@ -111,6 +139,59 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 	struct Reader reader;
 	int error_code;
 	int starts_with_push_bp = 0;
+
+	const struct CodeBlockOriginList *origin_list = &block->origin_list;
+	const unsigned int origin_count = origin_list->origin_count;
+	unsigned int origin_index;
+	for (origin_index = 0; origin_index < origin_count; origin_index++) {
+		struct CodeBlockOrigin *origin = origin_list->sorted_origins[origin_index];
+		const int origin_type = get_cborigin_type(origin);
+		if (origin_type == CBORIGIN_TYPE_CONTINUE || origin_type == CBORIGIN_TYPE_CALL_RETURN) {
+			if (block_index == 0) {
+				WARN_PRINT0("'Continue' or 'call return' origin type found in the first block.\n");
+				return 1;
+			}
+
+			set_bitset_value(state->included_blocks, block_index - 1, 1);
+		}
+		else if (origin_type == CBORIGIN_TYPE_JUMP) {
+			const int jmp_opcode0 = ((int) *origin->instruction) & 0xFF;
+			if (jmp_opcode0 == 0xE8) { /* CALL */
+				set_bitset_value(state->starting_blocks, block_index, 1);
+			}
+			else if (jmp_opcode0 == 0xE9 || (jmp_opcode0 & 0xF0) == 0x70 || (jmp_opcode0 & 0xFC) == 0xE0 || jmp_opcode0 == 0xEB) { /* JMP and its conditionals */
+				const int jmp_origin_block_index = find_block_index_containing_instruction(blocks, block_count, origin->instruction);
+				if (jmp_origin_block_index < 0) {
+					WARN_PRINT0("'Jump' origin type found, but the instruction does not belong to any known block.\n");
+					return 1;
+				}
+
+				if (!get_bitset_value(state->included_blocks, block_index)) {
+					if (get_bitset_value(available_blocks, block_index)) {
+						set_bitset_value(state->included_blocks, block_index, 1);
+					}
+					else {
+						WARN_PRINT0("'Jump' origin type found, but the instruction belong to a non-available block.\n");
+						return 1;
+					}
+				}
+			}
+			else if (jmp_opcode0 == 0xFF) {
+				const int jmp_opcode1 = ((int) origin->instruction[1]) & 0xFF;
+				if ((jmp_opcode1 & 0x30) == 0x10) { /* CALL (near/far) */
+					set_bitset_value(state->starting_blocks, block_index, 1);
+				}
+				else {
+					WARN_PRINT1("'Jump' origin type found, but its instruction has the unexpected opcode 0xFF 0x%X.\n", jmp_opcode1);
+					return 1;
+				}
+			}
+			else {
+				WARN_PRINT1("'Jump' origin type found, but its instruction has the unexpected opcode 0x%X.\n", jmp_opcode0);
+				return 1;
+			}
+		}
+	}
 
 	reader.buffer = block->start;
 	reader.buffer_index = 0;
@@ -268,7 +349,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			const char *target = block->start + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
-				const int target_func_index = index_of_func_with_start(func_list, target);
+				const int target_func_index = index_of_func_containing_block_start(func_list, target);
 				if (target_block_index >= 0) {
 					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
@@ -470,7 +551,7 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 			const char *target = block->start + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
-				const int target_func_index = index_of_func_with_start(func_list, target);
+				const int target_func_index = index_of_func_containing_block_start(func_list, target);
 				if (target_func_index >= 0) {
 					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
@@ -634,8 +715,12 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 					state.flags = 0;
 					state.min_bp_diff = 0;
 					state.max_bp_diff = 0;
+
 					state.included_blocks = allocate_bitset(block_count);
 					set_bitset_value(state.included_blocks, block_index, 1);
+
+					state.starting_blocks = allocate_bitset(block_count);
+					set_bitset_value(state.starting_blocks, block_index, 1);
 
 					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", block->relative_cs, block->ip);
 					if (!find_all_blocks_in_function(blocks, block_count, available_blocks, &state, func_list) && (state.flags & STATE_FLAG_RET_TYPE_MASK) != STATE_FLAG_RET_TYPE_UNKNOWN) {
@@ -689,8 +774,12 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 							int all_block_index;
 							int new_blocks_index = 0;
 							int error_code;
+							packed_data_t *new_func_included_block_start;
 
-							initialize_func(new_func);
+							if (initialize_func(new_func, block_count)) {
+								return 1;
+							}
+
 							set_function_return_type(new_func, state.flags & STATE_FLAG_RET_TYPE_MASK);
 
 							if (state.flags & STATE_FLAG_USES_BP) {
@@ -711,24 +800,27 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 							}
 
 							new_func->return_size = state.return_size;
-							new_func->start = block->start;
 							new_func->block_count = count_set_bits_in_bitset(state.included_blocks, block_count);
 							new_func->blocks = malloc(sizeof(struct CodeBlock *) * new_func->block_count);
 							if (!new_func->blocks) {
+								free_func_content(new_func);
 								free(stack_state.stack_size);
 								free(state.included_blocks);
 								free(available_blocks);
 								return 1;
 							}
 
+							new_func_included_block_start = get_included_block_start(new_func);
 							for (all_block_index = 0; all_block_index < block_count; all_block_index++) {
 								if (get_bitset_value(state.included_blocks, all_block_index)) {
-									new_func->blocks[new_blocks_index++] = blocks[all_block_index];
+									new_func->blocks[new_blocks_index] = blocks[all_block_index];
+									set_bitset_value(new_func_included_block_start, new_blocks_index++, get_bitset_value(state.starting_blocks, all_block_index));
 									set_bitset_value(available_blocks, all_block_index, 0);
 								}
 							}
 
 							if ((error_code = insert_func(func_list, new_func))) {
+								free_func_content(new_func);
 								free(stack_state.stack_size);
 								free(state.included_blocks);
 								free(available_blocks);

@@ -6,8 +6,46 @@
 
 #include <assert.h>
 
-void initialize_func(struct Function *func) {
+static const packed_data_t *get_const_included_block_start(const struct Function *func) {
+	if (func->block_count <= sizeof(packed_data_t *) * 8) {
+		return (const packed_data_t *) &func->included_block_start;
+	}
+	else {
+		return func->included_block_start;
+	}
+}
+
+packed_data_t *get_included_block_start(struct Function *func) {
+	if (func->block_count <= sizeof(packed_data_t *) * 8) {
+		return (packed_data_t *) &func->included_block_start;
+	}
+	else {
+		return func->included_block_start;
+	}
+}
+
+int initialize_func(struct Function *func, unsigned int block_count) {
+	assert(block_count > 0);
 	func->flags = 0;
+	func->block_count = block_count;
+
+	if (block_count <= sizeof(packed_data_t *) * 8) {
+		func->included_block_start = NULL;
+	}
+	else {
+		func->included_block_start = allocate_bitset(block_count);
+		if (!func->included_block_start) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+void free_func_content(struct Function *func) {
+	if (func->block_count > sizeof(packed_data_t *) * 8) {
+		free(func->included_block_start);
+	}
 }
 
 int get_function_return_type(const struct Function *func) {
@@ -22,13 +60,22 @@ int function_owns_bp(const struct Function *func) {
 	return func->flags & FUNC_FLAG_OWNS_BP;
 }
 
-const struct CodeBlock *get_start_block(const struct Function *func) {
-	int i;
+unsigned int get_starting_block_count(const struct Function *func) {
+	const packed_data_t *bitset = get_const_included_block_start(func);
+	return count_set_bits_in_bitset(bitset, func->block_count);
+}
 
-	for (i = 0; i < func->block_count; i++) {
-		struct CodeBlock *block = func->blocks[i];
-		if (block->start == func->start) {
-			return block;
+const struct CodeBlock *get_starting_block(const struct Function *func, unsigned int index) {
+	const unsigned int block_count = func->block_count;
+	const packed_data_t *bitset = get_const_included_block_start(func);
+	int included_block_index;
+	int count = 0;
+
+	for (included_block_index = 0; included_block_index < block_count; included_block_index++) {
+		if (get_bitset_value(bitset, included_block_index)) {
+			if (count++ == index) {
+				return func->blocks[included_block_index];
+			}
 		}
 	}
 
@@ -55,24 +102,24 @@ void set_function_owns_bp(struct Function *func) {
 #include <stdio.h>
 
 void print_func(const struct Function *func) {
-	const struct CodeBlock *start_block = get_start_block(func);
+	const unsigned int block_count = func->block_count;
+	const packed_data_t *included_block_start = get_const_included_block_start(func);
 	unsigned int block_index;
 
-	if (start_block) {
-		fprintf(stderr, "+%X:%X(", start_block->relative_cs, start_block->ip);
-	}
-	else {
-		fprintf(stderr, "?(");
-	}
-
-	for (block_index = 0; block_index < func->block_count; block_index++) {
+	fprintf(stderr, "+%X{", func->blocks[0]->relative_cs);
+	for (block_index = 0; block_index < block_count; block_index++) {
 		if (block_index > 0) {
 			fprintf(stderr, ", ");
 		}
+
+		if (get_bitset_value(included_block_start, block_index)) {
+			fprintf(stderr, "*");
+		}
+
 		fprintf(stderr, "%X", func->blocks[block_index]->ip);
 	}
 
-	fprintf(stderr, ")");
+	fprintf(stderr, "}");
 
 	if (function_uses_bp(func)) {
 		if (function_owns_bp(func)) {

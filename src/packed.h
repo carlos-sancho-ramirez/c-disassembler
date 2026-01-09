@@ -37,4 +37,8 @@ int get_bitset_value(const packed_data_t *bitset, unsigned int index);
  */
 void set_bitset_value(packed_data_t *bitset, unsigned int index, int value);
 
+#ifdef DEBUG
+void print_bitset(const packed_data_t *bitset, unsigned int bit_count);
+#endif /* DEBUG */
+
 #endif /* _PACKED_H_ */
