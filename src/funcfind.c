@@ -346,7 +346,8 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 		else if (value0 == 0xE8) {
 			const int diff = read_next_word(&reader);
-			const char *target = block->start + reader.buffer_index + diff;
+			const uint16_t target_ip = block->ip + reader.buffer_index + diff;
+			const char *target = block->start + target_ip - block->ip;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
 				const int target_func_index = index_of_func_containing_block_start(func_list, target);
@@ -384,7 +385,8 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
-			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index + diff);
+			const uint16_t target_ip = block->ip + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, block->start + target_ip - block->ip);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
