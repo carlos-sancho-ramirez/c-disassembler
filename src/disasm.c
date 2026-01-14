@@ -8,6 +8,7 @@
 #include "printu.h"
 #include "reflist.h"
 #include "register.h"
+#include "renames.h"
 #include "stack.h"
 #include "itable.h"
 #include "srresult.h"
@@ -18,7 +19,12 @@
 #include "printu.h"
 
 static void print_help(const char *executedFile) {
-	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n  -o <filename>     Uses this file as output.\n                    If not defined, the result will be printed in the standard output.\n", executedFile);
+	printf("Syntax: %s <options>\nPossible options:\n", executedFile);
+	printf("  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n");
+	printf("  -h or --help      Show this help.\n");
+	printf("  -i <filename>     Uses this file as input.\n");
+	printf("  -o <filename>     Uses this file as output.\n                    If not defined, the result will be printed in the standard output.\n");
+	printf("  -r                Uses this file as the map of naming replacements for the output.\n");
 }
 
 struct dos_header {
@@ -221,6 +227,7 @@ int main(int argc, const char *argv[]) {
 	const char *filename = NULL;
 	const char *format = NULL;
 	const char *out_filename = NULL;
+	const char *renames_filename = NULL;
 	int i;
 	struct SegmentReadResult read_result;
 	int error_code;
@@ -231,6 +238,7 @@ int main(int argc, const char *argv[]) {
 	struct FunctionList func_list;
 	struct FilePrinter printer_out;
 	struct FilePrinter printer_err;
+	struct RenameMap renames;
 
 	printf("%s", application_name_and_version);
 
@@ -269,6 +277,16 @@ int main(int argc, const char *argv[]) {
 				return 1;
 			}
 		}
+		else if (!strcmp(argv[i], "-r")) {
+			if (++i < argc) {
+				renames_filename = argv[i];
+			}
+			else {
+				fprintf(stderr, "Missing file name after %s argument\n", argv[i - 1]);
+				print_help(argv[0]);
+				return 1;
+			}
+		}
 		else {
 			fprintf(stderr, "Unexpected argument %s\n", argv[i]);
 			print_help(argv[0]);
@@ -286,6 +304,20 @@ int main(int argc, const char *argv[]) {
 		fprintf(stderr, "Argument -f or --format is required\n");
 		print_help(argv[0]);
 		return 1;
+	}
+
+	if (renames_filename) {
+		DEBUG_PRINT1("Reading rename map from %s.\n", renames_filename);
+		if ((error_code = read_renames_file(&renames, renames_filename))) {
+			return error_code;
+		}
+
+#ifdef DEBUG
+		print_rename_map(&renames);
+#endif /* DEBUG */
+	}
+	else {
+		renames.entry_count = 0;
 	}
 
 	if ((error_code = read_file(&read_result, filename, format))) {
@@ -307,6 +339,7 @@ int main(int argc, const char *argv[]) {
 	printer_err.buffer_start = read_result.buffer;
 	printer_err.file = stderr;
 	printer_err.func_list = NULL;
+	printer_err.renames = &renames;
 
 	if ((error_code = find_cblocks_and_gvars(&read_result, &printer_err, &cblock_list, &gvar_list, &segment_start_list, &ref_list))) {
 		goto end0;
@@ -332,6 +365,7 @@ int main(int argc, const char *argv[]) {
 
 	printer_out.buffer_start = read_result.buffer;
 	printer_out.func_list = &func_list;
+	printer_out.renames = &renames;
 	if (out_filename) {
 		printer_out.file = fopen(out_filename, "w");
 		if (!printer_out.file) {

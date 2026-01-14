@@ -3,12 +3,14 @@
 
 #include <stdio.h>
 #include "funclist.h"
+#include "renames.h"
 
 struct FilePrinter {
 	unsigned int flags;
 	const char *buffer_start;
 	FILE *file;
 	struct FunctionList *func_list;
+	struct RenameMap *renames;
 };
 
 void print(struct FilePrinter *printer, const char *str);

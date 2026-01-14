@@ -73,45 +73,88 @@ void print_differential_hex_word(struct FilePrinter *printer, int value) {
 	print(printer, number);
 }
 
-static void print_uint(struct FilePrinter *printer, unsigned int value) {
-	char number[2];
-
+static void compose_uint_str(char *buffer, unsigned int *buffer_index_ptr, unsigned int value) {
 	if (value >= 10) {
-		print_uint(printer, value / 10);
+		compose_uint_str(buffer, buffer_index_ptr, value / 10);
 	}
 
-	number[0] = HEX_CHAR[value % 10];
-	number[1] = '\0';
-	print(printer, number);
+	buffer[(*buffer_index_ptr)++] = HEX_CHAR[value % 10];
 }
 
 void print_variable_label(struct FilePrinter *printer, unsigned int address) {
-	print(printer, "var");
+	char buffer[9] = "var00000";
+	int index;
+
 	if ((printer->flags & PRINTER_FLAG_FORMAT_MASK) == PRINTER_FLAG_FORMAT_BIN) {
-		print_literal_hex_word_no_prefix(printer, (address + 0x100) & 0xFFFF);
+		const int value = (address + 0x100) & 0xFFFF;
+		buffer[6] = HEX_CHAR[value & 0x000F];
+		buffer[5] = HEX_CHAR[(value >> 4) & 0x000F];
+		buffer[4] = HEX_CHAR[(value >> 8) & 0x000F];
+		buffer[3] = HEX_CHAR[(value >> 12) & 0x000F];
+		buffer[7] = '\0';
 	}
 	else {
-		print_literal_hex_20bit_value_no_prefix(printer, address);
+		buffer[7] = HEX_CHAR[address & 0x0000F];
+		buffer[6] = HEX_CHAR[(address >> 4) & 0x0000F];
+		buffer[5] = HEX_CHAR[(address >> 8) & 0x0000F];
+		buffer[4] = HEX_CHAR[(address >> 12) & 0x0000F];
+		buffer[3] = HEX_CHAR[(address >> 16) & 0x0000F];
+	}
+
+	index = index_of_key_in_rename_map(printer->renames, buffer);
+	if (index >= 0) {
+		print(printer, printer->renames->entries[index].value);
+	}
+	else {
+		print(printer, buffer);
 	}
 }
 
+#define PRINT_CODE_LABEL_BUFFER_MAX_SIZE 24
+#include <assert.h>
+
 void print_code_label(struct FilePrinter *printer, int ip, int cs) {
+	char buffer[PRINT_CODE_LABEL_BUFFER_MAX_SIZE];
+	unsigned int buffer_index = 0;
 	const char *block_start = printer->buffer_start + (cs * 16 + ip & 0xFFFFF);
-	int index = index_of_func_containing_block_start(printer->func_list, block_start);
-	if (index >= 0) {
-		print(printer, "func");
-		print_uint(printer, index + 1);
-		print(printer, "_");
+	int func_index = index_of_func_containing_block_start(printer->func_list, block_start);
+	int index;
+
+	if (func_index >= 0) {
+		buffer[buffer_index++] = 'f';
+		buffer[buffer_index++] = 'u';
+		buffer[buffer_index++] = 'n';
+		buffer[buffer_index++] = 'c';
+		compose_uint_str(buffer, &buffer_index, func_index + 1);
+		buffer[buffer_index++] = '_';
 	}
 
-	print(printer, "addr");
-	if ((printer->flags & PRINTER_FLAG_FORMAT_MASK) == PRINTER_FLAG_FORMAT_BIN) {
-		print_literal_hex_word_no_prefix(printer, ip & 0xFFFF);
+	buffer[buffer_index++] = 'a';
+	buffer[buffer_index++] = 'd';
+	buffer[buffer_index++] = 'd';
+	buffer[buffer_index++] = 'r';
+	if ((printer->flags & PRINTER_FLAG_FORMAT_MASK) == PRINTER_FLAG_FORMAT_DOS) {
+		buffer[buffer_index + 3] = HEX_CHAR[cs & 0x000F];
+		buffer[buffer_index + 2] = HEX_CHAR[(cs >> 4) & 0x000F];
+		buffer[buffer_index + 1] = HEX_CHAR[(cs >> 8) & 0x000F];
+		buffer[buffer_index] = HEX_CHAR[(cs >> 12) & 0x000F];
+		buffer[buffer_index + 4] = '_';
+		buffer_index += 5;
 	}
-	else { /* (printer->flags & PRINTER_FLAG_FORMAT_MASK) == PRINTER_FLAG_FORMAT_DOS */
-		print_literal_hex_word_no_prefix(printer, cs);
-		print(printer, "_");
-		print_literal_hex_word_no_prefix(printer, ip);
+
+	buffer[buffer_index + 3] = HEX_CHAR[ip & 0x000F];
+	buffer[buffer_index + 2] = HEX_CHAR[(ip >> 4) & 0x000F];
+	buffer[buffer_index + 1] = HEX_CHAR[(ip >> 8) & 0x000F];
+	buffer[buffer_index] = HEX_CHAR[(ip >> 12) & 0x000F];
+	buffer[buffer_index + 4] = '\0';
+	assert(buffer_index + 5 <= PRINT_CODE_LABEL_BUFFER_MAX_SIZE);
+
+	index = index_of_key_in_rename_map(printer->renames, buffer);
+	if (index >= 0) {
+		print(printer, printer->renames->entries[index].value);
+	}
+	else {
+		print(printer, buffer);
 	}
 }
 
