@@ -53,17 +53,15 @@ static void dump_address(
 		unsigned int buffer_origin,
 		struct Reader *reader,
 		struct Reference *reference,
-		void (*print)(const char *),
-		void (*print_segment_start_label)(void (*)(const char *), const char *),
-		void (*print_variable_label)(void (*)(const char *), unsigned int),
+		struct FilePrinter *printer,
 		int value1,
 		const char *segment,
 		const char **registers) {
 	if (value1 < 0xC0) {
-		print("[");
+		print(printer, "[");
 		if (segment) {
-			print(segment);
-			print(":");
+			print(printer, segment);
+			print(printer, ":");
 		}
 
 		if ((value1 & 0xC7) == 0x06) {
@@ -71,34 +69,34 @@ static void dump_address(
 			struct GlobalVariable *var;
 			if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
 				const unsigned int reference_address = var->relative_address;
-				print_variable_label(print, reference_address);
+				print_variable_label(printer, reference_address);
 
 				if (addr < reference_address + buffer_origin) {
-					print("-");
-					print_segment_start_label(print, buffer + (reference_address + buffer_origin - addr));
+					print(printer, "-");
+					print_segment_label(printer, buffer + (reference_address + buffer_origin - addr));
 				}
 				else if (addr > reference_address + buffer_origin) {
-					print("+");
-					print_segment_start_label(print, buffer + (addr - reference_address - buffer_origin));
+					print(printer, "+");
+					print_segment_label(printer, buffer + (addr - reference_address - buffer_origin));
 				}
 			}
 			else {
-				print_literal_hex_word(print, addr);
+				print_literal_hex_word(printer, addr);
 			}
 		}
 		else {
-			print(ADDRESS_REGISTERS[value1 & 0x07]);
+			print(printer, ADDRESS_REGISTERS[value1 & 0x07]);
 			if ((value1 & 0xC0) == 0x40) {
-				print_differential_hex_byte(print, read_next_byte(reader));
+				print_differential_hex_byte(printer, read_next_byte(reader));
 			}
 			else if ((value1 & 0xC0) == 0x80) {
-				print_differential_hex_word(print, read_next_word(reader));
+				print_differential_hex_word(printer, read_next_word(reader));
 			}
 		}
-		print("]");
+		print(printer, "]");
 	}
 	else {
-		print(registers[value1 & 0x07]);
+		print(printer, registers[value1 & 0x07]);
 	}
 }
 
@@ -107,23 +105,21 @@ static void dump_address_register_combination(
 		unsigned int buffer_origin,
 		struct Reader *reader,
 		struct Reference *reference,
-		void (*print)(const char *),
-		void (*print_segment_start_label)(void (*)(const char *), const char *),
-		void (*print_variable_label)(void (*)(const char *), unsigned int),
+		struct FilePrinter *printer,
 		int value0,
 		int value1,
 		const char **registers,
 		const char *segment,
 		const char **addr_replacement_registers) {
 	if (value0 & 0x02) {
-		print(registers[(value1 >> 3) & 0x07]);
-		print(",");
-		dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
+		print(printer, registers[(value1 >> 3) & 0x07]);
+		print(printer, ",");
+		dump_address(buffer, buffer_origin, reader, reference, printer, value1, segment, addr_replacement_registers);
 	}
 	else {
-		dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, addr_replacement_registers);
-		print(",");
-		print(registers[(value1 >> 3) & 0x07]);
+		dump_address(buffer, buffer_origin, reader, reference, printer, value1, segment, addr_replacement_registers);
+		print(printer, ",");
+		print(printer, registers[(value1 >> 3) & 0x07]);
 	}
 }
 
@@ -136,17 +132,14 @@ static int dump_instruction(
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		struct FunctionList *func_list,
-		void (*print)(const char *),
-		void (*print_error)(const char *),
-		void (*print_segment_start_label)(void (*)(const char *), const char *),
-		void (*print_code_label)(void (*)(const char *), int, int),
-		void (*print_variable_label)(void (*)(const char *), unsigned int)) {
+		struct FilePrinter *printer_out,
+		struct FilePrinter *printer_err) {
 	const char *segment = NULL;
 	while (1) {
 		const int value0 = read_next_byte(reader);
 		if (value0 >= 0 && value0 < 0x40 && (value0 & 0x06) != 0x06) {
-			print(INSTRUCTION[value0 >> 3]);
-			print(" ");
+			print(printer_out, INSTRUCTION[value0 >> 3]);
+			print(printer_out, " ");
 			if ((value0 & 0x04) == 0x00) {
 				const char **registers;
 				int value1;
@@ -158,35 +151,35 @@ static int dump_instruction(
 				}
 
 				value1 = read_next_byte(reader);
-				dump_address_register_combination(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
-				print("\n");
+				dump_address_register_combination(buffer, buffer_origin, reader, reference, printer_out, value0, value1, registers, segment, registers);
+				print(printer_out, "\n");
 				return 0;
 			}
 			else if ((value0 & 0x07) == 0x04) {
-				print(BYTE_REGISTERS[0]);
-				print(",");
-				print_literal_hex_byte(print, read_next_byte(reader));
-				print("\n");
+				print(printer_out, BYTE_REGISTERS[0]);
+				print(printer_out, ",");
+				print_literal_hex_byte(printer_out, read_next_byte(reader));
+				print(printer_out, "\n");
 				return 0;
 			}
 			else {
 				/* (value0 & 0x07) == 0x05 */
-				print(WORD_REGISTERS[0]);
-				print(",");
-				print_literal_hex_word(print, read_next_word(reader));
-				print("\n");
+				print(printer_out, WORD_REGISTERS[0]);
+				print(printer_out, ",");
+				print_literal_hex_word(printer_out, read_next_word(reader));
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if ((value0 & 0xE6) == 0x06 && value0 != 0x0F) {
 			if (value0 & 0x01) {
-				print("pop ");
+				print(printer_out, "pop ");
 			}
 			else {
-				print("push ");
+				print(printer_out, "push ");
 			}
-			print(SEGMENT_REGISTERS[(value0 >> 3) & 0x03]);
-			print("\n");
+			print(printer_out, SEGMENT_REGISTERS[(value0 >> 3) & 0x03]);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xE7) == 0x26) {
@@ -194,165 +187,158 @@ static int dump_instruction(
 		}
 		else if ((value0 & 0xF0) == 0x40) {
 			if (value0 & 0x08) {
-				print("dec ");
+				print(printer_out, "dec ");
 			}
 			else {
-				print("inc ");
+				print(printer_out, "inc ");
 			}
-			print(WORD_REGISTERS[value0 & 0x07]);
-			print("\n");
+			print(printer_out, WORD_REGISTERS[value0 & 0x07]);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xF0) == 0x50) {
 			if (value0 & 0x08) {
-				print("pop ");
+				print(printer_out, "pop ");
 			}
 			else {
-				print("push ");
+				print(printer_out, "push ");
 			}
-			print(WORD_REGISTERS[value0 & 0x07]);
-			print("\n");
+			print(printer_out, WORD_REGISTERS[value0 & 0x07]);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xF0) == 0x70) {
 			const int value1 = read_next_byte(reader);
 			const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
-			int index;
 
-			print(JUMP_INSTRUCTIONS[value0 & 0x0F]);
-			print(" ");
-			index = index_of_func_containing_block_start(func_list, block->start);
-			if (index >= 0) {
-				print("func");
-				print_uint(print, index + 1);
-				print("_");
-			}
-			print_code_label(print, target_ip, block->relative_cs);
-			print("\n");
+			print(printer_out, JUMP_INSTRUCTIONS[value0 & 0x0F]);
+			print(printer_out, " ");
+			print_code_label(printer_out, target_ip, block->relative_cs);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0x80) {
 			const char **registers;
 			const int value1 = read_next_byte(reader);
-			print(INSTRUCTION[(value1 >> 3) & 0x07]);
+			print(printer_out, INSTRUCTION[(value1 >> 3) & 0x07]);
 			if ((value1 & 0xC0) != 0xC0) {
 				if (value0 & 1) {
-					print(" word ");
+					print(printer_out, " word ");
 				}
 				else {
-					print(" byte ");
+					print(printer_out, " byte ");
 				}
 			}
 			else {
-				print(" ");
+				print(printer_out, " ");
 			}
 
 			registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-			dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
-			print(",");
+			dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, registers);
+			print(printer_out, ",");
 			if (value0 & 1) {
-				print_literal_hex_word(print, read_next_word(reader));
+				print_literal_hex_word(printer_out, read_next_word(reader));
 			}
 			else {
-				print_literal_hex_byte(print, read_next_byte(reader));
+				print_literal_hex_byte(printer_out, read_next_byte(reader));
 			}
-			print("\n");
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0x83) {
 			const int value1 = read_next_byte(reader);
-			print(INSTRUCTION[(value1 >> 3) & 0x07]);
-			print((value1 < 0xC0)? " word " : " ");
+			print(printer_out, INSTRUCTION[(value1 >> 3) & 0x07]);
+			print(printer_out, (value1 < 0xC0)? " word " : " ");
 
-			dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
-			print(",");
-			print_differential_hex_byte(print, read_next_byte(reader));
-			print("\n");
+			dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, WORD_REGISTERS);
+			print(printer_out, ",");
+			print_differential_hex_byte(printer_out, read_next_byte(reader));
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0x86 || (value0 & 0xFC) == 0x88) {
 			const char **registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
 			const int value1 = read_next_byte(reader);
-			print((value0 < 0x88)? "xchg " : "mov ");
-			dump_address_register_combination(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value0, value1, registers, segment, registers);
-			print("\n");
+			print(printer_out, (value0 < 0x88)? "xchg " : "mov ");
+			dump_address_register_combination(buffer, buffer_origin, reader, reference, printer_out, value0, value1, registers, segment, registers);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xFD) == 0x8C) {
 			const int value1 = read_next_byte(reader);
 			if (value1 & 0x20) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
-				print("mov ");
-				dump_address_register_combination(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
-				print("\n");
+				print(printer_out, "mov ");
+				dump_address_register_combination(buffer, buffer_origin, reader, reference, printer_out, value0, value1, SEGMENT_REGISTERS, segment, WORD_REGISTERS);
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if (value0 == 0x8D) {
 			const int value1 = read_next_byte(reader);
 			if (value1 >= 0xC0) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
-				print("lea ");
-				print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
-				print(",");
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
-				print("\n");
+				print(printer_out, "lea ");
+				print(printer_out, WORD_REGISTERS[(value1 >> 3) & 0x07]);
+				print(printer_out, ",");
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, NULL);
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if (value0 == 0x8F) {
 			const int value1 = read_next_byte(reader);
 			if (value1 & 0x38 || value1 >= 0xC0) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
-				print("pop ");
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
-				print("\n");
+				print(printer_out, "pop ");
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, NULL);
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if (value0 == 0x90) {
-			print("nop\n");
+			print(printer_out, "nop\n");
 			return 0;
 		}
 		else if ((value0 & 0xF8) == 0x90) {
-			print("xchg ax,");
-			print(WORD_REGISTERS[value0 & 0x07]);
-			print("\n");
+			print(printer_out, "xchg ax,");
+			print(printer_out, WORD_REGISTERS[value0 & 0x07]);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0x98) {
-			print("cbw\n");
+			print(printer_out, "cbw\n");
 			return 0;
 		}
 		else if (value0 == 0x99) {
-			print("cwd\n");
+			print(printer_out, "cwd\n");
 			return 0;
 		}
 		else if ((value0 & 0xFC) == 0xA0) {
 			const char **registers;
 			int addr_value;
-			print("mov ");
+			print(printer_out, "mov ");
 			if (value0 & 1) {
 				registers = WORD_REGISTERS;
 			}
@@ -363,119 +349,119 @@ static int dump_instruction(
 			addr_value = read_next_word(reader);
 			if ((value0 & 0xFE) == 0xA0) {
 				struct GlobalVariable *var;
-				print(registers[0]);
-				print(",[");
+				print(printer_out, registers[0]);
+				print(printer_out, ",[");
 				if (segment) {
-					print(segment);
-					print(":");
+					print(printer_out, segment);
+					print(printer_out, ":");
 				}
 
 				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
 					const unsigned int reference_address = var->relative_address;
-					print_variable_label(print, reference_address);
+					print_variable_label(printer_out, reference_address);
 
 					if (addr_value < reference_address + buffer_origin) {
-						print("-");
-						print_segment_start_label(print, buffer + (reference_address + buffer_origin - addr_value));
+						print(printer_out, "-");
+						print_segment_label(printer_out, buffer + (reference_address + buffer_origin - addr_value));
 					}
 					else if (addr_value > reference_address + buffer_origin) {
-						print("+");
-						print_segment_start_label(print, buffer + (addr_value - reference_address - buffer_origin));
+						print(printer_out, "+");
+						print_segment_label(printer_out, buffer + (addr_value - reference_address - buffer_origin));
 					}
 				}
 				else {
-					print_literal_hex_word(print, addr_value);
+					print_literal_hex_word(printer_out, addr_value);
 				}
 
-				print("]");
+				print(printer_out, "]");
 			}
 			else {
 				struct GlobalVariable *var;
 
-				print("[");
+				print(printer_out, "[");
 				if (segment) {
-					print(segment);
-					print(":");
+					print(printer_out, segment);
+					print(printer_out, ":");
 				}
 
 				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
 					const unsigned int reference_address = var->relative_address;
-					print_variable_label(print, reference_address);
+					print_variable_label(printer_out, reference_address);
 
 					if (addr_value < reference_address + buffer_origin) {
-						print("-");
-						print_segment_start_label(print, buffer + (reference_address + buffer_origin - addr_value));
+						print(printer_out, "-");
+						print_segment_label(printer_out, buffer + (reference_address + buffer_origin - addr_value));
 					}
 					else if (addr_value > reference_address + buffer_origin) {
-						print("+");
-						print_segment_start_label(print, buffer + (addr_value - reference_address - buffer_origin));
+						print(printer_out, "+");
+						print_segment_label(printer_out, buffer + (addr_value - reference_address - buffer_origin));
 					}
 				}
 				else {
-					print_literal_hex_word(print, addr_value);
+					print_literal_hex_word(printer_out, addr_value);
 				}
 
-				print("],");
-				print(registers[0]);
+				print(printer_out, "],");
+				print(printer_out, registers[0]);
 			}
 
-			print("\n");
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xA4) {
-			print("movsb\n");
+			print(printer_out, "movsb\n");
 			return 0;
 		}
 		else if (value0 == 0xA5) {
-			print("movsw\n");
+			print(printer_out, "movsw\n");
 			return 0;
 		}
 		else if (value0 == 0xA6) {
-			print("cmpsb\n");
+			print(printer_out, "cmpsb\n");
 			return 0;
 		}
 		else if (value0 == 0xA7) {
-			print("cmpsw\n");
+			print(printer_out, "cmpsw\n");
 			return 0;
 		}
 		else if (value0 == 0xA8) {
-			print("test al,");
-			print_literal_hex_byte(print, read_next_byte(reader));
-			print("\n");
+			print(printer_out, "test al,");
+			print_literal_hex_byte(printer_out, read_next_byte(reader));
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xA9) {
-			print("test ax,");
-			print_literal_hex_word(print, read_next_word(reader));
-			print("\n");
+			print(printer_out, "test ax,");
+			print_literal_hex_word(printer_out, read_next_word(reader));
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xAA) {
-			print("stosb\n");
+			print(printer_out, "stosb\n");
 			return 0;
 		}
 		else if (value0 == 0xAB) {
-			print("stosw\n");
+			print(printer_out, "stosw\n");
 			return 0;
 		}
 		else if (value0 == 0xAC) {
-			print("lodsb\n");
+			print(printer_out, "lodsb\n");
 			return 0;
 		}
 		else if (value0 == 0xAD) {
-			print("lodsw\n");
+			print(printer_out, "lodsw\n");
 			return 0;
 		}
 		else if (value0 == 0xAE) {
-			print("scasb\n");
+			print(printer_out, "scasb\n");
 			return 0;
 		}
 		else if (value0 == 0xAF) {
-			print("scasw\n");
+			print(printer_out, "scasw\n");
 			return 0;
 		}
 		else if ((value0 & 0xF0) == 0xB0) {
-			print("mov ");
+			print(printer_out, "mov ");
 			if (value0 & 0x08) {
 				const char *relocation_query;
 				int offset_value;
@@ -483,164 +469,157 @@ static int dump_instruction(
 				struct GlobalVariable *var;
 				struct CodeBlock *ref_block;
 
-				print(WORD_REGISTERS[value0 & 0x07]);
-				print(",");
+				print(printer_out, WORD_REGISTERS[value0 & 0x07]);
+				print(printer_out, ",");
 				relocation_query = reader->buffer + reader->buffer_index;
 				offset_value = read_next_word(reader);
 				if ((relocation_segment_present = is_relocation_present_in_sorted_relocations(sorted_relocations, relocation_count, relocation_query))) {
-					print(RELOCATION_VALUE);
+					print(printer_out, RELOCATION_VALUE);
 				}
 
 				if (reference && (var = get_gvar_from_ref_target(reference)) && !is_ref_in_instruction_address(reference)) {
 					unsigned int ref_var_value = var->relative_address;
 					if (relocation_segment_present) {
-						print("+");
+						print(printer_out, "+");
 					}
 
-					print_variable_label(print, ref_var_value);
+					print_variable_label(printer_out, ref_var_value);
 				}
 				else if (reference && (ref_block = get_cblock_from_ref_target(reference))) {
-					int index;
 					if (relocation_segment_present) {
-						print("+");
+						print(printer_out, "+");
 					}
 
-					index = index_of_func_containing_block_start(func_list, block->start);
-					if (index >= 0) {
-						print("func");
-						print_uint(print, index + 1);
-						print("_");
-					}
-					print_code_label(print, ref_block->ip, ref_block->relative_cs);
+					print_code_label(printer_out, ref_block->ip, ref_block->relative_cs);
 				}
 				else {
 					if (relocation_segment_present) {
 						if (offset_value) {
-							print("+");
-							print_literal_hex_word(print, offset_value);
+							print(printer_out, "+");
+							print_literal_hex_word(printer_out, offset_value);
 						}
 					}
 					else {
-						print_literal_hex_word(print, offset_value);
+						print_literal_hex_word(printer_out, offset_value);
 					}
 				}
 			}
 			else {
-				print(BYTE_REGISTERS[value0 & 0x07]);
-				print(",");
-				print_literal_hex_byte(print, read_next_byte(reader));
+				print(printer_out, BYTE_REGISTERS[value0 & 0x07]);
+				print(printer_out, ",");
+				print_literal_hex_byte(printer_out, read_next_byte(reader));
 			}
-			print("\n");
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xC2) {
-			print("ret ");
-			print_literal_hex_word(print, read_next_word(reader));
-			print("\n");
+			print(printer_out, "ret ");
+			print_literal_hex_word(printer_out, read_next_word(reader));
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xC3) {
-			print("ret\n");
+			print(printer_out, "ret\n");
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0xC4) {
 			const int value1 = read_next_byte(reader);
 			if ((value1 & 0xC0) == 0xC0) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
 				if (value0 & 1) {
-					print("lds ");
+					print(printer_out, "lds ");
 				}
 				else {
-					print("les ");
+					print(printer_out, "les ");
 				}
 
-				print(WORD_REGISTERS[(value1 >> 3) & 0x07]);
-				print(",");
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, NULL);
-				print("\n");
+				print(printer_out, WORD_REGISTERS[(value1 >> 3) & 0x07]);
+				print(printer_out, ",");
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, NULL);
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if ((value0 & 0xFE) == 0xC6) {
 			const int value1 = read_next_byte(reader);
 			if (value1 & 0x38) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
-				print("mov ");
+				print(printer_out, "mov ");
 				if ((value1 & 0xC0) != 0xC0) {
 					if (value0 & 1) {
-						print("word ");
+						print(printer_out, "word ");
 					}
 					else {
-						print("byte ");
+						print(printer_out, "byte ");
 					}
 				}
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, BYTE_REGISTERS);
-				print(",");
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, BYTE_REGISTERS);
+				print(printer_out, ",");
 				if (value0 & 1) {
-					print_literal_hex_word(print, read_next_word(reader));
+					print_literal_hex_word(printer_out, read_next_word(reader));
 				}
 				else {
-					print_literal_hex_byte(print, read_next_byte(reader));
+					print_literal_hex_byte(printer_out, read_next_byte(reader));
 				}
-				print("\n");
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if (value0 == 0xCB) {
-			print("retf\n");
+			print(printer_out, "retf\n");
 			return 0;
 		}
 		else if (value0 == 0xCD) {
-			print("int ");
-			print_literal_hex_byte(print, read_next_byte(reader));
-			print("\n");
+			print(printer_out, "int ");
+			print_literal_hex_byte(printer_out, read_next_byte(reader));
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xFC) == 0xD0) {
 			const int value1 = read_next_byte(reader);
 			if ((value1 & 0x38) == 0x30) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
 				const char **registers;
-				print(SHIFT_INSTRUCTIONS[(value1 >> 3) & 0x07]);
+				print(printer_out, SHIFT_INSTRUCTIONS[(value1 >> 3) & 0x07]);
 				if ((value0 & 0xC0) == 0xC0) {
-					print(" ");
+					print(printer_out, " ");
 				}
 				else if (value1 & 1) {
-					print(" word ");
+					print(printer_out, " word ");
 				}
 				else {
-					print(" byte ");
+					print(printer_out, " byte ");
 				}
 
 				registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, registers);
 
 				if (value0 & 2) {
-					print(",cl\n");
+					print(printer_out, ",cl\n");
 				}
 				else {
-					print(",1\n");
+					print(printer_out, ",1\n");
 				}
 				return 0;
 			}
@@ -648,186 +627,166 @@ static int dump_instruction(
 		else if ((value0 & 0xFC) == 0xE0) {
 			const int value1 = read_next_byte(reader);
 			const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
-			int index;
 
-			print(LOOP_INSTRUCTIONS[value0 & 0x0F]);
-			print(" ");
-			index = index_of_func_containing_block_start(func_list, block->start);
-			if (index >= 0) {
-				print("func");
-				print_uint(print, index + 1);
-				print("_");
-			}
-			print_code_label(print, target_ip, block->relative_cs);
-			print("\n");
+			print(printer_out, LOOP_INSTRUCTIONS[value0 & 0x0F]);
+			print(printer_out, " ");
+			print_code_label(printer_out, target_ip, block->relative_cs);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0xE8) {
 			const int diff = read_next_word(reader);
 			const uint16_t target_ip = block->ip + reader->buffer_index + diff;
-			int index;
 
 			if (value0 & 1) {
-				print("jmp ");
+				print(printer_out, "jmp ");
 			}
 			else {
-				print("call ");
+				print(printer_out, "call ");
 			}
 
-			index = index_of_func_containing_block_start(func_list, block->start + target_ip - block->ip);
-			if (index >= 0) {
-				print("func");
-				print_uint(print, index + 1);
-				print("_");
-			}
-			print_code_label(print, target_ip, block->relative_cs);
-			print("\n");
+			print_code_label(printer_out, target_ip, block->relative_cs);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xEA) {
 			const int offset = read_next_word(reader);
-			print("jmp ");
-			print_literal_hex_word(print, read_next_word(reader));
-			print(":");
-			print_literal_hex_word(print, offset);
-			print("\n");
+			print(printer_out, "jmp ");
+			print_literal_hex_word(printer_out, read_next_word(reader));
+			print(printer_out, ":");
+			print_literal_hex_word(printer_out, offset);
+			print(printer_out, "\n");
 		}
 		else if (value0 == 0xEB) {
 			const int value1 = read_next_byte(reader);
 			const int target_ip = block->ip + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
 			int index;
 
-			print("jmp ");
-			index = index_of_func_containing_block_start(func_list, block->start);
-			if (index >= 0) {
-				print("func");
-				print_uint(print, index + 1);
-				print("_");
-			}
-			print_code_label(print, target_ip, block->relative_cs);
-			print("\n");
+			print(printer_out, "jmp ");
+			print_code_label(printer_out, target_ip, block->relative_cs);
+			print(printer_out, "\n");
 			return 0;
 		}
 		else if (value0 == 0xF2) {
-			print("repne\n");
+			print(printer_out, "repne\n");
 			return 0;
 		}
 		else if (value0 == 0xF3) {
-			print("repe\n");
+			print(printer_out, "repe\n");
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0xF6) {
 			const int value1 = read_next_byte(reader);
 			if ((value1 & 0x38) == 0x08) {
-				print("db ");
-				print_literal_hex_byte(print, value0);
-				print(" ");
-				print_literal_hex_byte(print, value1);
-				print(" ; Unknown instruction\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, value0);
+				print(printer_out, " ");
+				print_literal_hex_byte(printer_out, value1);
+				print(printer_out, " ; Unknown instruction\n");
 				return 1;
 			}
 			else {
 				const char **registers;
-				print(MATH_INSTRUCTION[(value1 >> 3) & 0x07]);
+				print(printer_out, MATH_INSTRUCTION[(value1 >> 3) & 0x07]);
 				if ((value1 & 0xC0) != 0xC0) {
 					if (value0 & 1) {
-						print(" word ");
+						print(printer_out, " word ");
 					}
 					else {
-						print(" byte ");
+						print(printer_out, " byte ");
 					}
 				}
 				else {
-					print(" ");
+					print(printer_out, " ");
 				}
 
 				registers = (value0 & 1)? WORD_REGISTERS : BYTE_REGISTERS;
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, registers);
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, registers);
 				if ((value1 & 0x38) == 0) {
-					print(",");
+					print(printer_out, ",");
 					if (value0 & 1) {
-						print_literal_hex_word(print, read_next_word(reader));
+						print_literal_hex_word(printer_out, read_next_word(reader));
 					}
 					else {
-						print_literal_hex_byte(print, read_next_byte(reader));
+						print_literal_hex_byte(printer_out, read_next_byte(reader));
 					}
 				}
-				print("\n");
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if (value0 == 0xF8) {
-			print("clc\n");
+			print(printer_out, "clc\n");
 			return 0;
 		}
 		else if (value0 == 0xF9) {
-			print("stc\n");
+			print(printer_out, "stc\n");
 			return 0;
 		}
 		else if (value0 == 0xFA) {
-			print("cli\n");
+			print(printer_out, "cli\n");
 			return 0;
 		}
 		else if (value0 == 0xFB) {
-			print("sti\n");
+			print(printer_out, "sti\n");
 			return 0;
 		}
 		else if (value0 == 0xFC) {
-			print("cld\n");
+			print(printer_out, "cld\n");
 			return 0;
 		}
 		else if (value0 == 0xFD) {
-			print("std\n");
+			print(printer_out, "std\n");
 			return 0;
 		}
 		else if (value0 == 0xFE) {
 			const int value1 = read_next_byte(reader);
 			if (value1 & 0x30) {
-				print_error("Unknown opcode ");
-				print_literal_hex_byte(print_error, value0);
-				print_error(" ");
-				print_literal_hex_byte(print_error, value1);
-				print_error("\n");
+				print(printer_err, "Unknown opcode ");
+				print_literal_hex_byte(printer_err, value0);
+				print(printer_err, " ");
+				print_literal_hex_byte(printer_err, value1);
+				print(printer_err, "\n");
 				return 1;
 			}
 			else {
-				print(FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
-				print((value1 < 0xC0)? " byte " : " ");
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, BYTE_REGISTERS);
-				print("\n");
+				print(printer_out, FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
+				print(printer_out, (value1 < 0xC0)? " byte " : " ");
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, BYTE_REGISTERS);
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else if (value0 == 0xFF) {
 			const int value1 = read_next_byte(reader);
 			if ((value1 & 0x38) == 0x38 || (value1 & 0xF8) == 0xD8 || (value1 & 0xF8) == 0xE8) {
-				print_error("Unknown opcode ");
-				print_literal_hex_byte(print_error, value0);
-				print_error(" ");
-				print_literal_hex_byte(print_error, value1);
-				print_error("\n");
+				print(printer_err, "Unknown opcode ");
+				print_literal_hex_byte(printer_err, value0);
+				print(printer_err, " ");
+				print_literal_hex_byte(printer_err, value1);
+				print(printer_err, "\n");
 				return 1;
 			}
 			else {
-				print(FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
+				print(printer_out, FF_INSTRUCTIONS[(value1 >> 3) & 0x07]);
 				if (value1 < 0xC0 && ((value1 & 0x08) == 0x00 || (value1 & 0x38) == 0x08)) {
-					print(" word ");
+					print(printer_out, " word ");
 				}
 				else if (value1 < 0xC0 && ((value1 & 0x38) == 0x18 || (value1 & 0x38) == 0x28)) {
-					print(" far16 ");
+					print(printer_out, " far16 ");
 				}
 				else {
-					print(" ");
+					print(printer_out, " ");
 				}
-				dump_address(buffer, buffer_origin, reader, reference, print, print_segment_start_label, print_variable_label, value1, segment, WORD_REGISTERS);
-				print("\n");
+				dump_address(buffer, buffer_origin, reader, reference, printer_out, value1, segment, WORD_REGISTERS);
+				print(printer_out, "\n");
 				return 0;
 			}
 		}
 		else {
-			print("db ");
-			print_literal_hex_byte(print, value0);
-			print(" ; Unknown instruction\n");
+			print(printer_out, "db ");
+			print_literal_hex_byte(printer_out, value0);
+			print(printer_out, " ; Unknown instruction\n");
 			return 1;
 		}
 	}
@@ -875,23 +834,22 @@ static int should_display_string_with_backquotes_for_gvar(const struct GlobalVar
 static int dump_variable(
 		const struct GlobalVariable *variable,
 		const unsigned int variable_print_length,
-		void (*print)(const char *),
-		void (*print_error)(const char *),
-		void (*print_variable_label)(void (*)(const char *), unsigned int)) {
-	print("\n");
-	print_variable_label(print, variable->relative_address);
-	print(":\n");
+		struct FilePrinter *printer_out,
+		struct FilePrinter *printer_err) {
+	print(printer_out, "\n");
+	print_variable_label(printer_out, variable->relative_address);
+	print(printer_out, ":\n");
 
 	if (should_display_string_literal_for_gvar(variable)) {
 		const char *position;
 		char str[] = "x";
 
-		print("db '");
+		print(printer_out, "db '");
 		for (position = variable->start; position < variable->end; position++) {
 			str[0] = *position;
-			print(str);
+			print(printer_out, str);
 		}
-		print("'\n");
+		print(printer_out, "'\n");
 	}
 	else if (should_display_string_with_backquotes_for_gvar(variable)) {
 		int start_required = 1;
@@ -900,46 +858,46 @@ static int dump_variable(
 
 		for (position = variable->start; position < variable->end; position++) {
 			if (start_required) {
-				print("db `");
+				print(printer_out, "db `");
 				start_required = 0;
 			}
 
 			if (*position == '\r') {
-				print("\\r");
+				print(printer_out, "\\r");
 			}
 			else if (*position == '\n') {
-				print("\\n`\n");
+				print(printer_out, "\\n`\n");
 				start_required = 1;
 			}
 			else {
 				str[0] = *position;
-				print(str);
+				print(printer_out, str);
 			}
 		}
 
 		if (!start_required) {
-			print("`\n");
+			print(printer_out, "`\n");
 		}
 	}
 	else if (variable->var_type == GVAR_TYPE_WORD && variable->start + 2 == variable->end ||
 			variable->var_type == GVAR_TYPE_FAR_POINTER && variable_print_length == 2) {
-		print("dw ");
-		print_literal_hex_word(print, *((const uint16_t *) variable->start));
-		print("\n");
+		print(printer_out, "dw ");
+		print_literal_hex_word(printer_out, *((const uint16_t *) variable->start));
+		print(printer_out, "\n");
 	}
 	else if (variable->var_type == GVAR_TYPE_FAR_POINTER && variable->start + 4 == variable->end) {
-		print("dw ");
-		print_literal_hex_word(print, *((const uint16_t *) variable->start));
-		print("\ndw ");
-		print_literal_hex_word(print, *((const uint16_t *) variable->start + 2));
-		print("\n");
+		print(printer_out, "dw ");
+		print_literal_hex_word(printer_out, *((const uint16_t *) variable->start));
+		print(printer_out, "\ndw ");
+		print_literal_hex_word(printer_out, *((const uint16_t *) variable->start + 2));
+		print(printer_out, "\n");
 	}
 	else {
 		const char *position;
 		for (position = variable->start; position < (variable->start + variable_print_length); position++) {
-			print("db ");
-			print_literal_hex_byte(print, *position);
-			print("\n");
+			print(printer_out, "db ");
+			print_literal_hex_byte(printer_out, *position);
+			print(printer_out, "\n");
 		}
 	}
 
@@ -1007,11 +965,8 @@ int dump(
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		struct FunctionList *func_list,
-		void (*print)(const char *),
-		void (*print_error)(const char *),
-		void (*print_segment_start_label)(void (*)(const char *), const char *),
-		void (*print_code_label)(void (*)(const char *), int, int),
-		void (*print_variable_label)(void (*)(const char *), unsigned int)) {
+		struct FilePrinter *printer_out,
+		struct FilePrinter *printer_err) {
 	struct Reader reader;
 	int error_code;
 
@@ -1049,9 +1004,9 @@ int dump(
 			segment_start = NULL;
 		}
 		else if (segment_starts[segment_start_index] == position) {
-			print("\n");
-			print_segment_start_label(print, position);
-			print(":\n");
+			print(printer_out, "\n");
+			print_segment_label(printer_out, position);
+			print(printer_out, ":\n");
 			segment_start = (++segment_start_index < segment_start_count)? segment_starts[segment_start_index] : NULL;
 		}
 		else {
@@ -1068,7 +1023,7 @@ int dump(
 		else if (position_in_variable && !position_in_block && (!block || block->start >= variable->end)) {
 			struct GlobalVariable *next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
 			unsigned int variable_print_length = ((next_variable && next_variable->start < variable->end)? next_variable->start : variable->end) - variable->start;
-			if ((error_code = dump_variable(variable, variable_print_length, print, print_error, print_variable_label))) {
+			if ((error_code = dump_variable(variable, variable_print_length, printer_out, printer_err))) {
 				return error_code;
 			}
 
@@ -1081,16 +1036,9 @@ int dump(
 		}
 		else if (position_in_block && !position_in_variable) {
 			if (block->start == position && should_dump_label_for_block(block)) {
-				int index;
-				print("\n");
-				index = index_of_func_containing_block_start(func_list, block->start);
-				if (index >= 0) {
-					print("func");
-					print_uint(print, index + 1);
-					print("_");
-				}
-				print_code_label(print, block->ip, block->relative_cs);
-				print(":\n");
+				print(printer_out, "\n");
+				print_code_label(printer_out, block->ip, block->relative_cs);
+				print(printer_out, ":\n");
 			}
 
 			if (unknown_opcode_found_in_block) {
@@ -1098,9 +1046,9 @@ int dump(
 				reader.buffer_index = position - block->start;
 				reader.buffer_size = block->end - block->start;
 
-				print("db ");
-				print_literal_hex_byte(print, read_next_byte(&reader));
-				print("\n");
+				print(printer_out, "db ");
+				print_literal_hex_byte(printer_out, read_next_byte(&reader));
+				print(printer_out, "\n");
 
 				position++;
 				if (position >= block->end) {
@@ -1126,9 +1074,9 @@ int dump(
 				if (error_code || variable && next_position > variable->start) {
 					unknown_opcode_found_in_block = 1;
 					reader.buffer_index = 0;
-					print("db ");
-					print_literal_hex_byte(print, read_next_byte(&reader));
-					print((error_code == READ_ERROR_UNKNOWN_OPCODE)? " ; Unknown opcode\n" : "\n");
+					print(printer_out, "db ");
+					print_literal_hex_byte(printer_out, read_next_byte(&reader));
+					print(printer_out, (error_code == READ_ERROR_UNKNOWN_OPCODE)? " ; Unknown opcode\n" : "\n");
 
 					position++;
 					if (position >= block->end) {
@@ -1161,7 +1109,7 @@ int dump(
 						gvar_ref_count--;
 					}
 
-					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, reference, sorted_relocations, relocation_count, func_list, print, print_error, print_segment_start_label, print_code_label, print_variable_label);
+					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, reference, sorted_relocations, relocation_count, func_list, printer_out, printer_err);
 					position = next_position;
 					if (position >= block->end) {
 						unknown_opcode_found_in_block = 0;
@@ -1183,22 +1131,14 @@ int dump(
 			unsigned int current_variable_size;
 
 			if (block->start == position && should_dump_label_for_block(block)) {
-				int index;
-
-				print("\n");
-				index = index_of_func_containing_block_start(func_list, block->start);
-				if (index >= 0) {
-					print("func");
-					print_uint(print, index + 1);
-					print("_");
-				}
-				print_code_label(print, block->ip, block->relative_cs);
-				print(":\n");
+				print(printer_out, "\n");
+				print_code_label(printer_out, block->ip, block->relative_cs);
+				print(printer_out, ":\n");
 			}
 
 			next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
 			variable_print_length = ((next_variable && next_variable->start < variable->end)? next_variable->start : variable->end) - variable->start;
-			if ((error_code = dump_variable(variable, variable_print_length, print, print_error, print_variable_label))) {
+			if ((error_code = dump_variable(variable, variable_print_length, printer_out, printer_err))) {
 				return error_code;
 			}
 
@@ -1236,9 +1176,9 @@ int dump(
 					reader.buffer = position;
 					reader.buffer_index = 0;
 					reader.buffer_size = 1;
-					print("db ");
-					print_literal_hex_byte(print, read_next_byte(&reader));
-					print("\n");
+					print(printer_out, "db ");
+					print_literal_hex_byte(printer_out, read_next_byte(&reader));
+					print(printer_out, "\n");
 				}
 
 				if (position >= block->end) {

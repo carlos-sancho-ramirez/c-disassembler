@@ -5,6 +5,7 @@
 #include "gvar.h"
 #include "ref.h"
 #include "funclist.h"
+#include "printu.h"
 
 int dump(
 	const char *buffer,
@@ -20,10 +21,7 @@ int dump(
 	const char **sorted_relocations,
 	unsigned int relocation_count,
 	struct FunctionList *func_list,
-	void (*print)(const char *),
-	void (*print_error)(const char *),
-	void (*print_segment_start_label)(void (*)(const char *), const char *),
-	void (*print_code_label)(void (*)(const char *), int, int),
-	void (*print_variable_label)(void (*)(const char *), unsigned int));
+	struct FilePrinter *print_out,
+	struct FilePrinter *print_error);
 
 #endif

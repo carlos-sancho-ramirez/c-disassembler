@@ -12,9 +12,6 @@ struct SegmentReadResult {
 	int relative_cs;
 	unsigned int ip;
 	unsigned int flags;
-
-	void (*print_code_label)(void (*print)(const char *), int ip, int cs);
-	void (*print_variable_label)(void (*print)(const char *), unsigned int address);
 };
 
 int ds_should_match_cs_at_segment_start(const struct SegmentReadResult *result);

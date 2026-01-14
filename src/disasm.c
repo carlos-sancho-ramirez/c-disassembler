@@ -15,19 +15,10 @@
 #include "version.h"
 #include "funcfind.h"
 #include "printd.h"
+#include "printu.h"
 
 static void print_help(const char *executedFile) {
 	printf("Syntax: %s <options>\nPossible options:\n  -f or --format    Format of the input file. It can be:\n                        'bin' for plain 16bits executable without header\n                        'dos' for 16bits executable with MZ header.\n  -h or --help      Show this help.\n  -i <filename>     Uses this file as input.\n  -o <filename>     Uses this file as output.\n                    If not defined, the result will be printed in the standard output.\n", executedFile);
-}
-
-static FILE *print_output_file;
-
-static void print_output(const char *str) {
-	fprintf(print_output_file, "%s", str);
-}
-
-static void print_error(const char *str) {
-	fprintf(stderr, "%s", str);
 }
 
 struct dos_header {
@@ -145,8 +136,6 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 
 		result->relative_cs = header.initial_cs;
 		result->ip = header.initial_ip;
-		result->print_code_label = print_dos_address_label;
-		result->print_variable_label = print_dos_variable_label;
 		result->flags = 0;
 
 		if (header.relocations_count > 0) {
@@ -222,8 +211,6 @@ static int read_file(struct SegmentReadResult *result, const char *filename, con
 
 		result->ip = 0x100;
 		result->relative_cs = -0x10;
-		result->print_code_label = print_bin_address_label;
-		result->print_variable_label = print_bin_variable_label;
 		mark_ds_matches_cs_at_start(result);
 	}
 	fclose(file);
@@ -242,6 +229,8 @@ int main(int argc, const char *argv[]) {
 	struct SegmentStartList segment_start_list;
 	struct ReferenceList ref_list;
 	struct FunctionList func_list;
+	struct FilePrinter printer_out;
+	struct FilePrinter printer_err;
 
 	printf("%s", application_name_and_version);
 
@@ -308,7 +297,18 @@ int main(int argc, const char *argv[]) {
 	initialize_segment_start_list(&segment_start_list);
 	initialize_ref_list(&ref_list);
 
-	if ((error_code = find_cblocks_and_gvars(&read_result, print_error, &cblock_list, &gvar_list, &segment_start_list, &ref_list))) {
+	if (ds_should_match_cs_at_segment_start(&read_result)) {
+		set_printer_bin_format(&printer_err);
+	}
+	else {
+		set_printer_dos_format(&printer_err);
+	}
+
+	printer_err.buffer_start = read_result.buffer;
+	printer_err.file = stderr;
+	printer_err.func_list = NULL;
+
+	if ((error_code = find_cblocks_and_gvars(&read_result, &printer_err, &cblock_list, &gvar_list, &segment_start_list, &ref_list))) {
 		goto end0;
 	}
 
@@ -322,20 +322,29 @@ int main(int argc, const char *argv[]) {
 	print_funclist(&func_list);
 #endif /* DEBUG */
 
+	printer_err.func_list = &func_list;
+	if (ds_should_match_cs_at_segment_start(&read_result)) {
+		set_printer_bin_format(&printer_out);
+	}
+	else {
+		set_printer_dos_format(&printer_out);
+	}
+
+	printer_out.buffer_start = read_result.buffer;
+	printer_out.func_list = &func_list;
 	if (out_filename) {
-		print_output_file = fopen(out_filename, "w");
-		if (!print_output_file) {
+		printer_out.file = fopen(out_filename, "w");
+		if (!printer_out.file) {
 			fprintf(stderr, "Unable to open output file\n");
 			goto end;
 		}
 	}
 	else {
-		print_output_file = stdout;
+		printer_out.file = stdout;
 	}
-	buffer_start = read_result.buffer;
 
 	if (!strcmp(format, "bin")) {
-		print_output("org 0x100\n");
+		print(&printer_out, "org 0x100\n");
 	}
 
 	error_code = dump(
@@ -352,14 +361,11 @@ int main(int argc, const char *argv[]) {
 			read_result.sorted_relocations,
 			read_result.relocation_count,
 			&func_list,
-			print_output,
-			print_error,
-			print_segment_start_label,
-			read_result.print_code_label,
-			read_result.print_variable_label);
+			&printer_out,
+			&printer_err);
 
-	if (print_output_file != stdout) {
-		fclose(print_output_file);
+	if (printer_out.file != stdout) {
+		fclose(printer_out.file);
 	}
 
 	end:

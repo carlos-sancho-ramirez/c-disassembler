@@ -1,19 +1,27 @@
 #ifndef _PRINT_UTILS_H_
 #define _PRINT_UTILS_H_
 
-extern const char *buffer_start;
+#include <stdio.h>
+#include "funclist.h"
 
-void print_literal_hex_byte(void (*print)(const char *), int value);
-void print_literal_hex_word(void (*print)(const char *), int value);
-void print_literal_hex_word_no_prefix(void (*print)(const char *), int value);
-void print_differential_hex_byte(void (*print)(const char *), int value);
-void print_differential_hex_word(void (*print)(const char *), int value);
-void print_uint(void (*print)(const char *), unsigned int value);
+struct FilePrinter {
+	unsigned int flags;
+	const char *buffer_start;
+	FILE *file;
+	struct FunctionList *func_list;
+};
 
-void print_segment_start_label(void (*print)(const char *), const char *start);
-void print_bin_address_label(void (*print)(const char *), int ip, int cs);
-void print_dos_address_label(void (*print)(const char *), int ip, int cs);
-void print_bin_variable_label(void (*print)(const char *), unsigned int address);
-void print_dos_variable_label(void (*print)(const char *), unsigned int address);
+void print(struct FilePrinter *printer, const char *str);
+void print_literal_hex_byte(struct FilePrinter *printer, int value);
+void print_literal_hex_word(struct FilePrinter *printer, int value);
+void print_differential_hex_byte(struct FilePrinter *printer, int value);
+void print_differential_hex_word(struct FilePrinter *printer, int value);
+
+void print_variable_label(struct FilePrinter *printer, unsigned int address);
+void print_code_label(struct FilePrinter *printer, int ip, int cs);
+void print_segment_label(struct FilePrinter *printer, const char *start);
+
+void set_printer_bin_format(struct FilePrinter *printer);
+void set_printer_dos_format(struct FilePrinter *printer);
 
 #endif /* _PRINT_UTILS_H_ */

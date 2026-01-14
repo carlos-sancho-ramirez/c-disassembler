@@ -798,7 +798,7 @@ static int read_block_instruction_internal(
 		unsigned int segment_size,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
-		void (*print_error)(const char *),
+		struct FilePrinter *printer_err,
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
@@ -920,7 +920,7 @@ static int read_block_instruction_internal(
 		return 0;
 	}
 	else if ((value0 & 0xE7) == 0x26) {
-		return read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, segment_size, sorted_relocations, relocation_count, print_error, block, code_block_list, gvar_list, segment_start_list, ref_list, (value0 >> 3) & 0x03, opcode_reference, next_instruction_potentially_reached);
+		return read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, segment_size, sorted_relocations, relocation_count, printer_err, block, code_block_list, gvar_list, segment_start_list, ref_list, (value0 >> 3) & 0x03, opcode_reference, next_instruction_potentially_reached);
 	}
 	else if ((value0 & 0xF0) == 0x40) {
 		DEBUG_PRINT0("\n");
@@ -2392,7 +2392,7 @@ static int read_block_instruction(
 		unsigned int segment_size,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
-		void (*print_error)(const char *),
+		struct FilePrinter *printer_err,
 		struct CodeBlock *block,
 		struct CodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
@@ -2405,7 +2405,7 @@ static int read_block_instruction(
 	reader_debug_print_enabled = 1;
 #endif
 
-	result = read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, segment_size, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction, next_instruction_potentially_reached);
+	result = read_block_instruction_internal(reader, regs, stack, var_values, int_table, segment_start, segment_size, sorted_relocations, relocation_count, printer_err, block, code_block_list, global_variable_list, segment_start_list, reference_list, SEGMENT_INDEX_UNDEFINED, instruction, next_instruction_potentially_reached);
 #ifdef DEBUG
 	reader_debug_print_enabled = 0;
 #endif
@@ -2423,7 +2423,7 @@ static int read_block(
 		unsigned int segment_size,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
-		void (*print_error)(const char *),
+		struct FilePrinter *printer_err,
 		struct CodeBlock *block,
 		unsigned int block_max_size,
 		struct CodeBlockList *code_block_list,
@@ -2445,7 +2445,7 @@ static int read_block(
 	do {
 		int next_instruction_potentially_reached = 0;
 		int index;
-		if ((error_code = read_block_instruction(&reader, regs, stack, var_values, &int_table, segment_start, segment_size, sorted_relocations, relocation_count, print_error, block, code_block_list, global_variable_list, segment_start_list, reference_list, &next_instruction_potentially_reached))) {
+		if ((error_code = read_block_instruction(&reader, regs, stack, var_values, &int_table, segment_start, segment_size, sorted_relocations, relocation_count, printer_err, block, code_block_list, global_variable_list, segment_start_list, reference_list, &next_instruction_potentially_reached))) {
 			return error_code;
 		}
 
@@ -2555,7 +2555,7 @@ static int read_block(
 
 int find_cblocks_and_gvars(
 		struct SegmentReadResult *read_result,
-		void (*print_error)(const char *),
+		struct FilePrinter *printer_err,
 		struct CodeBlockList *cblock_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
@@ -2628,7 +2628,7 @@ int find_cblocks_and_gvars(
 					initialize_gvwvmap(&var_values);
 					accumulate_gvwvmap_from_cbolist(&var_values, &block->origin_list);
 
-					if ((error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, print_error, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
+					if ((error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, printer_err, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
 						return error_code;
 					}
 
