@@ -351,7 +351,137 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 	return 0;
 }
 
+static int add_jump_type_cborigin_in_block(
+		const char *segment_start,
+		unsigned int segment_size,
+		struct CodeBlock *block,
+		struct CodeBlockList *code_block_list,
+		const char *origin_instruction,
+		const struct Registers *regs,
+		const struct Stack *stack,
+		const struct GlobalVariableWordValueMap *var_values) {
+	int error_code;
+	struct CodeBlockOriginList *origin_list;
+	int index;
+
+	origin_list = &block->origin_list;
+	index = index_of_cborigin_with_instruction(origin_list, origin_instruction);
+	if (index < 0) {
+		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
+		set_jump_type_in_cborigin(new_origin, origin_instruction);
+		copy_registers(&new_origin->regs, regs);
+
+		initialize_stack(&new_origin->stack);
+		copy_stack(&new_origin->stack, stack);
+
+		initialize_gvwvmap(&new_origin->var_values);
+		copy_gvwvmap(&new_origin->var_values, var_values);
+
+		if (cblock_ready_to_be_evaluated(block)) {
+			struct Registers accumulated_regs;
+			struct Stack accumulated_stack;
+			struct GlobalVariableWordValueMap accumulated_var_values;
+
+			if (origin_list->origin_count) {
+				accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
+				initialize_stack(&accumulated_stack);
+				if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list))) {
+					return error_code;
+				}
+
+				initialize_gvwvmap(&accumulated_var_values);
+				if ((error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
+					return error_code;
+				}
+			}
+
+			if ((error_code = insert_cborigin(origin_list, new_origin))) {
+				return error_code;
+			}
+
+			if (origin_list->origin_count > 1) {
+				if (changes_on_merging_registers(&accumulated_regs, regs) ||
+						changes_on_merging_stacks(&accumulated_stack, stack) ||
+						changes_on_merging_gvwvmap(&accumulated_var_values, var_values)) {
+					invalidate_cblock_check(block);
+				}
+				else if ((*block->start & 0xFF) == 0xC3 && top_is_defined_absolute_in_stack(stack) && (*origin_instruction & 0xFF) == 0xFF && (origin_instruction[1] & 0x38) == 0x10) {
+					const uint16_t return_ip = get_from_top(stack, 0);
+					const unsigned int return_cs = block->relative_cs;
+					const unsigned int return_relative_address = return_ip + (return_cs << 4);
+					const char *return_destination = segment_start + return_relative_address;
+
+					if (return_destination >= segment_start && return_destination < segment_start + segment_size) {
+						const int return_block_index = index_of_cblock_containing_position(code_block_list, return_destination);
+						if (return_block_index < 0 || code_block_list->sorted_blocks[return_block_index]->end <= return_destination) {
+							struct Registers return_regs;
+							struct Stack return_stack;
+							struct CodeBlock *return_block = prepare_new_cblock(code_block_list);
+							if (!return_block) {
+								return 1;
+							}
+
+							return_block->relative_cs = block->relative_cs;
+							return_block->ip = return_ip;
+							return_block->start = return_destination;
+							return_block->end = return_destination;
+							return_block->flags = 0;
+
+							copy_registers(&return_regs, regs);
+							if (is_register_sp_defined_relative(regs)) {
+								set_register_sp_relative(&return_regs, NULL, NULL, get_register_sp(regs) + 2);
+							}
+							else if (is_register_sp_defined_absolute(regs)) {
+								set_register_sp(&return_regs, NULL, NULL, get_register_sp(regs) + 2);
+							}
+							else if (is_register_sp_relative_from_bp(regs)) {
+								set_register_sp_relative_from_bp(&return_regs, NULL, get_register_sp(regs) + 2);
+							}
+
+							initialize_stack(&return_stack);
+							if ((error_code = copy_stack(&return_stack, stack))) {
+								return error_code;
+							}
+
+							pop_from_stack(&return_stack);
+							initialize_cborigin_list(&return_block->origin_list);
+							if ((error_code = add_call_return_type_cborigin_in_block(return_block, &return_regs, &return_stack, return_destination - origin_instruction))) {
+								return error_code;
+							}
+
+							if ((error_code = insert_cblock(code_block_list, return_block))) {
+								return error_code;
+							}
+						}
+					}
+				}
+			}
+		}
+		else {
+			if ((error_code = insert_cborigin(origin_list, new_origin))) {
+				return error_code;
+			}
+		}
+	}
+	else {
+		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
+		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_stacks(&origin->stack, stack) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
+			merge_registers(&origin->regs, regs);
+			merge_stacks(&origin->stack, stack);
+			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+				return error_code;
+			}
+
+			invalidate_cblock_check(block);
+		}
+	}
+
+	return 0;
+}
+
 static int register_jump_target_block(
+		const char *segment_start,
+		unsigned int segment_size,
 		struct Reader *reader,
 		struct Registers *regs,
 		struct Stack *stack,
@@ -371,7 +501,7 @@ static int register_jump_target_block(
 	}
 
 	if (potential_container && potential_container->start == jump_destination) {
-		if ((result = add_jump_type_cborigin_in_block(potential_container, opcode_reference, regs, stack, var_values))) {
+		if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
 			return result;
 		}
 	}
@@ -387,7 +517,7 @@ static int register_jump_target_block(
 		new_block->end = jump_destination;
 		new_block->flags = 0;
 		initialize_cborigin_list(&new_block->origin_list);
-		if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
+		if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, new_block, code_block_list, opcode_reference, regs, stack, var_values))) {
 			return result;
 		}
 
@@ -990,7 +1120,7 @@ static int read_block_instruction_internal(
 
 		block->end = block->start + reader->buffer_index;
 		if (jump_destination <= block->end) {
-			if ((result = register_jump_target_block(reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
+			if ((result = register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
 				return result;
 			}
 
@@ -1003,7 +1133,7 @@ static int read_block_instruction_internal(
 				return result;
 			}
 
-			if ((result = register_jump_target_block(reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
+			if ((result = register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
 				return result;
 			}
 		}
@@ -2010,7 +2140,7 @@ static int read_block_instruction_internal(
 		}
 
 		if (potential_container && potential_container->start == jump_destination) {
-			if ((error_code = add_jump_type_cborigin_in_block(potential_container, opcode_reference, regs, stack, var_values))) {
+			if ((error_code = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
 				return error_code;
 			}
 		}
@@ -2027,7 +2157,7 @@ static int read_block_instruction_internal(
 			new_block->flags = 0;
 			initialize_cborigin_list(&new_block->origin_list);
 
-			if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
+			if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, new_block, code_block_list, opcode_reference, regs, stack, var_values))) {
 				return result;
 			}
 
@@ -2061,7 +2191,7 @@ static int read_block_instruction_internal(
 
 		block->end = block->start + reader->buffer_index;
 		*next_instruction_potentially_reached = 0;
-		return register_jump_target_block(reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff);
+		return register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff);
 	}
 	else if (value0 == 0xF2) {
 		DEBUG_PRINT0("\n");
@@ -2280,7 +2410,7 @@ static int read_block_instruction_internal(
 					}
 
 					if (potential_container && potential_container->start == jump_destination) {
-						if ((error_code = add_jump_type_cborigin_in_block(potential_container, opcode_reference, regs, stack, var_values))) {
+						if ((error_code = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
 							return error_code;
 						}
 					}
@@ -2297,7 +2427,7 @@ static int read_block_instruction_internal(
 						new_block->flags = 0;
 						initialize_cborigin_list(&new_block->origin_list);
 
-						if ((result = add_jump_type_cborigin_in_block(new_block, opcode_reference, regs, stack, var_values))) {
+						if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, new_block, code_block_list, opcode_reference, regs, stack, var_values))) {
 							return result;
 						}
 

@@ -237,6 +237,7 @@ int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list
 }
 
 int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct Registers *regs, const struct Stack *stack, unsigned int behind_count) {
+	assert(behind_count >= 2 && behind_count <= 4);
 	if (index_of_cborigin_of_type_call_return(list, behind_count) < 0) {
 		int error_code;
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(list);
