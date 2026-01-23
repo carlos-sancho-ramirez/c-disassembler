@@ -617,6 +617,10 @@ void print_stack(const struct Stack *stack) {
 				fprintf(stderr, "??");
 			}
 
+			if (stack->value_origin[i]) {
+				fprintf(stderr, "*");
+			}
+
 			comma_required = 1;
 		}
 	}

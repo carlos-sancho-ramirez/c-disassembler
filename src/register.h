@@ -115,6 +115,7 @@ const char *get_register_al_value_origin(const struct Registers *regs);
 const char *get_register_ax_value_origin(const struct Registers *regs);
 const char *get_register_dx_value_origin(const struct Registers *regs);
 const char *get_register_bp_value_origin(const struct Registers *regs);
+const char *get_register_si_value_origin(const struct Registers *regs);
 const char *get_word_register_value_origin(const struct Registers *regs, unsigned int index);
 const char *get_segment_register_value_origin(const struct Registers *regs, unsigned int index);
 

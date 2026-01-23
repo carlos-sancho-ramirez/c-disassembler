@@ -1268,10 +1268,10 @@ static int read_block_instruction_internal(
 						if ((addr_stack_offset & 1) == 0) {
 							const int count = addr_stack_offset / 2;
 							if (is_defined_relative_in_stack_from_top(stack, count)) {
-								set_word_register_relative(regs, reg_index, opcode_reference, NULL, get_from_top(stack, count));
+								set_word_register_relative(regs, reg_index, opcode_reference, get_value_origin_from_top(stack, count), get_from_top(stack, count));
 							}
 							else if (is_defined_in_stack_from_top(stack, count)) {
-								set_word_register(regs, reg_index, opcode_reference, NULL, get_from_top(stack, count));
+								set_word_register(regs, reg_index, opcode_reference, get_value_origin_from_top(stack, count), get_from_top(stack, count));
 							}
 							else {
 								set_word_register_undefined(regs, reg_index, opcode_reference);
@@ -1691,7 +1691,43 @@ static int read_block_instruction_internal(
 		*next_instruction_potentially_reached = 1;
 		return 0;
 	}
-	else if ((value0 & 0xFC) == 0xAC) {
+	else if ((value0 & 0xFE) == 0xAC) { /* lods */
+		DEBUG_PRINT0("\n");
+		if (is_register_ds_defined_relative(regs) && is_register_si_defined_absolute(regs)) {
+			/* We should check here as well that the direction flag is cleared (cld) */
+			unsigned int target_relative_address = (get_register_ds(regs) << 4) + get_register_si(regs);
+			const char *target = segment_start + target_relative_address;
+
+			if (target >= segment_start && target < segment_start + segment_size) {
+				int index = index_of_gvar_with_start(gvar_list, target);
+				if (index < 0) {
+					struct GlobalVariable *var = prepare_new_gvar(gvar_list);
+					const char *value_origin = get_register_si_value_origin(regs);
+
+					var->start = target;
+					var->relative_address = target_relative_address;
+					var->end = target + ((value0 & 1)? 2 : 1);
+					var->var_type = GVAR_TYPE_STRING;
+
+					if ((error_code = insert_gvar(gvar_list, var))) {
+						return error_code;
+					}
+
+					if (value_origin >= segment_start && value_origin < segment_start + segment_size &&
+							(*value_origin & 0xF8) == 0xB8 && index_of_ref_with_instruction(ref_list, value_origin) < 0) {
+						struct Reference *new_ref = prepare_new_ref(ref_list);
+						new_ref->instruction = value_origin;
+						set_gvar_ref_from_instruction_immediate_value(new_ref, var);
+						insert_ref(ref_list, new_ref);
+					}
+				}
+			}
+		}
+
+		*next_instruction_potentially_reached = 1;
+		return 0;
+	}
+	else if ((value0 & 0xFE) == 0xAE) { /* scas */
 		DEBUG_PRINT0("\n");
 		*next_instruction_potentially_reached = 1;
 		return 0;

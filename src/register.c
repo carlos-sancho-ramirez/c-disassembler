@@ -234,6 +234,10 @@ const char *get_register_bp_value_origin(const struct Registers *regs) {
 	return regs->value_origin[9];
 }
 
+const char *get_register_si_value_origin(const struct Registers *regs) {
+	return regs->value_origin[10];
+}
+
 const char *get_word_register_value_origin(const struct Registers *regs, unsigned int index) {
 	assert(index < 8);
 	if (index < 4) {
