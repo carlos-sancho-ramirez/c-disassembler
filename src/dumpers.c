@@ -798,7 +798,7 @@ static int valid_char_for_string_literal(char ch) {
 }
 
 static int should_display_string_literal_for_gvar(const struct GlobalVariable *variable) {
-	if (variable->var_type == GVAR_TYPE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
+	if (variable->var_type == GVAR_TYPE_BYTE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 		const char *position;
 		for (position = variable->start; position < variable->end; position++) {
 			if (!valid_char_for_string_literal(*position)) {
@@ -813,11 +813,11 @@ static int should_display_string_literal_for_gvar(const struct GlobalVariable *v
 }
 
 static int valid_char_for_string_with_backquotes(char ch) {
-	return valid_char_for_string_literal(ch) || ch == '\r' || ch == '\n';
+	return valid_char_for_string_literal(ch) || ch == '\r' || ch == '\n' || ch == '\0';
 }
 
 static int should_display_string_with_backquotes_for_gvar(const struct GlobalVariable *variable) {
-	if (variable->var_type == GVAR_TYPE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
+	if (variable->var_type == GVAR_TYPE_BYTE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 		const char *position;
 		for (position = variable->start; position < variable->end; position++) {
 			if (!valid_char_for_string_with_backquotes(*position)) {
@@ -862,7 +862,10 @@ static int dump_variable(
 				start_required = 0;
 			}
 
-			if (*position == '\r') {
+			if (*position == '\0') {
+				print(printer_out, "\\0");
+			}
+			else if (*position == '\r') {
 				print(printer_out, "\\r");
 			}
 			else if (*position == '\n') {

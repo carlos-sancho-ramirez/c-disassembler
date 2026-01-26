@@ -626,7 +626,7 @@ int update_int2140_message_references(
 					var->start = target;
 					var->relative_address = relative_address;
 					var->end = target + length;
-					var->var_type = GVAR_TYPE_STRING;
+					var->var_type = GVAR_TYPE_BYTE_STRING;
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1706,8 +1706,8 @@ static int read_block_instruction_internal(
 
 					var->start = target;
 					var->relative_address = target_relative_address;
-					var->end = target + ((value0 & 1)? 2 : 1);
-					var->var_type = GVAR_TYPE_STRING;
+					var->end = target;
+					var->var_type = (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING;
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -2824,28 +2824,50 @@ int find_cblocks_and_gvars(
 
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
-		if (variable->start == variable->end && variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
-			const int index = index_of_cblock_containing_position(cblock_list, variable->start);
-			if (index < 0 || cblock_list->sorted_blocks[index]->end <= variable->start) {
-				const char *potential_end = read_result->buffer + read_result->size;
-				const char *end;
-
-				if (index + 1 < cblock_list->block_count) {
-					potential_end = cblock_list->sorted_blocks[index + 1]->start;
+		if (variable->start == variable->end) {
+			if (variable->var_type == GVAR_TYPE_BYTE_STRING) {
+				if (variable_index + 1 < global_variable_list->variable_count) {
+					variable->end = global_variable_list->sorted_variables[variable_index + 1]->start;
 				}
-
-				for (end = variable->start; end < potential_end; end++) {
-					if (*end == '$') {
-						end++;
-						break;
-					}
+				else {
+					variable->end = read_result->buffer + read_result->size;
 				}
-
-				variable->end = end;
 			}
-			else {
-				/* TODO: Find a better solution */
-				variable->end = cblock_list->sorted_blocks[index]->end;
+			else if (variable->var_type == GVAR_TYPE_WORD_STRING) {
+				if (variable_index + 1 < global_variable_list->variable_count) {
+					variable->end = global_variable_list->sorted_variables[variable_index + 1]->start;
+				}
+				else {
+					variable->end = read_result->buffer + read_result->size;
+				}
+
+				if ((variable->end - variable->start) & 1) {
+					variable->end--;
+				}
+			}
+			else if (variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
+				const int index = index_of_cblock_containing_position(cblock_list, variable->start);
+				if (index < 0 || cblock_list->sorted_blocks[index]->end <= variable->start) {
+					const char *potential_end = read_result->buffer + read_result->size;
+					const char *end;
+
+					if (index + 1 < cblock_list->block_count) {
+						potential_end = cblock_list->sorted_blocks[index + 1]->start;
+					}
+
+					for (end = variable->start; end < potential_end; end++) {
+						if (*end == '$') {
+							end++;
+							break;
+						}
+					}
+
+					variable->end = end;
+				}
+				else {
+					/* TODO: Find a better solution */
+					variable->end = cblock_list->sorted_blocks[index]->end;
+				}
 			}
 		}
 	}
