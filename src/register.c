@@ -37,8 +37,8 @@ int is_register_bh_defined(const struct Registers *regs) {
 int is_byte_register_defined(const struct Registers * regs, unsigned int index) {
 	assert(index < 8);
 	return (index < 4)?
-			regs->defined & (1 << (index * 2)) :
-			regs->defined & (2 << ((index - 4) * 2));
+			regs->defined & 1 << index * 2 :
+			regs->defined & 2 << (index - 4) * 2;
 }
 
 int is_register_ax_defined(const struct Registers *regs) {
@@ -134,7 +134,7 @@ int is_register_si_defined_relative(const struct Registers *regs) {
 }
 
 int is_register_di_defined_relative(const struct Registers *regs) {
-	return regs->relative & 0x0800 && is_register_si_defined(regs);
+	return regs->relative & 0x0800 && is_register_di_defined(regs);
 }
 
 int is_word_register_defined(const struct Registers *regs, unsigned int index) {
@@ -150,7 +150,12 @@ int is_word_register_defined(const struct Registers *regs, unsigned int index) {
 
 int is_word_register_defined_relative(const struct Registers *regs, unsigned int index) {
 	assert(index < 8);
-	return is_word_register_defined(regs, index) && regs->relative & (0x10 << index);
+	return is_word_register_defined(regs, index) && regs->relative & 0x10 << index;
+}
+
+int is_word_register_local(const struct Registers *regs, unsigned int index) {
+	assert(index < 8);
+	return !is_word_register_defined(regs, index) && regs->relative & 0x10 << index;
 }
 
 int is_register_es_defined(const struct Registers *regs) {
@@ -176,7 +181,7 @@ int is_segment_register_defined(const struct Registers *regs, unsigned int index
 
 int is_segment_register_defined_absolute(const struct Registers *regs, unsigned int index) {
 	assert(index < 4);
-	return (regs->relative & 0x1000 << index) == 0 && is_segment_register_defined(regs, index);
+	return !(regs->relative & 0x1000 << index) && is_segment_register_defined(regs, index);
 }
 
 int is_register_es_defined_relative(const struct Registers *regs) {
@@ -201,7 +206,7 @@ int is_segment_register_defined_relative(const struct Registers *regs, unsigned 
 }
 
 int is_register_sp_relative_from_bp(const struct Registers *regs) {
-	return (regs->defined & 0x0200) == 0 && regs->relative & 1;
+	return !(regs->defined & 0x0300) && (regs->relative & 0x0101) == 1;
 }
 
 int is_register_cx_merged(const struct Registers *regs) {
@@ -414,6 +419,7 @@ unsigned int get_segment_register(const struct Registers *regs, unsigned int ind
 
 void set_register_ah_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xFFFE;
+	regs->relative &= 0xFFEF;
 	regs->last_update[1] = last_update;
 	regs->merged &= 0xFFFE;
 }
@@ -432,6 +438,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[0] = last_update;
 		regs->value_origin[0] = value_origin;
 		regs->defined |= 0x01;
+		regs->relative &= 0xFFEF;
 		regs->merged &= 0xFFFE;
 	}
 	else if (index == 1) {
@@ -439,6 +446,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[2] = last_update;
 		regs->value_origin[2] = value_origin;
 		regs->defined |= 0x04;
+		regs->relative &= 0xFFDF;
 		regs->merged &= 0xFFFB;
 	}
 	else if (index == 2) {
@@ -446,6 +454,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[4] = last_update;
 		regs->value_origin[4] = value_origin;
 		regs->defined |= 0x10;
+		regs->relative &= 0xFFBF;
 		regs->merged &= 0xFFEF;
 	}
 	else if (index == 3) {
@@ -453,6 +462,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[6] = last_update;
 		regs->value_origin[6] = value_origin;
 		regs->defined |= 0x40;
+		regs->relative &= 0xFF7F;
 		regs->merged &= 0xFFBF;
 	}
 	else if (index == 4) {
@@ -460,6 +470,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[1] = last_update;
 		regs->value_origin[1] = value_origin;
 		regs->defined |= 0x02;
+		regs->relative &= 0xFFEF;
 		regs->merged &= 0xFFFD;
 	}
 	else if (index == 5) {
@@ -467,6 +478,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[3] = last_update;
 		regs->value_origin[3] = value_origin;
 		regs->defined |= 0x08;
+		regs->relative &= 0xFFDF;
 		regs->merged &= 0xFFF7;
 	}
 	else if (index == 6) {
@@ -474,6 +486,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[5] = last_update;
 		regs->value_origin[5] = value_origin;
 		regs->defined |= 0x20;
+		regs->relative &= 0xFFBF;
 		regs->merged &= 0xFFDF;
 	}
 	else {
@@ -482,6 +495,7 @@ void set_byte_register(struct Registers *regs, unsigned int index, const char *l
 		regs->last_update[7] = last_update;
 		regs->value_origin[7] = value_origin;
 		regs->defined |= 0x80;
+		regs->relative &= 0xFF7F;
 		regs->merged &= 0xFF7F;
 	}
 }
@@ -532,12 +546,7 @@ void set_word_register(struct Registers *regs, unsigned int index, const char *l
 		regs->merged &= 0xFF3F;
 	}
 	else if (index == 4) {
-		regs->sp = value;
-		regs->last_update[8] = last_update;
-		regs->value_origin[8] = value_origin;
-		regs->defined |= 0x0100;
-		regs->relative &= ~0x100;
-		regs->merged &= 0xFEFF;
+		set_register_sp(regs, last_update, value_origin, value);
 	}
 	else if (index == 5) {
 		regs->bp = value;
@@ -654,8 +663,97 @@ void set_word_register_relative(struct Registers *regs, unsigned int index, cons
 	}
 }
 
+void set_word_register_local(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t diff) {
+	assert(index < 8);
+
+	/*
+		This should be optimised using the regs pointer plus index to determinate the byte within
+		the struct to change. But for now I implement it in a way that I can ensure it works in any
+		architecture.
+	*/
+
+	if (index == 0) {
+		regs->al = diff & 0xFF;
+		regs->ah = diff >> 8 & 0xFF;
+		regs->last_update[0] = last_update;
+		regs->last_update[1] = last_update;
+		regs->value_origin[0] = value_origin;
+		regs->value_origin[1] = value_origin;
+		regs->defined &= 0xFFFC;
+		regs->relative |= 0x10;
+		regs->merged &= 0xFFFC;
+	}
+	else if (index == 1) {
+		regs->cl = diff & 0xFF;
+		regs->ch = diff >> 8 & 0xFF;
+		regs->last_update[2] = last_update;
+		regs->last_update[3] = last_update;
+		regs->value_origin[2] = value_origin;
+		regs->value_origin[3] = value_origin;
+		regs->defined &= 0xFFF3;
+		regs->relative |= 0x20;
+		regs->merged &= 0xFFF3;
+	}
+	else if (index == 2) {
+		regs->dl = diff & 0xFF;
+		regs->dh = diff >> 8 & 0xFF;
+		regs->last_update[4] = last_update;
+		regs->last_update[5] = last_update;
+		regs->value_origin[4] = value_origin;
+		regs->value_origin[5] = value_origin;
+		regs->defined &= 0xFFCF;
+		regs->relative |= 0x40;
+		regs->merged &= 0xFFCF;
+	}
+	else if (index == 3) {
+		regs->bl = diff & 0xFF;
+		regs->bh = diff >> 8 & 0xFF;
+		regs->last_update[6] = last_update;
+		regs->last_update[7] = last_update;
+		regs->value_origin[6] = value_origin;
+		regs->value_origin[7] = value_origin;
+		regs->defined &= 0xFF3F;
+		regs->relative |= 0x80;
+		regs->merged &= 0xFF3F;
+	}
+	else if (index == 4) {
+		regs->sp = diff;
+		regs->last_update[8] = last_update;
+		regs->value_origin[8] = value_origin;
+		regs->defined &= 0xFEFF;
+		regs->relative |= 0x100;
+		regs->merged &= 0xFEFF;
+	}
+	else if (index == 5) {
+		regs->bp = diff;
+		regs->last_update[9] = last_update;
+		regs->value_origin[9] = value_origin;
+		regs->defined &= 0xFDFF;
+		regs->relative |= 0x200;
+		regs->merged &= 0xFDFF;
+	}
+	else if (index == 6) {
+		regs->si = diff;
+		regs->last_update[10] = last_update;
+		regs->value_origin[10] = value_origin;
+		regs->defined &= 0xFBFF;
+		regs->relative |= 0x400;
+		regs->merged &= 0xFBFF;
+	}
+	else {
+		/* Assuming index == 7 */
+		regs->di = diff;
+		regs->last_update[11] = last_update;
+		regs->value_origin[11] = value_origin;
+		regs->defined &= 0xF7FF;
+		regs->relative |= 0x800;
+		regs->merged &= 0xF7FF;
+	}
+}
+
 void set_register_ax_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xFFFC;
+	regs->relative &= 0xFFEF;
 	regs->last_update[0] = last_update;
 	regs->last_update[1] = last_update;
 	regs->merged &= 0xFFFC;
@@ -663,6 +761,7 @@ void set_register_ax_undefined(struct Registers *regs, const char *last_update) 
 
 void set_register_cx_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xFFF3;
+	regs->relative &= 0xFFDF;
 	regs->last_update[2] = last_update;
 	regs->last_update[3] = last_update;
 	regs->merged &= 0xFFF3;
@@ -670,6 +769,7 @@ void set_register_cx_undefined(struct Registers *regs, const char *last_update) 
 
 void set_register_dx_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xFFCF;
+	regs->relative &= 0xFFBF;
 	regs->last_update[4] = last_update;
 	regs->last_update[5] = last_update;
 	regs->merged &= 0xFFCF;
@@ -677,6 +777,7 @@ void set_register_dx_undefined(struct Registers *regs, const char *last_update) 
 
 void set_register_bx_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xFF3F;
+	regs->relative &= 0xFF7F;
 	regs->last_update[6] = last_update;
 	regs->last_update[7] = last_update;
 	regs->merged &= 0xFF3F;
@@ -684,12 +785,14 @@ void set_register_bx_undefined(struct Registers *regs, const char *last_update) 
 
 void set_register_es_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xEFFF;
+	regs->relative &= 0xEFFF;
 	regs->last_update[12] = last_update;
 	regs->merged &= 0xEFFF;
 }
 
 void set_register_ds_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0x7FFF;
+	regs->relative &= 0x7FFF;
 	regs->last_update[15] = last_update;
 	regs->merged &= 0x7FFF;
 }
@@ -711,10 +814,13 @@ void set_word_register_undefined(struct Registers *regs, unsigned int index, con
 			regs->relative &= 0xFFFE;
 		}
 	}
+
+	regs->relative &= ~(0x10 << index);
 }
 
 void set_register_al_undefined(struct Registers *regs, const char *last_update) {
 	regs->defined &= 0xFFFE;
+	regs->relative &= 0xFFEF;
 	regs->last_update[0] = last_update;
 	regs->merged &= 0xFFFE;
 }
@@ -795,10 +901,13 @@ void set_segment_register(struct Registers *regs, unsigned int index, const char
 }
 
 void set_segment_register_undefined(struct Registers *regs, unsigned int index, const char *last_update) {
+	const int mask = ~(0x1000 << index);
 	assert(index < 4);
+
 	regs->last_update[index + 12] = last_update;
-	regs->defined &= ~(0x1000 << index);
-	regs->merged &= ~(0x1000 << index);
+	regs->defined &= mask;
+	regs->relative &= mask;
+	regs->merged &= mask;
 }
 
 void set_register_sp_relative(struct Registers *regs, const char *last_update, const char *value_origin, uint16_t value) {
@@ -870,9 +979,14 @@ void set_register_sp_relative_from_bp(struct Registers *regs, const char *last_u
 		const char *value_origin = (value == 0)? get_register_bp_value_origin(regs) : NULL;
 		set_register_sp(regs, last_update, value_origin, new_value);
 	}
+	else if (is_register_bp_defined_relative(regs)) {
+		uint16_t new_value = get_register_bp(regs) + value;
+		const char *value_origin = (value == 0)? get_register_bp_value_origin(regs) : NULL;
+		set_register_sp_relative(regs, last_update, value_origin, new_value);
+	}
 	else {
 		regs->defined &= 0xFEFF;
-		regs->relative |= 1;
+		regs->relative = regs->relative & 0xFEFF | 1;
 		regs->sp = value;
 		regs->last_update[8] = last_update;
 		regs->merged &= 0xFEFF;
@@ -909,104 +1023,184 @@ void copy_registers(struct Registers *target_regs, const struct Registers *sourc
 	}
 }
 
+static void merge_lowhigh_register(struct Registers *regs, const struct Registers *other_regs, int index, int same_high, int same_low) {
+	const int def_low_mask = 1 << (index * 2);
+	const int def_high_mask = def_low_mask << 1;
+	const int def_mask = def_high_mask | def_low_mask;
+	const int defined = regs->defined & def_mask;
+	const int other_defined = other_regs->defined & def_mask;
+	const int rel_mask = 0x10 << index;
+	const int rel_out_mask = ~rel_out_mask;
+	const int relative = regs->relative & rel_mask;
+	const int other_relative = other_regs->relative & rel_mask;
+
+	assert(index >= 0 && index < 4);
+
+	if (defined == 0) {
+		if (other_defined) {
+			regs->relative &= rel_out_mask;
+		}
+		else if (relative) {
+			if (!other_relative || !same_high || !same_low) {
+				regs->relative &= rel_out_mask;
+			}
+		}
+		else if (other_relative) {
+			regs->relative &= rel_out_mask;
+		}
+	}
+	else if (defined == def_low_mask) {
+		if (!(other_regs->defined & def_low_mask) || !same_low) {
+			regs->defined &= ~def_mask;
+		}
+		regs->relative &= rel_out_mask;
+	}
+	else if (defined == def_high_mask) {
+		if (!(other_regs->defined & def_high_mask) || !same_high) {
+			regs->defined &= ~def_mask;
+		}
+		regs->relative &= rel_out_mask;
+	}
+	else {
+		if (!other_defined) {
+			regs->defined &= ~def_mask;
+			regs->relative &= rel_out_mask;
+		}
+		else if (other_defined == def_low_mask) {
+			regs->defined &= ~(same_low? def_high_mask : def_mask);
+			regs->relative &= rel_out_mask;
+		}
+		else if (other_defined == def_high_mask) {
+			regs->defined &= ~(same_high? def_low_mask : def_mask);
+			regs->relative &= rel_out_mask;
+		}
+		else {
+			if (relative) {
+				if (!other_relative || !same_low || !same_high) {
+					regs->defined &= ~def_mask;
+					regs->relative &= rel_out_mask;
+				}
+			}
+			else if (other_relative) {
+				regs->defined &= ~def_mask;
+				regs->relative &= rel_out_mask;
+			}
+			else if (same_low) {
+				if (!same_high) {
+					regs->defined &= ~def_high_mask;
+				}
+			}
+			else {
+				regs->defined &= ~(same_high? def_low_mask : def_mask);
+			}
+		}
+	}
+}
+
+void merge_word_register(struct Registers *regs, const struct Registers *other_regs, int index, int same_value) {
+	const int mask = 0x10 << index;
+	const int defined = regs->defined & mask;
+	const int other_defined = other_regs->defined & mask;
+	const int relative = regs->relative & mask;
+	const int other_relative = other_regs->relative & mask;
+
+	assert(index >= 4 && index <= 12);
+
+	if (defined) {
+		if (other_defined) {
+			if (relative) {
+				if (!other_relative || !same_value) {
+					regs->defined &= ~mask;
+					regs->relative &= ~mask;
+				}
+			}
+			else if (other_relative || !same_value) {
+				regs->defined &= ~mask;
+			}
+		}
+		else {
+			regs->defined &= ~mask;
+			regs->relative &= ~mask;
+		}
+	}
+	else {
+		if (other_defined) {
+			regs->relative &= ~mask;
+		}
+		else {
+			if (relative) {
+				if (other_relative) {
+					if (!same_value) {
+						regs->relative &= ~mask;
+					}
+				}
+				else {
+					regs->relative &= ~mask;
+				}
+			}
+		}
+	}
+}
+
+void merge_sp_register(struct Registers *regs, const struct Registers *other_regs, int same_value) {
+	const int mask = 0x100;
+	const int defined = regs->defined & mask;
+	const int other_defined = other_regs->defined & mask;
+	const int relative = regs->relative & mask;
+	const int other_relative = other_regs->relative & mask;
+
+	if (defined) {
+		if (other_defined) {
+			if (relative) {
+				if (!other_relative || !same_value) {
+					regs->defined &= ~mask;
+					regs->relative &= ~mask;
+				}
+			}
+			else if (other_relative || !same_value) {
+				regs->defined &= ~mask;
+			}
+		}
+		else {
+			regs->defined &= ~mask;
+			regs->relative &= ~mask;
+		}
+	}
+	else {
+		if (other_defined) {
+			regs->relative &= ~mask;
+		}
+		else {
+			if (relative) {
+				if (!other_relative || !same_value) {
+					regs->relative &= ~mask;
+				}
+			}
+			else if (other_relative || !(regs->defined & 0x200) &&
+					(other_regs->defined & 0x200 || regs->relative & 1 && (!(other_regs->relative & 1) || !same_value))) {
+				regs->relative &= 0xFFFE;
+			}
+		}
+	}
+}
+
 void merge_registers(struct Registers *regs, const struct Registers *other_regs) {
 	int i;
 
-	/* AX */
-	if ((regs->relative & 0x10) != (other_regs->relative & 0x10)) {
-		regs->defined &= 0xFFFC;
-	}
-	else {
-		if ((other_regs->defined & 0x0001) == 0 || regs->al != other_regs->al) {
-			regs->defined &= 0xFFFE;
-		}
+	merge_lowhigh_register(regs, other_regs, 0, regs->ah == other_regs->ah, regs->al == other_regs->al);
+	merge_lowhigh_register(regs, other_regs, 1, regs->ch == other_regs->ch, regs->cl == other_regs->cl);
+	merge_lowhigh_register(regs, other_regs, 2, regs->dh == other_regs->dh, regs->dl == other_regs->dl);
+	merge_lowhigh_register(regs, other_regs, 3, regs->bh == other_regs->bh, regs->bl == other_regs->bl);
+	merge_word_register(regs, other_regs, 5, regs->bp == other_regs->bp);
+	merge_word_register(regs, other_regs, 6, regs->si == other_regs->si);
+	merge_word_register(regs, other_regs, 7, regs->di == other_regs->di);
+	merge_word_register(regs, other_regs, 8, regs->es == other_regs->es);
+	merge_word_register(regs, other_regs, 9, regs->cs == other_regs->cs);
+	merge_word_register(regs, other_regs, 10, regs->ss == other_regs->ss);
+	merge_word_register(regs, other_regs, 11, regs->ds == other_regs->ds);
 
-		if ((other_regs->defined & 0x0002) == 0 || regs->ah != other_regs->ah) {
-			regs->defined &= 0xFFFD;
-		}
-	}
-
-	/* CX */
-	if ((regs->relative & 0x20) != (other_regs->relative & 0x20)) {
-		regs->defined &= 0xFFF3;
-	}
-	else {
-		if ((other_regs->defined & 0x0004) == 0 || regs->cl != other_regs->cl) {
-			regs->defined &= 0xFFFB;
-		}
-
-		if ((other_regs->defined & 0x0008) == 0 || regs->ch != other_regs->ch) {
-			regs->defined &= 0xFFF7;
-		}
-	}
-
-	/* DX */
-	if ((regs->relative & 0x40) != (other_regs->relative & 0x40)) {
-		regs->defined &= 0xFFCF;
-	}
-	else {
-		if ((other_regs->defined & 0x0010) == 0 || regs->dl != other_regs->dl) {
-			regs->defined &= 0xFFEF;
-		}
-
-		if ((other_regs->defined & 0x0020) == 0 || regs->dh != other_regs->dh) {
-			regs->defined &= 0xFFDF;
-		}
-	}
-
-	/* BX */
-	if ((regs->relative & 0x80) != (other_regs->relative & 0x80)) {
-		regs->defined &= 0xFF3F;
-	}
-	else {
-		if ((other_regs->defined & 0x0040) == 0 || regs->bl != other_regs->bl) {
-			regs->defined &= 0xFFBF;
-		}
-
-		if ((other_regs->defined & 0x0080) == 0 || regs->bh != other_regs->bh) {
-			regs->defined &= 0xFF7F;
-		}
-	}
-
-	/* SP */
-	if ((other_regs->defined & 0x0100) == 0 || regs->sp != other_regs->sp || (regs->relative & 0x0100) != (other_regs->relative & 0x0100)) {
-		regs->defined &= 0xFEFF;
-	}
-
-	/* BP */
-	if ((other_regs->defined & 0x0200) == 0 || regs->bp != other_regs->bp || (regs->relative & 0x0200) != (other_regs->relative & 0x0200)) {
-		regs->defined &= 0xFDFF;
-	}
-
-	/* SI */
-	if ((other_regs->defined & 0x0400) == 0 || regs->si != other_regs->si || (regs->relative & 0x0400) != (other_regs->relative & 0x0400)) {
-		regs->defined &= 0xFBFF;
-	}
-
-	/* DI */
-	if ((other_regs->defined & 0x0800) == 0 || regs->di != other_regs->di || (regs->relative & 0x0800) != (other_regs->relative & 0x0800)) {
-		regs->defined &= 0xF7FF;
-	}
-
-	/* ES */
-	if ((other_regs->defined & 0x1000) == 0 || regs->es != other_regs->es || (regs->relative & 0x1000) != (other_regs->relative & 0x1000)) {
-		regs->defined &= 0xEFFF;
-	}
-
-	/* CS */
-	if ((other_regs->defined & 0x2000) == 0 || regs->cs != other_regs->cs || (regs->relative & 0x2000) != (other_regs->relative & 0x2000)) {
-		regs->defined &= 0xDFFF;
-	}
-
-	/* SS */
-	if ((other_regs->defined & 0x4000) == 0 || regs->ss != other_regs->ss || (regs->relative & 0x4000) != (other_regs->relative & 0x4000)) {
-		regs->defined &= 0xBFFF;
-	}
-
-	/* DS */
-	if ((other_regs->defined & 0x8000) == 0 || regs->ds != other_regs->ds || (regs->relative & 0x8000) != (other_regs->relative & 0x8000)) {
-		regs->defined &= 0x7FFF;
-	}
+	/* This must be after checking BP, is it needs it in case SP is relative to BP */
+	merge_sp_register(regs, other_regs, regs->sp == other_regs->sp);
 
 	for (i = 0; i < 16; i++) {
 		if (regs->last_update[i] != other_regs->last_update[i]) {
@@ -1022,25 +1216,88 @@ void merge_registers(struct Registers *regs, const struct Registers *other_regs)
 }
 
 int changes_on_merging_registers(const struct Registers *regs, const struct Registers *other_regs) {
+	uint16_t relevant;
 	int i;
 
 	if ((regs->defined & other_regs->defined) != regs->defined) {
 		return 1;
 	}
 
-	if ((regs->defined & regs->relative) != (other_regs->defined & other_regs->relative)) {
+	/* Checking first all non high-low registers: SP, BP, SI, DI and segments */
+	relevant = regs->relative & 0xFF00;
+	if ((relevant & other_regs->relative) != relevant) {
 		return 1;
 	}
 
 	for (i = 0; i < 8; i++) {
-		if (get_word_register(regs, i) != get_word_register(other_regs, i)) {
+		const int mask = 0x10 << i;
+		int values_should_be_compared = 0;
+		if (regs->defined & mask) {
+			values_should_be_compared = 1;
+		}
+		else {
+			if (regs->relative & mask) {
+				values_should_be_compared = 1;
+			}
+			else if (i == 0 && !(regs->defined & 0x0200)) { /* Checking SP and BP not defined */
+				if (regs->relative & 1) {
+					if (other_regs->relative & 1) {
+						values_should_be_compared = 1;
+					}
+					else {
+						return 1;
+					}
+				}
+				else if (other_regs->relative & 1) {
+					return 1;
+				}
+			}
+		}
+
+		if (values_should_be_compared && get_word_register(regs, i) != get_word_register(other_regs, i)) {
 			return 1;
 		}
 	}
 
 	for (i = 0; i < 4; i++) {
-		if (get_segment_register(regs, i) != get_segment_register(other_regs, i)) {
+		const int mask = 0x1000 << i;
+		int values_should_be_compared = 0;
+		if (regs->defined & mask) {
+			values_should_be_compared = 1;
+		}
+		else {
+			if (regs->relative & mask) {
+				values_should_be_compared = 1;
+			}
+		}
+
+		if (values_should_be_compared && get_segment_register(regs, i) != get_segment_register(other_regs, i)) {
 			return 1;
+		}
+	}
+
+	/* Checking now all high-low registers: AX, CX, DX and BX */
+	for (i = 0; i < 4; i++) {
+		const int def_low_mask = 1 << i * 2;
+		const int def_high_mask = def_low_mask << 1;
+		int should_be_checked = 0;
+
+		if (regs->defined & def_low_mask) {
+			if (regs->defined & def_high_mask) {
+				should_be_checked = 1;
+			}
+		}
+		else if (!(regs->defined & def_high_mask)) {
+			should_be_checked = 1;
+		}
+
+		if (should_be_checked) {
+			const int rel_mask = 0x10 << i;
+
+			if ((regs->relative & rel_mask) != (other_regs->relative & rel_mask) ||
+					get_word_register(regs, i) != get_word_register(other_regs, i)) {
+				return 1;
+			}
 		}
 	}
 
@@ -1088,13 +1345,12 @@ static void print_word_or_byte_register(const struct Registers *regs, unsigned i
 	}
 	else if (is_byte_register_defined(regs, index + 4)) {
 		fprintf(stderr, " %s=%x;", high_byte_reg, get_byte_register(regs, index + 4));
-
-		if (is_byte_register_defined(regs, index)) {
-			fprintf(stderr, " %s=%x;", low_byte_reg, get_byte_register(regs, index));
-		}
 	}
 	else if (is_byte_register_defined(regs, index)) {
 		fprintf(stderr, " %s=%x;", low_byte_reg, get_byte_register(regs, index));
+	}
+	else if (is_word_register_local(regs, index)) {
+		fprintf(stderr, " %s=[BP+%x];", word_reg, get_word_register(regs, index));
 	}
 	else {
 		fprintf(stderr, " %s=?;", word_reg);
@@ -1109,6 +1365,9 @@ static void print_word_register(const struct Registers *regs, unsigned int index
 	}
 	else if (is_word_register_defined(regs, index)) {
 		fprintf(stderr, "%x;", get_word_register(regs, index));
+	}
+	else if (is_word_register_local(regs, index)) {
+		fprintf(stderr, "[BP+%x];", get_word_register(regs, index));
 	}
 	else if (index == 4 && is_register_sp_relative_from_bp(regs)) {
 		fprintf(stderr, "BP+%x;", get_word_register(regs, 4));
