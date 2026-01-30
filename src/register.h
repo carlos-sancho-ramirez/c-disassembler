@@ -44,14 +44,28 @@ struct Registers {
 	uint16_t defined;
 
 	/**
-	 * Whether the corresponding register has a relative value on it.
+	 * Whether the corresponding register has a relative or local value on it.
 	 *
-	 * Bits from 4 to 15 are reserved for registers WORD registers + segments.
-	 * If the corresponding flag is set, it means that the value is relative from the segment_start.
-	 * This is only relevant if the curresponding register is defined as well.
+	 * Bits from 4 to 15 are reserved for genral purpose WORD registers + segments.
 	 *
-	 * Bit 0 is set, it means that the value at SP register is relative from BP.
-	 * This bit will only be considered if SP is undefined.
+	 * If the corresponding flag is set, and the corresponding flag in 'defined'
+	 * is set as well, it means that the value is relative from the segment_start.
+	 *
+	 * If the corresponding flag is set, but the corresponding flag in 'defined'
+	 * is cleared, it means that the value is undefined but we know for sure that
+	 * it matches the same value in the stack found at [BP+x].
+	 *
+	 * For registers AX, CX, DX and BX, which have one bit for high definition
+	 * and other for low, its corresponding bits (bit 4 to 7) will be only
+	 * relevant if if both high and low are defined, or if both high and low are undefined.
+	 * In other words, in case the register high is defined but not its low, or
+	 * the other way araound, relative field should not be checked for that register.
+	 *
+	 * In case both BP and SP are undefined, and SP is non-local (so its corresponding
+	 * relative bit is cleared), bit 0 in relative field becomes relevant.
+	 * If set, it means that the value at SP register is known to be relative
+	 * from BP. So that SP = BP + v. But as BP is known, the actual value in SP
+	 * cannot be worked out.
 	 */
 	uint16_t relative;
 };
@@ -92,6 +106,7 @@ int is_register_si_defined_relative(const struct Registers *regs);
 int is_register_di_defined_relative(const struct Registers *regs);
 int is_word_register_defined(const struct Registers * regs, unsigned int index);
 int is_word_register_defined_relative(const struct Registers * regs, unsigned int index);
+int is_word_register_local(const struct Registers *regs, unsigned int index);
 
 int is_register_es_defined(const struct Registers *regs);
 int is_register_cs_defined(const struct Registers *regs);
@@ -151,6 +166,7 @@ void set_register_ah_undefined(struct Registers *regs, const char *last_update);
 
 void set_word_register(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
 void set_word_register_relative(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t value);
+void set_word_register_local(struct Registers *regs, unsigned int index, const char *last_update, const char *value_origin, uint16_t diff);
 void set_register_ax_undefined(struct Registers *regs, const char *last_update);
 void set_register_cx_undefined(struct Registers *regs, const char *last_update);
 void set_register_dx_undefined(struct Registers *regs, const char *last_update);
