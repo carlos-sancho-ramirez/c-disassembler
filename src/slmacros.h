@@ -143,12 +143,7 @@ void clear_##struct_name_snake##_list(struct struct_name##List *list) { \
 	} \
 }
 
-#define DEFINE_STRUCT_LIST_METHODS(struct_name, struct_name_snake, short_item_name, sorted_property, initial_page_array_granularity, initial_items_per_page) \
-DEFINE_STRUCT_LIST_INITIALIZE_METHOD(struct_name, struct_name_snake, short_item_name) \
-DEFINE_STRUCT_LIST_GET_UNSORTED_METHOD(struct_name, struct_name_snake, initial_items_per_page) \
-DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(struct_name, struct_name_snake, short_item_name, initial_page_array_granularity, initial_items_per_page) \
-DEFINE_STRUCT_LIST_CLEAR_METHOD(struct_name, struct_name_snake, short_item_name, initial_items_per_page) \
-\
+#define DEFINE_STRUCT_LIST_INDEX_OF_WITH_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property) \
 int index_of_##struct_name_snake##_with_##sorted_property(const struct struct_name##List *list, const char *sorted_property) { \
 	int first = 0; \
 	int last = list->short_item_name##_count; \
@@ -167,8 +162,9 @@ int index_of_##struct_name_snake##_with_##sorted_property(const struct struct_na
 	} \
 \
 	return -1; \
-} \
-\
+}
+
+#define DEFINE_STRUCT_LIST_INDEX_OF_CONTAINING_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property) \
 int index_of_##struct_name_snake##_containing_position(const struct struct_name##List *list, const char *position) { \
 	int first = 0; \
 	int last = list->short_item_name##_count; \
@@ -187,8 +183,9 @@ int index_of_##struct_name_snake##_containing_position(const struct struct_name#
 	} \
 \
 	return first - 1; \
-} \
-\
+}
+
+#define DEFINE_STRUCT_LIST_INSERT_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property) \
 int insert_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name) { \
 	int first = 0; \
 	int last = list->short_item_name##_count; \
@@ -217,5 +214,14 @@ int insert_##struct_name_snake(struct struct_name##List *list, struct struct_nam
 \
 	return 0; \
 }
+
+#define DEFINE_STRUCT_LIST_METHODS(struct_name, struct_name_snake, short_item_name, sorted_property, initial_page_array_granularity, initial_items_per_page) \
+DEFINE_STRUCT_LIST_INITIALIZE_METHOD(struct_name, struct_name_snake, short_item_name) \
+DEFINE_STRUCT_LIST_GET_UNSORTED_METHOD(struct_name, struct_name_snake, initial_items_per_page) \
+DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(struct_name, struct_name_snake, short_item_name, initial_page_array_granularity, initial_items_per_page) \
+DEFINE_STRUCT_LIST_CLEAR_METHOD(struct_name, struct_name_snake, short_item_name, initial_items_per_page) \
+DEFINE_STRUCT_LIST_INDEX_OF_WITH_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property) \
+DEFINE_STRUCT_LIST_INDEX_OF_CONTAINING_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property) \
+DEFINE_STRUCT_LIST_INSERT_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property)
 
 #endif

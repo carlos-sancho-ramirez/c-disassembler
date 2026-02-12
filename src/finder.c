@@ -495,11 +495,6 @@ static int register_jump_target_block(
 	struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 	int potential_container_evaluated_at_least_once = potential_container && potential_container->start != potential_container->end;
 
-	if (potential_container_evaluated_at_least_once && potential_container->end <= jump_destination) {
-		potential_container = NULL;
-		potential_container_evaluated_at_least_once = 0;
-	}
-
 	if (potential_container && potential_container->start == jump_destination) {
 		if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
 			return result;
@@ -2043,7 +2038,7 @@ static int read_block_instruction_internal(
 							return result;
 						}
 
-						if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+						if (potential_container) {
 							potential_container->end = jump_destination;
 							invalidate_cblock_check(potential_container);
 						}
@@ -2157,10 +2152,6 @@ static int read_block_instruction_internal(
 		result = index_of_cblock_containing_position(code_block_list, jump_destination);
 		potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
 		potential_container_evaluated_at_least_once = potential_container && potential_container->start != potential_container->end;
-		if (potential_container_evaluated_at_least_once && potential_container->end <= jump_destination) {
-			potential_container = NULL;
-			potential_container_evaluated_at_least_once = 0;
-		}
 
 		if (value0 == 0xE8) {
 			push_in_stack(stack, NULL, block->ip + reader->buffer_index);
@@ -2285,7 +2276,7 @@ static int read_block_instruction_internal(
 				}
 				else {
 					struct Registers int_regs;
-					if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+					if (potential_container) {
 						potential_container->end = jump_destination;
 					}
 
@@ -2418,7 +2409,6 @@ static int read_block_instruction_internal(
 				const char *jump_destination;
 				struct CodeBlock *potential_container;
 				int result;
-				int potential_container_evaluated_at_least_once;
 
 				code_relative_target += ((unsigned int) get_register_cs(regs)) << 4;
 				jump_destination = segment_start + code_relative_target;
@@ -2426,11 +2416,6 @@ static int read_block_instruction_internal(
 				if (jump_destination >= segment_start && jump_destination < segment_start + segment_size) {
 					result = index_of_cblock_containing_position(code_block_list, jump_destination);
 					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-					potential_container_evaluated_at_least_once = potential_container && potential_container->start != potential_container->end;
-					if (potential_container_evaluated_at_least_once && potential_container->end <= jump_destination) {
-						potential_container = NULL;
-						potential_container_evaluated_at_least_once = 0;
-					}
 
 					if ((value1 & 0x38) == 0x10) {
 						push_in_stack(stack, NULL, block->ip + reader->buffer_index);
@@ -2480,7 +2465,7 @@ static int read_block_instruction_internal(
 							}
 						}
 
-						if (potential_container && potential_container->start != potential_container->end && potential_container->end > jump_destination) {
+						if (potential_container) {
 							potential_container->end = jump_destination;
 							invalidate_cblock_check(potential_container);
 						}
