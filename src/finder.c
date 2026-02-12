@@ -1107,28 +1107,38 @@ static int read_block_instruction_internal(
 	else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0) {
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-		const char *jump_destination = block->start + reader->buffer_index + diff;
+		const char *next_destination = block->start + reader->buffer_index;
+		const char *jump_destination = next_destination + diff;
 		int result;
 		struct CodeBlock *potential_container;
 		int potential_container_evaluated_at_least_once;
 		DEBUG_PRINT0("\n");
 
 		block->end = block->start + reader->buffer_index;
-		if (jump_destination <= block->end) {
-			if ((result = register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
+		if (jump_destination >= next_destination) {
+			block->end = next_destination;
+			if ((result = register_next_block(reader, regs, stack, var_values, block, code_block_list))) {
 				return result;
 			}
 
-			if ((result = register_next_block(reader, regs, stack, var_values, block, code_block_list))) {
+			if ((result = register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
 				return result;
 			}
 		}
 		else {
-			if ((result = register_next_block(reader, regs, stack, var_values, block, code_block_list))) {
-				return result;
+			if (jump_destination <= block->start) {
+				block->end = next_destination;
+			}
+			else {
+				block->end = jump_destination;
+				invalidate_cblock_check(block);
 			}
 
 			if ((result = register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
+					return result;
+			}
+
+			if ((result = register_next_block(reader, regs, stack, var_values, block, code_block_list))) {
 				return result;
 			}
 		}
