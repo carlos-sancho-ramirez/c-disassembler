@@ -1960,7 +1960,7 @@ static int read_block_instruction_internal(
 		const int interruption_number = read_next_byte(reader);
 		DEBUG_PRINT0("\n");
 
-		*next_instruction_potentially_reached = 1;
+		*next_instruction_potentially_reached = 0;
 		if (interruption_number == 0x1A && is_register_ah_defined(regs)) {
 			const unsigned int ah_value = get_register_ah(regs);
 			if (ah_value == 0x00) { /* Read System Clock Counter */
@@ -1975,7 +1975,6 @@ static int read_block_instruction_internal(
 		}
 		else if (interruption_number == 0x20) {
 			block->end = block->start + reader->buffer_index;
-			*next_instruction_potentially_reached = 0;
 		}
 		else if (interruption_number == 0x21 && is_register_ah_defined(regs)) {
 			const unsigned int ah_value = get_register_ah(regs);
@@ -2128,9 +2127,15 @@ static int read_block_instruction_internal(
 			}
 			else if (ah_value == 0x4C) {
 				block->end = block->start + reader->buffer_index;
-				*next_instruction_potentially_reached = 0;
+			}
+			else if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
+				return error_code;
 			}
 		}
+		else if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
+			return error_code;
+		}
+
 		return 0;
 	}
 	else if ((value0 & 0xFC) == 0xD0) {
