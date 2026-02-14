@@ -1279,7 +1279,7 @@ static int read_block_instruction_internal(
 								set_word_register(regs, reg_index, opcode_reference, get_value_origin_from_top(stack, count), get_from_top(stack, count));
 							}
 							else {
-								set_word_register_undefined(regs, reg_index, opcode_reference);
+								set_word_register_local(regs, reg_index, opcode_reference, get_value_origin_from_top(stack, count), addr);
 							}
 						}
 					}
