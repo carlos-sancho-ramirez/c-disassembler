@@ -1330,6 +1330,94 @@ void set_all_registers_undefined_except_cs(struct Registers *regs) {
 	}
 }
 
+void apply_diff_to_locals(struct Registers *regs, uint16_t diff) {
+	if (!(regs->defined & 0x0003) && regs->relative & 0x10) {
+		uint16_t value = diff + (regs->ah << 8 | regs->al);
+		regs->al = value & 0xFF;
+		regs->ah = value >> 8 & 0xFF;
+	}
+
+	if (!(regs->defined & 0x000C) && regs->relative & 0x20) {
+		uint16_t value = diff + (regs->ch << 8 | regs->cl);
+		regs->cl = value & 0xFF;
+		regs->ch = value >> 8 & 0xFF;
+	}
+
+	if (!(regs->defined & 0x0030) && regs->relative & 0x40) {
+		uint16_t value = diff + (regs->dh << 8 | regs->dl);
+		regs->dl = value & 0xFF;
+		regs->dh = value >> 8 & 0xFF;
+	}
+
+	if (!(regs->defined & 0x00C0) && regs->relative & 0x80) {
+		uint16_t value = diff + (regs->bh << 8 | regs->bl);
+		regs->bl = value & 0xFF;
+		regs->bh = value >> 8 & 0xFF;
+	}
+
+	if (!(regs->defined & 0x0100) && regs->relative & 0x100) {
+		regs->sp += diff;
+	}
+
+	if (!(regs->defined & 0x0200) && regs->relative & 0x200) {
+		regs->bp += diff;
+	}
+
+	if (!(regs->defined & 0x0400) && regs->relative & 0x400) {
+		regs->si += diff;
+	}
+
+	if (!(regs->defined & 0x0800) && regs->relative & 0x800) {
+		regs->di += diff;
+	}
+
+	if (!(regs->defined & 0x1000) && regs->relative & 0x1000) {
+		regs->es += diff;
+	}
+
+	if (!(regs->defined & 0x2000) && regs->relative & 0x2000) {
+		regs->cs += diff;
+	}
+
+	if (!(regs->defined & 0x4000) && regs->relative & 0x4000) {
+		regs->ss += diff;
+	}
+
+	if (!(regs->defined & 0x8000) && regs->relative & 0x8000) {
+		regs->ds += diff;
+	}
+}
+
+void set_all_local_registers_undefined(struct Registers *regs) {
+	uint16_t mask;
+
+	if (!(regs->defined & 0x0003)) {
+		regs->relative &= 0xFFEF;
+	}
+
+	if (!(regs->defined & 0x000C)) {
+		regs->relative &= 0xFFDF;
+	}
+
+	if (!(regs->defined & 0x0030)) {
+		regs->relative &= 0xFFBF;
+	}
+
+	if (!(regs->defined & 0x00C0)) {
+		regs->relative &= 0xFF7F;
+	}
+
+	if (!(regs->defined & 0x100) && regs->relative & 0x100) {
+		regs->relative &= 0xFEFE;
+	}
+
+	for (mask = 0x200; mask != 0; mask <<= 1) {
+		if (!(regs->defined & mask)) {
+			regs->relative &= ~mask;
+		}
+	}
+}
+
 #ifdef DEBUG
 
 #include <stdio.h>

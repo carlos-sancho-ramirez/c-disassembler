@@ -1362,7 +1362,16 @@ static int read_block_instruction_internal(
 				else if (is_word_register_defined(regs, source_register)) {
 					set_word_register(regs, target_register, opcode_reference, get_word_register_value_origin(regs, source_register), get_word_register(regs, source_register));
 				}
-				else if (source_register == 4 && target_register == 5 || source_register == 5 && target_register == 4) {
+				else if (source_register == 4 && target_register == 5) {
+					if (is_register_sp_relative_from_bp(regs)) {
+						apply_diff_to_locals(regs, -get_register_sp(regs));
+					}
+					else {
+						set_all_local_registers_undefined(regs);
+					}
+					set_register_sp_relative_from_bp(regs, opcode_reference, 0);
+				}
+				else if (source_register == 5 && target_register == 4) {
 					set_register_sp_relative_from_bp(regs, opcode_reference, 0);
 				}
 				else {

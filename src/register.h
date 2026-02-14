@@ -203,6 +203,9 @@ int changes_on_merging_registers(const struct Registers *regs, const struct Regi
 void set_all_registers_undefined(struct Registers *regs);
 void set_all_registers_undefined_except_cs(struct Registers *regs);
 
+void apply_diff_to_locals(struct Registers *regs, uint16_t diff);
+void set_all_local_registers_undefined(struct Registers *regs);
+
 #ifdef DEBUG
 void print_regs(const struct Registers *regs);
 #endif /* DEBUG */
