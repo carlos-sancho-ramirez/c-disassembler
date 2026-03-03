@@ -5,6 +5,51 @@
 #define CODE_BLOCK_FLAG_VALID_EVALUATION 2
 #define CODE_BLOCK_FLAG_UNDER_EVALUATION 4
 
+void initialize_cblock(struct CodeBlock *block, unsigned int relative_cs, unsigned int ip, const char *start) {
+	block->relative_cs = relative_cs;
+	block->ip = ip;
+	block->start = start;
+	block->end = start;
+	block->flags = 0;
+	initialize_cborigin_list(&block->origin_list);
+}
+
+unsigned int get_cblock_relative_cs(const struct CodeBlock *block) {
+	return block->relative_cs;
+}
+
+unsigned int get_cblock_ip(const struct CodeBlock *block) {
+	return block->ip;
+}
+
+const char *get_cblock_start(const struct CodeBlock *block) {
+	return block->start;
+}
+
+const char *get_cblock_end(const struct CodeBlock *block) {
+	return block->end;
+}
+
+unsigned int get_cblock_size(const struct CodeBlock *block) {
+	return block->end - block->start;
+}
+
+void set_cblock_end(struct CodeBlock *block, const char *end) {
+	block->end = end;
+}
+
+int is_cblock_empty(const struct CodeBlock *block) {
+	return block->start == block->end;
+}
+
+int is_position_inside_cblock(const struct CodeBlock *block, const char *position) {
+	return block->start <= position && position < block->end;
+}
+
+void set_cblock_size(struct CodeBlock *block, unsigned int size) {
+	block->end = block->start + size;
+}
+
 int cblock_requires_evaluation(struct CodeBlock *block) {
 	return !(block->flags & CODE_BLOCK_FLAG_VALID_EVALUATION);
 }

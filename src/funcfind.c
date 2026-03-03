@@ -53,7 +53,7 @@ static int find_block_index(struct CodeBlock **blocks, unsigned int block_count,
 
 	while (first < last) {
 		unsigned int index = (first + last) / 2;
-		const char *block_start = blocks[index]->start;
+		const char *block_start = get_cblock_start(blocks[index]);
 		if (start < block_start) {
 			last = index;
 		}
@@ -74,7 +74,7 @@ static int find_block_index_containing_instruction(struct CodeBlock **blocks, un
 
 	while (first < last) {
 		unsigned int index = (first + last) / 2;
-		const char *block_start = blocks[index]->start;
+		const char *block_start = get_cblock_start(blocks[index]);
 		if (instruction < block_start) {
 			last = index;
 		}
@@ -82,8 +82,7 @@ static int find_block_index_containing_instruction(struct CodeBlock **blocks, un
 			return index;
 		}
 		else {
-			const char *block_end = blocks[index]->end;
-			if (instruction < block_end) {
+			if (instruction < get_cblock_end(blocks[index])) {
 				return index;
 			}
 			else {
@@ -193,9 +192,9 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 	}
 
-	reader.buffer = block->start;
+	reader.buffer = get_cblock_start(block);
 	reader.buffer_index = 0;
-	reader.buffer_size = block->end - block->start;
+	reader.buffer_size = get_cblock_size(block);
 
 	while (reader.buffer_index < reader.buffer_size) {
 		unsigned int buffer_index = reader.buffer_index;
@@ -232,8 +231,8 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0 || value0 == 0xEB) {
 			const int value1 = read_next_byte(&reader);
 			const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-			const char *jump_destination = block->start + reader.buffer_index + diff;
-			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index + diff);
+			const char *jump_destination = get_cblock_start(block) + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index + diff);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
@@ -268,7 +267,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			}
 
 			if (value0 == 0xFF && (value1 & 0x38) == 0x10 && bp_relative) {
-				if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+				if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 					struct CodeBlock *next_block = blocks[block_index + 1];
 					const int instruction_length = (value1 == 0x96)? 4 : 3;
 					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, instruction_length) >= 0) {
@@ -346,13 +345,13 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 		else if (value0 == 0xE8) {
 			const int diff = read_next_word(&reader);
-			const uint16_t target_ip = block->ip + reader.buffer_index + diff;
-			const char *target = block->start + target_ip - block->ip;
+			const uint16_t target_ip = get_cblock_ip(block) + reader.buffer_index + diff;
+			const char *target = get_cblock_start(block) + target_ip - get_cblock_ip(block);
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
 				const int target_func_index = index_of_func_containing_block_start(func_list, target);
 				if (target_block_index >= 0) {
-					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+					if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
 						if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
 							if (get_bitset_value(available_blocks, block_index + 1)) {
@@ -374,7 +373,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 					}
 				}
 				else {
-					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", blocks[target_block_index]->relative_cs, blocks[target_block_index]->ip);
+					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", get_cblock_relative_cs(blocks[target_block_index]), get_cblock_ip(blocks[target_block_index]));
 					return 1;
 				}
 			}
@@ -385,8 +384,8 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
-			const uint16_t target_ip = block->ip + reader.buffer_index + diff;
-			const int target_block_index = find_block_index(blocks, block_count, block->start + target_ip - block->ip);
+			const uint16_t target_ip = get_cblock_ip(block) + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + target_ip - get_cblock_ip(block));
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
@@ -403,7 +402,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		}
 		else if (value0 == 0xCD) {
 			const int value1 = read_next_byte(&reader);
-			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index);
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
@@ -426,9 +425,9 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 		reader.buffer_index = next_instruction_index;
 	}
 
-	if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+	if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 		struct CodeBlock *next_block = blocks[block_index + 1];
-		if (next_block->start == reader.buffer + reader.buffer_index && index_of_cborigin_of_type_continue(&next_block->origin_list) >= 0) {
+		if (get_cblock_start(next_block) == reader.buffer + reader.buffer_index && index_of_cborigin_of_type_continue(&next_block->origin_list) >= 0) {
 			if (get_bitset_value(available_blocks, block_index + 1)) {
 				set_bitset_value(state->included_blocks, block_index + 1, 1);
 			}
@@ -475,9 +474,9 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 	unsigned int stack_word_count = stack_state->stack_size[included_block_index];
 
 	assert(stack_word_count >= 0);
-	reader.buffer = block->start;
+	reader.buffer = get_cblock_start(block);
 	reader.buffer_index = 0;
-	reader.buffer_size = block->end - block->start;
+	reader.buffer_size = get_cblock_size(block);
 
 	while (reader.buffer_index < reader.buffer_size) {
 		unsigned int buffer_index = reader.buffer_index;
@@ -517,8 +516,8 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 		else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0 || value0 == 0xEB) {
 			const int value1 = read_next_byte(&reader);
 			const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-			const char *jump_destination = block->start + reader.buffer_index + diff;
-			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index + diff);
+			const char *jump_destination = get_cblock_start(block) + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index + diff);
 			const int target_included_block_index = find_included_block_index(target_block_index, block_map, included_blocks_count);
 
 			if (target_included_block_index >= 0) {
@@ -550,12 +549,12 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 		}
 		else if (value0 == 0xE8) {
 			const int diff = read_next_word(&reader);
-			const char *target = block->start + reader.buffer_index + diff;
+			const char *target = get_cblock_start(block) + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
 				const int target_func_index = index_of_func_containing_block_start(func_list, target);
 				if (target_func_index >= 0) {
-					if (block_index + 1 < block_count && blocks[block_index + 1]->start == reader.buffer + reader.buffer_index) {
+					if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
 						if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
 							const struct Function *target_func = func_list->sorted_funcs[target_func_index];
@@ -590,7 +589,7 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 					}
 				}
 				else {
-					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", blocks[target_block_index]->relative_cs, blocks[target_block_index]->ip);
+					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", get_cblock_relative_cs(blocks[target_block_index]), get_cblock_ip(blocks[target_block_index]));
 					return 1;
 				}
 			}
@@ -601,7 +600,7 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
-			const int target_block_index = find_block_index(blocks, block_count, block->start + reader.buffer_index + diff);
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index + diff);
 			const int target_included_block_index = find_included_block_index(target_block_index, block_map, included_blocks_count);
 
 			if (target_included_block_index >= 0) {
@@ -724,7 +723,7 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 					state.starting_blocks = allocate_bitset(block_count);
 					set_bitset_value(state.starting_blocks, block_index, 1);
 
-					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", block->relative_cs, block->ip);
+					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", get_cblock_relative_cs(block), get_cblock_ip(block));
 					if (!find_all_blocks_in_function(blocks, block_count, available_blocks, &state, func_list) && (state.flags & STATE_FLAG_RET_TYPE_MASK) != STATE_FLAG_RET_TYPE_UNKNOWN) {
 						struct FuncStackState stack_state;
 						const unsigned int included_blocks_count = count_set_bits_in_bitset(state.included_blocks, block_count);

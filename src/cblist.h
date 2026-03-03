@@ -7,6 +7,14 @@
 DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
 
+/**
+ * Return the sorted index of the given block within this list, or -1 if the block is not present.
+ *
+ * This method will not compare the given block with any potential block found in the list.
+ * It will just pick the start of the block in order to check for it in the list, ignoring the rest of values.
+ */
+int index_of_cblock_in_list(const struct CodeBlockList *list, const struct CodeBlock *block);
+
 #ifdef DEBUG
 void print_cblist(const struct CodeBlockList *list);
 #endif /* DEBUG */

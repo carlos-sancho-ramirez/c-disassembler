@@ -2,7 +2,7 @@
 #include "printd.h"
 
 static void log_cblock_insertion(struct CodeBlock *block) {
-	DEBUG_PRINT2("  Registering new code block at +%x:%x\n", block->relative_cs, block->ip);
+	DEBUG_PRINT2("  Registering new code block at +%x:%x\n", get_cblock_relative_cs(block), get_cblock_ip(block));
 }
 
 DEFINE_STRUCT_LIST_INITIALIZE_METHOD(CodeBlock, cblock, block)
@@ -17,7 +17,7 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 	int last = list->block_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_start = list->sorted_blocks[index]->start;
+		const char *this_start = get_cblock_start(list->sorted_blocks[index]);
 		if (this_start > position) {
 			last = index;
 		}
@@ -25,7 +25,7 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 			return index;
 		}
 		else {
-			const char *this_end = list->sorted_blocks[index]->end;
+			const char *this_end = get_cblock_end(list->sorted_blocks[index]);
 			if (this_end > position) {
 				return index;
 			}
@@ -36,6 +36,10 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 	}
 
 	return first - 1;
+}
+
+int index_of_cblock_in_list(const struct CodeBlockList *list, const struct CodeBlock *block) {
+	return index_of_cblock_with_start(list, get_cblock_start(block));
 }
 
 #ifdef DEBUG

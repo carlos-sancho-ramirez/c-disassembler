@@ -27,6 +27,39 @@ struct CodeBlock {
 	struct CodeBlockOriginList origin_list;
 };
 
+/**
+ * Initialize the CodeBlock structure with the given start.
+ * This will intialize the block as empty, so end will match the given start as well.
+ */
+void initialize_cblock(struct CodeBlock *block, unsigned int relative_cs, unsigned int ip, const char *start);
+
+unsigned int get_cblock_relative_cs(const struct CodeBlock *block);
+unsigned int get_cblock_ip(const struct CodeBlock *block);
+const char *get_cblock_start(const struct CodeBlock *block);
+const char *get_cblock_end(const struct CodeBlock *block);
+void set_cblock_end(struct CodeBlock *block, const char *end);
+
+/**
+ * Returns the difference between its start and end.
+ * This method assumes that end is always greater or equals to start.
+ */
+unsigned int get_cblock_size(const struct CodeBlock *block);
+
+/**
+ * Whether the given block has the same position for start and end.
+ */
+int is_cblock_empty(const struct CodeBlock *block);
+
+/**
+ * Whether the given position is equals or greater than the block start position, and lower than the block end.
+ */
+int is_position_inside_cblock(const struct CodeBlock *block, const char *position);
+
+/**
+ * Set the block end with the result of adding the given size to the current block start.
+ */
+void set_cblock_size(struct CodeBlock *block, unsigned int size);
+
 int cblock_requires_evaluation(struct CodeBlock *block);
 
 /**

@@ -59,7 +59,7 @@ int index_of_func_containing_block_start(const struct FunctionList *list, const 
 		int index = (first + last) / 2;
 		struct Function *this_func = list->sorted_funcs[index];
 		struct CodeBlock *first_block = this_func->blocks[0];
-		const char *first_block_start = first_block->start;
+		const char *first_block_start = get_cblock_start(first_block);
 		if (start < first_block_start) {
 			last = index;
 		}
@@ -68,7 +68,7 @@ int index_of_func_containing_block_start(const struct FunctionList *list, const 
 		}
 		else {
 			struct CodeBlock *last_block = this_func->blocks[this_func->block_count - 1];
-			const char *last_block_start = last_block->start;
+			const char *last_block_start = get_cblock_start(last_block);
 
 			if (start > last_block_start) {
 				first = index + 1;
@@ -82,10 +82,10 @@ int index_of_func_containing_block_start(const struct FunctionList *list, const 
 				while (last_block_index > first_block_index) {
 					const int block_index = (first_block_index + last_block_index) / 2;
 					struct CodeBlock *this_block = this_func->blocks[block_index];
-					if (this_block->start < start) {
+					if (get_cblock_start(this_block) < start) {
 						first_block_index = block_index + 1;
 					}
-					else if (this_block->start > start) {
+					else if (get_cblock_start(this_block) > start) {
 						last_block_index = block_index;
 					}
 					else {
@@ -105,11 +105,11 @@ int insert_func(struct FunctionList *list, struct Function *new_func) {
 	int first = 0;
 	int last = list->func_count;
 	int i;
-	const char *new_func_first_block_start = new_func->blocks[0]->start;
+	const char *new_func_first_block_start = get_cblock_start(new_func->blocks[0]);
 	log_func_insertion(new_func);
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_start = list->sorted_funcs[index]->blocks[0]->start;
+		const char *this_start = get_cblock_start(list->sorted_funcs[index]->blocks[0]);
 		if (this_start < new_func_first_block_start) {
 			first = index + 1;
 		}
