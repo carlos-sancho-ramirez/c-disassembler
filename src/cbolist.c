@@ -34,12 +34,11 @@ int index_of_cborigin_with_instruction(const struct CodeBlockOriginList *list, c
 	while (last > first) {
 		int index = (first + last) / 2;
 		const struct CodeBlockOrigin *this_origin = list->sorted_origins[index];
-		const char *this_instruction = this_origin->instruction;
 		const int this_origin_type = get_cborigin_type(this_origin);
-		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction < instruction) {
+		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && get_cborigin_instruction(this_origin) < instruction) {
 			first = index + 1;
 		}
-		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction > instruction) {
+		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && get_cborigin_instruction(this_origin) > instruction) {
 			last = index;
 		}
 		else {
@@ -56,12 +55,11 @@ int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list
 	while (last > first) {
 		int index = (first + last) / 2;
 		const struct CodeBlockOrigin *this_origin = list->sorted_origins[index];
-		const char *this_instruction = this_origin->instruction;
 		const int this_origin_type = get_cborigin_type(this_origin);
-		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction < position) {
+		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && get_cborigin_instruction(this_origin) < position) {
 			first = index + 1;
 		}
-		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && this_instruction > position) {
+		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && get_cborigin_instruction(this_origin) > position) {
 			last = index;
 		}
 		else {
@@ -88,7 +86,7 @@ static int is_before(struct CodeBlockOrigin *a, struct CodeBlockOrigin *b) {
 		return get_cborigin_behind_count(a) < get_cborigin_behind_count(b);
 	}
 	else if (a_type == CBORIGIN_TYPE_JUMP) {
-		return a->instruction < b->instruction;
+		return get_cborigin_instruction(a) < get_cborigin_instruction(b);
 	}
 	else {
 		return 0;
@@ -128,9 +126,9 @@ DEFINE_STRUCT_LIST_CLEAR_METHOD(CodeBlockOrigin, cborigin, origin, ORIGINS_PER_P
 void accumulate_registers_from_cbolist(struct Registers *regs, const struct CodeBlockOriginList *list) {
 	if (list->origin_count) {
 		int i;
-		copy_registers(regs, &list->sorted_origins[0]->regs);
+		copy_registers(regs, get_cborigin_registers_const(list->sorted_origins[0]));
 		for (i = 1; i < list->origin_count; i++) {
-			merge_registers(regs, &list->sorted_origins[i]->regs);
+			merge_registers(regs, get_cborigin_registers_const(list->sorted_origins[i]));
 		}
 	}
 }
@@ -139,12 +137,12 @@ int accumulate_stack_from_cbolist(struct Stack *stack, const struct CodeBlockOri
 	if (list->origin_count) {
 		int error_code;
 		int i;
-		if ((error_code = copy_stack(stack, &list->sorted_origins[0]->stack))) {
+		if ((error_code = copy_stack(stack, get_cborigin_stack(list->sorted_origins[0])))) {
 			return error_code;
 		}
 
 		for (i = 1; i < list->origin_count; i++) {
-			merge_stacks(stack, &list->sorted_origins[i]->stack);
+			merge_stacks(stack, get_cborigin_stack(list->sorted_origins[i]));
 		}
 	}
 
@@ -155,12 +153,12 @@ int accumulate_gvwvmap_from_cbolist(struct GlobalVariableWordValueMap *map, cons
 	if (list->origin_count) {
 		int error_code;
 		int i;
-		if ((error_code = copy_gvwvmap(map, &list->sorted_origins[0]->var_values))) {
+		if ((error_code = copy_gvwvmap(map, get_cborigin_var_values(list->sorted_origins[0])))) {
 			return error_code;
 		}
 
 		for (i = 1; i < list->origin_count; i++) {
-			if ((error_code = merge_gvwvmap(map, &list->sorted_origins[i]->var_values))) {
+			if ((error_code = merge_gvwvmap(map, get_cborigin_var_values(list->sorted_origins[i])))) {
 				return error_code;
 			}
 		}
@@ -246,13 +244,13 @@ int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct
 		}
 
 		set_call_return_type_in_cborigin(new_origin, behind_count);
-		copy_registers(&new_origin->regs, regs);
-		initialize_stack(&new_origin->stack);
-		if ((error_code = copy_stack(&new_origin->stack, stack))) {
+		copy_registers(get_cborigin_registers(new_origin), regs);
+		initialize_stack(get_cborigin_stack(new_origin));
+		if ((error_code = copy_stack(get_cborigin_stack(new_origin), stack))) {
 			return error_code;
 		}
 
-		initialize_gvwvmap(&new_origin->var_values);
+		initialize_gvwvmap(get_cborigin_var_values(new_origin));
 		if ((error_code = insert_cborigin(list, new_origin))) {
 			return error_code;
 		}

@@ -27,53 +27,59 @@ static int ensure_call_return_origin(
 		const struct GlobalVariableWordValueMap *var_values,
 		int is_returning_far,
 		unsigned int instruction_length) {
-	int jmp_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
+	int jmp_block_index = index_of_cblock_containing_origin_instruction(cblock_list, origin);
 	struct CodeBlock *jmp_block = cblock_list->sorted_blocks[jmp_block_index];
-	const uint16_t expected_ip = get_cblock_ip(jmp_block) + (origin->instruction + instruction_length - get_cblock_start(jmp_block));
+	const uint16_t expected_ip = get_cblock_ip(jmp_block) + (get_cborigin_instruction(origin) + instruction_length - get_cblock_start(jmp_block));
 	const int stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
-	const int origin_stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(&origin->stack) && get_from_top(&origin->stack, 0) == expected_ip;
+	struct Stack *origin_stack = get_cborigin_stack(origin);
+	const int origin_stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(origin_stack) && get_from_top(origin_stack, 0) == expected_ip;
 	const int stack_matches_expected_cs = is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == get_cblock_relative_cs(jmp_block);
-	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(&origin->stack, 1) && get_from_top(&origin->stack, 1) == get_cblock_relative_cs(jmp_block);
+	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(origin_stack, 1) && get_from_top(origin_stack, 1) == get_cblock_relative_cs(jmp_block);
 
 	if ((stack_top_matches_expected_ip || !top_is_defined_in_stack(stack) && origin_stack_top_matches_expected_ip) &&
 			(!is_returning_far || stack_matches_expected_cs || !is_defined_in_stack_from_top(stack, 1) && origin_stack_matches_expected_cs)) {
-		int return_block_index = index_of_cblock_with_start(cblock_list, origin->instruction + instruction_length);
+		int return_block_index = index_of_cblock_with_start(cblock_list, get_cborigin_instruction(origin) + instruction_length);
 		int error_code;
 
 		if (return_block_index < 0) {
-			struct CodeBlock *return_block;
+			struct CodeBlock *return_block = prepare_new_cblock(cblock_list);
 			struct CodeBlockOrigin *return_origin;
+			struct Registers *return_origin_regs;
+			struct Stack *return_origin_stack;
+			struct GlobalVariableWordValueMap *return_origin_var_values;
 
-			return_block = prepare_new_cblock(cblock_list);
-			initialize_cblock(return_block, get_cblock_relative_cs(jmp_block), expected_ip, origin->instruction + instruction_length);
+			initialize_cblock(return_block, get_cblock_relative_cs(jmp_block), expected_ip, get_cborigin_instruction(origin) + instruction_length);
 
 			return_origin = prepare_new_cborigin(&return_block->origin_list);
+			return_origin_regs = get_cborigin_registers(return_origin);
+			return_origin_stack = get_cborigin_stack(return_origin);
+			return_origin_var_values = get_cborigin_var_values(return_origin);
 			set_call_return_type_in_cborigin(return_origin, instruction_length);
-			copy_registers(&return_origin->regs, regs);
-			initialize_stack(&return_origin->stack);
-			if ((error_code = copy_stack(&return_origin->stack, stack))) {
+			copy_registers(get_cborigin_registers(return_origin), regs);
+			initialize_stack(return_origin_stack);
+			if ((error_code = copy_stack(return_origin_stack, stack))) {
 				return error_code;
 			}
 
-			initialize_gvwvmap(&return_origin->var_values);
-			if ((error_code = copy_gvwvmap(&return_origin->var_values, var_values))) {
+			initialize_gvwvmap(return_origin_var_values);
+			if ((error_code = copy_gvwvmap(return_origin_var_values, var_values))) {
 				return error_code;
 			}
 
-			if (is_register_sp_defined_relative(&return_origin->regs)) {
-				set_register_sp_relative(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+			if (is_register_sp_defined_relative(return_origin_regs)) {
+				set_register_sp_relative(return_origin_regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 			}
-			else if (is_register_sp_defined_absolute(&return_origin->regs)) {
-				set_register_sp(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+			else if (is_register_sp_defined_absolute(return_origin_regs)) {
+				set_register_sp(return_origin_regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 			}
-			else if (is_register_sp_relative_from_bp(&return_origin->regs)) {
-				set_register_sp_relative_from_bp(&return_origin->regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+			else if (is_register_sp_relative_from_bp(return_origin_regs)) {
+				set_register_sp_relative_from_bp(return_origin_regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 			}
 
-			pop_from_stack(&return_origin->stack);
+			pop_from_stack(return_origin_stack);
 
 			if (is_returning_far) {
-				pop_from_stack(&return_origin->stack);
+				pop_from_stack(return_origin_stack);
 			}
 
 			set_cborigin_ready_to_be_evaluated(return_origin);
@@ -90,31 +96,35 @@ static int ensure_call_return_origin(
 			int call_return_origin_index = index_of_cborigin_of_type_call_return(&return_block->origin_list, instruction_length);
 			if (call_return_origin_index < 0) {
 				struct CodeBlockOrigin *return_origin = prepare_new_cborigin(&return_block->origin_list);
+				struct Registers *return_origin_regs = get_cborigin_registers(return_origin);
+				struct Stack *return_origin_stack = get_cborigin_stack(return_origin);
+				struct GlobalVariableWordValueMap *return_origin_var_values = get_cborigin_var_values(return_origin);
+
 				set_call_return_type_in_cborigin(return_origin, instruction_length);
-				copy_registers(&return_origin->regs, regs);
-				initialize_stack(&return_origin->stack);
-				if ((error_code = copy_stack(&return_origin->stack, stack))) {
+				copy_registers(return_origin_regs, regs);
+				initialize_stack(return_origin_stack);
+				if ((error_code = copy_stack(return_origin_stack, stack))) {
 					return error_code;
 				}
 
-				initialize_gvwvmap(&return_origin->var_values);
-				if ((error_code = copy_gvwvmap(&return_origin->var_values, var_values))) {
+				initialize_gvwvmap(return_origin_var_values);
+				if ((error_code = copy_gvwvmap(return_origin_var_values, var_values))) {
 					return error_code;
 				}
 
-				if (is_register_sp_defined_relative(&return_origin->regs)) {
-					set_register_sp_relative(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				if (is_register_sp_defined_relative(return_origin_regs)) {
+					set_register_sp_relative(return_origin_regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 				}
-				else if (is_register_sp_defined_absolute(&return_origin->regs)) {
-					set_register_sp(&return_origin->regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				else if (is_register_sp_defined_absolute(return_origin_regs)) {
+					set_register_sp(return_origin_regs, NULL, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 				}
-				else if (is_register_sp_relative_from_bp(&return_origin->regs)) {
-					set_register_sp_relative_from_bp(&return_origin->regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
+				else if (is_register_sp_relative_from_bp(return_origin_regs)) {
+					set_register_sp_relative_from_bp(return_origin_regs, NULL, get_register_sp(regs) + (is_returning_far? 4 : 2));
 				}
 
-				pop_from_stack(&return_origin->stack);
+				pop_from_stack(return_origin_stack);
 				if (is_returning_far) {
-					pop_from_stack(&return_origin->stack);
+					pop_from_stack(return_origin_stack);
 				}
 
 				set_cborigin_ready_to_be_evaluated(return_origin);
@@ -124,6 +134,9 @@ static int ensure_call_return_origin(
 			}
 			else {
 				struct CodeBlockOrigin *call_return_origin = return_block->origin_list.sorted_origins[call_return_origin_index];
+				struct Registers *call_return_origin_regs = get_cborigin_registers(call_return_origin);
+				struct Stack *call_return_origin_stack = get_cborigin_stack(call_return_origin);
+				struct GlobalVariableWordValueMap *call_return_origin_var_values = get_cborigin_var_values(call_return_origin);
 
 				int error_code;
 				struct Registers updated_regs;
@@ -149,10 +162,10 @@ static int ensure_call_return_origin(
 				}
 
 				if (is_cborigin_ready_to_be_evaluated(call_return_origin)) {
-					if (changes_on_merging_registers(&call_return_origin->regs, &updated_regs) || changes_on_merging_stacks(&call_return_origin->stack, &updated_stack) || changes_on_merging_gvwvmap(&call_return_origin->var_values, var_values)) {
-						merge_registers(&call_return_origin->regs, &updated_regs);
-						merge_stacks(&call_return_origin->stack, &updated_stack);
-						if ((error_code = merge_gvwvmap(&call_return_origin->var_values, var_values))) {
+					if (changes_on_merging_registers(call_return_origin_regs, &updated_regs) || changes_on_merging_stacks(call_return_origin_stack, &updated_stack) || changes_on_merging_gvwvmap(call_return_origin_var_values, var_values)) {
+						merge_registers(call_return_origin_regs, &updated_regs);
+						merge_stacks(call_return_origin_stack, &updated_stack);
+						if ((error_code = merge_gvwvmap(call_return_origin_var_values, var_values))) {
 							return error_code;
 						}
 
@@ -160,14 +173,14 @@ static int ensure_call_return_origin(
 					}
 				}
 				else {
-					copy_registers(&call_return_origin->regs, &updated_regs);
-					initialize_stack(&call_return_origin->stack);
-					if ((error_code = copy_stack(&call_return_origin->stack, &updated_stack))) {
+					copy_registers(call_return_origin_regs, &updated_regs);
+					initialize_stack(call_return_origin_stack);
+					if ((error_code = copy_stack(call_return_origin_stack, &updated_stack))) {
 						return error_code;
 					}
 
-					initialize_gvwvmap(&call_return_origin->var_values);
-					if ((error_code = copy_gvwvmap(&call_return_origin->var_values, var_values))) {
+					initialize_gvwvmap(call_return_origin_var_values);
+					if ((error_code = copy_gvwvmap(call_return_origin_var_values, var_values))) {
 						return error_code;
 					}
 
@@ -236,8 +249,8 @@ static int update_call_origins(
 			}
 		}
 		else if (origin_type == CBORIGIN_TYPE_JUMP) {
-			const int jmp_opcode0 = ((int) *origin->instruction) & 0xFF;
-			int jumping_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
+			const int jmp_opcode0 = ((int) *get_cborigin_instruction(origin)) & 0xFF;
+			int jumping_block_index = index_of_cblock_containing_origin_instruction(cblock_list, origin);
 #ifdef DEBUG
 			if (jumping_block_index >= 0) {
 				struct CodeBlock *origin_block = cblock_list->sorted_blocks[jumping_block_index];
@@ -264,7 +277,7 @@ static int update_call_origins(
 				}
 			}
 			else if (jmp_opcode0 == 0xFF) {
-				const int jmp_opcode1 = ((int) origin->instruction[1]) & 0xFF;
+				const int jmp_opcode1 = ((int) get_cborigin_instruction(origin)[1]) & 0xFF;
 				if ((jmp_opcode1 & 0x38) == 0x10) {
 					int return_block_index;
 					int jmp_instruction_length = 2;
@@ -283,7 +296,7 @@ static int update_call_origins(
 					}
 				}
 				else if ((jmp_opcode1 & 0x38) == 0x20) {
-					int jumping_block_index = index_of_cblock_containing_position(cblock_list, origin->instruction);
+					int jumping_block_index = index_of_cblock_containing_origin_instruction(cblock_list, origin);
 					if (jumping_block_index >= 0) {
 						unsigned int current_count = checked_blocks->count;
 						if ((error_code = update_call_origins(cblock_list->sorted_blocks[jumping_block_index], cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
@@ -303,6 +316,7 @@ static int update_call_origins(
 static int add_call_return_origin_after_interruption(struct Reader *reader, struct Registers *regs, struct Stack *stack, struct GlobalVariableWordValueMap *var_values, struct CodeBlock *block, struct CodeBlockList *code_block_list) {
 	struct CodeBlock *return_block;
 	struct CodeBlockOrigin *return_origin;
+	struct GlobalVariableWordValueMap *return_origin_var_values;
 	int index;
 	int error_code;
 	set_cblock_size(block, reader->buffer_index);
@@ -332,9 +346,10 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 
 	index = index_of_cborigin_of_type_call_return(&return_block->origin_list, 2);
 	return_origin = return_block->origin_list.sorted_origins[index];
-	copy_registers(&return_origin->regs, regs);
-	initialize_gvwvmap(&return_origin->var_values);
-	copy_gvwvmap(&return_origin->var_values, var_values);
+	copy_registers(get_cborigin_registers(return_origin), regs);
+	return_origin_var_values = get_cborigin_var_values(return_origin);
+	initialize_gvwvmap(return_origin_var_values);
+	copy_gvwvmap(return_origin_var_values, var_values);
 	set_cborigin_ready_to_be_evaluated(return_origin);
 
 	return 0;
@@ -357,14 +372,16 @@ static int add_jump_type_cborigin_in_block(
 	index = index_of_cborigin_with_instruction(origin_list, origin_instruction);
 	if (index < 0) {
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
+		struct Stack *new_origin_stack = get_cborigin_stack(new_origin);
+		struct GlobalVariableWordValueMap *new_origin_var_values = get_cborigin_var_values(new_origin);
 		set_jump_type_in_cborigin(new_origin, origin_instruction);
-		copy_registers(&new_origin->regs, regs);
+		copy_registers(get_cborigin_registers(new_origin), regs);
 
-		initialize_stack(&new_origin->stack);
-		copy_stack(&new_origin->stack, stack);
+		initialize_stack(new_origin_stack);
+		copy_stack(new_origin_stack, stack);
 
-		initialize_gvwvmap(&new_origin->var_values);
-		copy_gvwvmap(&new_origin->var_values, var_values);
+		initialize_gvwvmap(new_origin_var_values);
+		copy_gvwvmap(new_origin_var_values, var_values);
 
 		if (cblock_ready_to_be_evaluated(block)) {
 			struct Registers accumulated_regs;
@@ -448,10 +465,13 @@ static int add_jump_type_cborigin_in_block(
 	}
 	else {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_stacks(&origin->stack, stack) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
-			merge_registers(&origin->regs, regs);
-			merge_stacks(&origin->stack, stack);
-			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+		struct Registers *origin_regs = get_cborigin_registers(origin);
+		struct Stack *origin_stack = get_cborigin_stack(origin);
+		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
+		if (changes_on_merging_registers(origin_regs, regs) || changes_on_merging_stacks(origin_stack, stack) || changes_on_merging_gvwvmap(origin_var_values, var_values)) {
+			merge_registers(origin_regs, regs);
+			merge_stacks(origin_stack, stack);
+			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
 				return error_code;
 			}
 
@@ -651,23 +671,24 @@ int update_int2140_message_references(
 				const int block_index = index_of_cblock_in_list(code_block_list, block);
 				if (block_index > 0) {
 					struct CodeBlock *previous_block = code_block_list->sorted_blocks[block_index - 1];
-					const int new_ds_defined = ds_defined || is_register_ds_defined(&origin->regs);
-					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(&origin->regs);
-					const uint16_t new_ds_value = ds_defined? ds_value : get_register_ds(&origin->regs);
+					struct Registers *origin_regs = get_cborigin_registers(origin);
+					const int new_ds_defined = ds_defined || is_register_ds_defined(origin_regs);
+					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(origin_regs);
+					const uint16_t new_ds_value = ds_defined? ds_value : get_register_ds(origin_regs);
 
-					const int new_dx_defined = dx_defined || is_register_dx_defined(&origin->regs);
-					const int new_dx_relative = dx_defined? dx_relative : is_register_dx_defined_relative(&origin->regs);
-					const uint16_t new_dx_value = dx_defined? dx_value : get_register_dx(&origin->regs);
-					const char *new_dx_value_origin = dx_defined? dx_value_origin : get_register_dx_value_origin(&origin->regs);
+					const int new_dx_defined = dx_defined || is_register_dx_defined(origin_regs);
+					const int new_dx_relative = dx_defined? dx_relative : is_register_dx_defined_relative(origin_regs);
+					const uint16_t new_dx_value = dx_defined? dx_value : get_register_dx(origin_regs);
+					const char *new_dx_value_origin = dx_defined? dx_value_origin : get_register_dx_value_origin(origin_regs);
 
-					const int new_cx_defined = cx_defined || is_register_cx_defined(&origin->regs);
-					const int new_cx_relative = cx_defined? ds_relative : is_register_cx_defined_relative(&origin->regs);
-					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(&origin->regs);
+					const int new_cx_defined = cx_defined || is_register_cx_defined(origin_regs);
+					const int new_cx_relative = cx_defined? ds_relative : is_register_cx_defined_relative(origin_regs);
+					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(origin_regs);
 
 					int error_code;
 					DEBUG_PRINT2(" from block starting at +%x:%x\n", get_cblock_relative_cs(previous_block), get_cblock_ip(previous_block));
 
-					if ((error_code = update_int2140_message_references(&origin->regs, segment_start, segment_size, previous_block, code_block_list,
+					if ((error_code = update_int2140_message_references(origin_regs, segment_start, segment_size, previous_block, code_block_list,
 							gvar_list, segment_start_list, ref_list, checked_blocks,
 							new_cx_defined, new_cx_relative, new_cx_value,
 							new_dx_defined, new_dx_relative, new_dx_value, new_dx_value_origin,
@@ -678,27 +699,28 @@ int update_int2140_message_references(
 				}
 			}
 			else if (origin_type == CBORIGIN_TYPE_JUMP) {
-				const int origin_block_index = index_of_cblock_containing_position(code_block_list, origin->instruction);
+				const int origin_block_index = index_of_cblock_containing_origin_instruction(code_block_list, origin);
 				if (origin_block_index >= 0) {
 					struct CodeBlock *origin_block = code_block_list->sorted_blocks[origin_block_index];
-					const int new_ds_defined = ds_defined || is_register_ds_defined(&origin->regs);
-					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(&origin->regs);
-					const uint16_t new_ds_value = ds_defined? ds_value : get_register_ds(&origin->regs);
+					struct Registers *origin_regs = get_cborigin_registers(origin);
+					const int new_ds_defined = ds_defined || is_register_ds_defined(origin_regs);
+					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(origin_regs);
+					const uint16_t new_ds_value = ds_defined? ds_value : get_register_ds(origin_regs);
 
-					const int new_dx_defined = dx_defined || is_register_dx_defined(&origin->regs);
-					const int new_dx_relative = dx_defined? dx_relative : is_register_dx_defined_relative(&origin->regs);
-					const uint16_t new_dx_value = dx_defined? dx_value : get_register_dx(&origin->regs);
-					const char *new_dx_value_origin = dx_defined? dx_value_origin : get_register_dx_value_origin(&origin->regs);
+					const int new_dx_defined = dx_defined || is_register_dx_defined(origin_regs);
+					const int new_dx_relative = dx_defined? dx_relative : is_register_dx_defined_relative(origin_regs);
+					const uint16_t new_dx_value = dx_defined? dx_value : get_register_dx(origin_regs);
+					const char *new_dx_value_origin = dx_defined? dx_value_origin : get_register_dx_value_origin(origin_regs);
 
-					const int new_cx_defined = cx_defined || is_register_cx_defined(&origin->regs);
-					const int new_cx_relative = cx_defined? ds_relative : is_register_cx_defined_relative(&origin->regs);
-					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(&origin->regs);
+					const int new_cx_defined = cx_defined || is_register_cx_defined(origin_regs);
+					const int new_cx_relative = cx_defined? ds_relative : is_register_cx_defined_relative(origin_regs);
+					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(origin_regs);
 
 					int error_code;
-					DEBUG_PRINT2(" from +%x:%x", get_cblock_relative_cs(origin_block), get_cblock_ip(origin_block) + (int) (origin->instruction - get_cblock_start(origin_block)));
+					DEBUG_PRINT2(" from +%x:%x", get_cblock_relative_cs(origin_block), get_cblock_ip(origin_block) + (int) (get_cborigin_instruction(origin) - get_cblock_start(origin_block)));
 					DEBUG_PRINT2(" contained in block starting at +%x:%x\n", get_cblock_relative_cs(origin_block), get_cblock_ip(origin_block));
 
-					if ((error_code = update_int2140_message_references(&origin->regs, segment_start, segment_size, origin_block, code_block_list,
+					if ((error_code = update_int2140_message_references(origin_regs, segment_start, segment_size, origin_block, code_block_list,
 							gvar_list, segment_start_list, ref_list, checked_blocks,
 							new_cx_defined, new_cx_relative, new_cx_value,
 							new_dx_defined, new_dx_relative, new_dx_value, new_dx_value_origin,
@@ -2589,26 +2611,29 @@ static int read_block(
 				set_cblock_end(block, next_start);
 				if (next_origin_list->origin_count > 0) {
 					struct CodeBlockOrigin *origin = next_origin_list->sorted_origins[0];
+					struct Registers *origin_regs = get_cborigin_registers(origin);
+					struct Stack *origin_stack = get_cborigin_stack(origin);
+					struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
 
-					copy_registers(&accumulated_regs, &origin->regs);
+					copy_registers(&accumulated_regs, origin_regs);
 					initialize_stack(&accumulated_stack);
-					if ((error_code = copy_stack(&accumulated_stack, &origin->stack))) {
+					if ((error_code = copy_stack(&accumulated_stack, origin_stack))) {
 						return error_code;
 					}
 
 					initialize_gvwvmap(&accumulated_map);
-					if ((error_code = copy_gvwvmap(&accumulated_map, &origin->var_values))) {
+					if ((error_code = copy_gvwvmap(&accumulated_map, origin_var_values))) {
 						return error_code;
 					}
 
 					for (index = 1; index < next_origin_list->origin_count; index++) {
 						origin = next_origin_list->sorted_origins[index];
-						merge_registers(&accumulated_regs, &origin->regs);
-						if ((error_code = merge_stacks(&accumulated_stack, &origin->stack))) {
+						merge_registers(&accumulated_regs, origin_regs);
+						if ((error_code = merge_stacks(&accumulated_stack, origin_stack))) {
 							return error_code;
 						}
 
-						if ((error_code = merge_gvwvmap(&accumulated_map, &origin->var_values))) {
+						if ((error_code = merge_gvwvmap(&accumulated_map, origin_var_values))) {
 							return error_code;
 						}
 					}
@@ -2617,10 +2642,12 @@ static int read_block(
 				next_origin_index = index_of_cborigin_of_type_continue(next_origin_list);
 				if (next_origin_index >= 0) {
 					struct CodeBlockOrigin *next_origin = next_origin_list->sorted_origins[next_origin_index];
+					struct Registers *next_origin_regs = get_cborigin_registers(next_origin);
+					struct GlobalVariableWordValueMap *next_origin_var_values = get_cborigin_var_values(next_origin);
 					if (is_cborigin_ready_to_be_evaluated(next_origin)) {
-						if (changes_on_merging_registers(&next_origin->regs, regs) || changes_on_merging_gvwvmap(&next_origin->var_values, var_values)) {
-							merge_registers(&next_origin->regs, regs);
-							if ((error_code = merge_gvwvmap(&next_origin->var_values, var_values))) {
+						if (changes_on_merging_registers(next_origin_regs, regs) || changes_on_merging_gvwvmap(next_origin_var_values, var_values)) {
+							merge_registers(next_origin_regs, regs);
+							if ((error_code = merge_gvwvmap(next_origin_var_values, var_values))) {
 								return error_code;
 							}
 
@@ -2628,9 +2655,9 @@ static int read_block(
 						}
 					}
 					else {
-						copy_registers(&next_origin->regs, regs);
+						copy_registers(next_origin_regs, regs);
 
-						if ((error_code = copy_gvwvmap(&next_origin->var_values, var_values))) {
+						if ((error_code = copy_gvwvmap(next_origin_var_values, var_values))) {
 							return error_code;
 						}
 
@@ -2640,15 +2667,18 @@ static int read_block(
 				}
 				else if (next_instruction_potentially_reached) {
 					struct CodeBlockOrigin *next_origin = prepare_new_cborigin(next_origin_list);
+					struct Registers *next_origin_regs = get_cborigin_registers(next_origin);
+					struct Stack *next_origin_stack = get_cborigin_stack(next_origin);
+					struct GlobalVariableWordValueMap *next_origin_var_values = get_cborigin_var_values(next_origin);
 					set_continue_type_in_cborigin(next_origin);
-					copy_registers(&next_origin->regs, regs);
-					initialize_stack(&next_origin->stack);
-					if ((error_code = copy_stack(&next_origin->stack, stack))) {
+					copy_registers(next_origin_regs, regs);
+					initialize_stack(next_origin_stack);
+					if ((error_code = copy_stack(next_origin_stack, stack))) {
 						return error_code;
 					}
 
-					initialize_gvwvmap(&next_origin->var_values);
-					if ((error_code = copy_gvwvmap(&next_origin->var_values, var_values))) {
+					initialize_gvwvmap(next_origin_var_values);
+					if ((error_code = copy_gvwvmap(next_origin_var_values, var_values))) {
 						return error_code;
 					}
 
@@ -2685,6 +2715,7 @@ int find_cblocks_and_gvars(
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct CodeBlockOrigin *origin;
+	struct Registers *origin_regs;
 	struct CodeBlock *first_block = prepare_new_cblock(cblock_list);
 	int error_code;
 	int any_evaluated;
@@ -2700,14 +2731,15 @@ int find_cblocks_and_gvars(
 
 	initialize_cblock(first_block, read_result->relative_cs, read_result->ip, read_result->buffer + (read_result->relative_cs * 16 + read_result->ip));
 	origin = prepare_new_cborigin(&first_block->origin_list);
+	origin_regs = get_cborigin_registers(origin);
 	set_os_type_in_cborigin(origin);
-	set_all_registers_undefined(&origin->regs);
-	set_register_cs_relative(&origin->regs, NULL, NULL, read_result->relative_cs);
+	set_all_registers_undefined(origin_regs);
+	set_register_cs_relative(origin_regs, NULL, NULL, read_result->relative_cs);
 	if (ds_should_match_cs_at_segment_start(read_result)) {
-		set_register_ds_relative(&origin->regs, NULL, NULL, read_result->relative_cs);
+		set_register_ds_relative(origin_regs, NULL, NULL, read_result->relative_cs);
 	}
-	initialize_stack(&origin->stack);
-	initialize_gvwvmap(&origin->var_values);
+	initialize_stack(get_cborigin_stack(origin));
+	initialize_gvwvmap(get_cborigin_var_values(origin));
 
 	if ((error_code = insert_cborigin(&first_block->origin_list, origin))) {
 		return error_code;

@@ -154,12 +154,12 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 			set_bitset_value(state->included_blocks, block_index - 1, 1);
 		}
 		else if (origin_type == CBORIGIN_TYPE_JUMP) {
-			const int jmp_opcode0 = ((int) *origin->instruction) & 0xFF;
+			const int jmp_opcode0 = ((int) *get_cborigin_instruction(origin)) & 0xFF;
 			if (jmp_opcode0 == 0xE8) { /* CALL */
 				set_bitset_value(state->starting_blocks, block_index, 1);
 			}
 			else if (jmp_opcode0 == 0xE9 || (jmp_opcode0 & 0xF0) == 0x70 || (jmp_opcode0 & 0xFC) == 0xE0 || jmp_opcode0 == 0xEB) { /* JMP and its conditionals */
-				const int jmp_origin_block_index = find_block_index_containing_instruction(blocks, block_count, origin->instruction);
+				const int jmp_origin_block_index = find_block_index_containing_instruction(blocks, block_count, get_cborigin_instruction(origin));
 				if (jmp_origin_block_index < 0) {
 					WARN_PRINT0("'Jump' origin type found, but the instruction does not belong to any known block.\n");
 					return 1;
@@ -176,7 +176,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 				}
 			}
 			else if (jmp_opcode0 == 0xFF) {
-				const int jmp_opcode1 = ((int) origin->instruction[1]) & 0xFF;
+				const int jmp_opcode1 = ((int) get_cborigin_instruction(origin)[1]) & 0xFF;
 				if ((jmp_opcode1 & 0x30) == 0x10) { /* CALL (near/far) */
 					set_bitset_value(state->starting_blocks, block_index, 1);
 				}
@@ -692,9 +692,9 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 					const struct CodeBlockOrigin *origin = origin_list->sorted_origins[origin_index];
 
 					if (get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP) {
-						const int opcode = *(origin->instruction) & 0xFF;
+						const int opcode = *get_cborigin_instruction(origin) & 0xFF;
 						if (opcode == 0xFF) {
-							const int opcode1 = (opcode == 0xFF)? *(origin->instruction + 1) & 0xFF : 0;
+							const int opcode1 = (opcode == 0xFF)? *(get_cborigin_instruction(origin) + 1) & 0xFF : 0;
 							if ((opcode1 & 0x38) != 0x10 && (opcode1 & 0x38) != 0x20) {
 								valid_origins = 0;
 								break;

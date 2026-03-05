@@ -101,6 +101,32 @@ struct CodeBlockOrigin {
 int get_cborigin_type(const struct CodeBlockOrigin *origin);
 
 /**
+ * Return a pointer to the instruction that performs the jump or call to the block.
+ * This method should only be called if the origin type is JUMP.
+ */
+const char *get_cborigin_instruction(const struct CodeBlockOrigin *origin);
+
+/**
+ * Return a pointer to the registers for this origin.
+ */
+const struct Registers *get_cborigin_registers_const(const struct CodeBlockOrigin *origin);
+
+/**
+ * Return a pointer to the registers for this origin.
+ */
+struct Registers *get_cborigin_registers(struct CodeBlockOrigin *origin);
+
+/**
+ * Return a pointer to the stack for this origin.
+ */
+struct Stack *get_cborigin_stack(struct CodeBlockOrigin *origin);
+
+/**
+ * Return a pointer to the word variable values for this origin.
+ */
+struct GlobalVariableWordValueMap *get_cborigin_var_values(struct CodeBlockOrigin *origin);
+
+/**
  * Checks if the cborigin is ready to be evaluated.
  *
  * This method is only defined if the origin type is CALL RETURN.

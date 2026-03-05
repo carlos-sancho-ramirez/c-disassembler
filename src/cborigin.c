@@ -37,6 +37,27 @@ int get_cborigin_type(const struct CodeBlockOrigin *origin) {
 	return origin->flags & CBORIGIN_TYPE_MASK;
 }
 
+const char *get_cborigin_instruction(const struct CodeBlockOrigin *origin) {
+	assert(get_cborigin_type(origin) == CBORIGIN_TYPE_JUMP);
+	return origin->instruction;
+}
+
+const struct Registers *get_cborigin_registers_const(const struct CodeBlockOrigin *origin) {
+	return &origin->regs;
+}
+
+struct Registers *get_cborigin_registers(struct CodeBlockOrigin *origin) {
+	return &origin->regs;
+}
+
+struct Stack *get_cborigin_stack(struct CodeBlockOrigin *origin) {
+	return &origin->stack;
+}
+
+struct GlobalVariableWordValueMap *get_cborigin_var_values(struct CodeBlockOrigin *origin) {
+	return &origin->var_values;
+}
+
 int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin) {
 	return origin->flags & CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
 }

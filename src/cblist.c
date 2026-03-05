@@ -42,6 +42,10 @@ int index_of_cblock_in_list(const struct CodeBlockList *list, const struct CodeB
 	return index_of_cblock_with_start(list, get_cblock_start(block));
 }
 
+int index_of_cblock_containing_origin_instruction(const struct CodeBlockList *list, const struct CodeBlockOrigin *origin) {
+	return index_of_cblock_containing_position(list, get_cborigin_instruction(origin));
+}
+
 #ifdef DEBUG
 
 #include <stdio.h>

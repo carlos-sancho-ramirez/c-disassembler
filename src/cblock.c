@@ -97,6 +97,7 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struc
 		struct Registers accumulated_regs;
 		struct Stack accumulated_stack;
 		struct CodeBlockOrigin *new_origin;
+		struct GlobalVariableWordValueMap *new_origin_var_values;
 		struct GlobalVariableWordValueMap accumulated_var_values;
 		if (origin_list->origin_count) {
 			accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
@@ -112,12 +113,13 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struc
 		}
 
 		new_origin = prepare_new_cborigin(origin_list);
+		new_origin_var_values = get_cborigin_var_values(new_origin);
 		set_interruption_type_in_cborigin(new_origin);
-		copy_registers(&new_origin->regs, regs);
-		initialize_stack(&new_origin->stack);
-		initialize_gvwvmap(&new_origin->var_values);
+		copy_registers(get_cborigin_registers(new_origin), regs);
+		initialize_stack(get_cborigin_stack(new_origin));
+		initialize_gvwvmap(new_origin_var_values);
 
-		if ((error_code = copy_gvwvmap(&new_origin->var_values, var_values))) {
+		if ((error_code = copy_gvwvmap(new_origin_var_values, var_values))) {
 			return error_code;
 		}
 
@@ -131,9 +133,10 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struc
 	}
 	else {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
-			merge_registers(&origin->regs, regs);
-			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
+		if (changes_on_merging_registers(get_cborigin_registers(origin), regs) || changes_on_merging_gvwvmap(origin_var_values, var_values)) {
+			merge_registers(get_cborigin_registers(origin), regs);
+			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
 				return error_code;
 			}
 
@@ -153,15 +156,17 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 	index = index_of_cborigin_of_type_continue(origin_list);
 	if (index < 0) {
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
+		struct Stack *new_origin_stack = get_cborigin_stack(new_origin);
+		struct GlobalVariableWordValueMap *new_origin_var_values = get_cborigin_var_values(new_origin);
 		set_continue_type_in_cborigin(new_origin);
-		copy_registers(&new_origin->regs, regs);
-		initialize_stack(&new_origin->stack);
-		if ((error_code = copy_stack(&new_origin->stack, stack))) {
+		copy_registers(get_cborigin_registers(new_origin), regs);
+		initialize_stack(new_origin_stack);
+		if ((error_code = copy_stack(new_origin_stack, stack))) {
 			return error_code;
 		}
 
-		initialize_gvwvmap(&new_origin->var_values);
-		if ((error_code = copy_gvwvmap(&new_origin->var_values, var_values))) {
+		initialize_gvwvmap(new_origin_var_values);
+		if ((error_code = copy_gvwvmap(new_origin_var_values, var_values))) {
 			return error_code;
 		}
 
@@ -194,10 +199,13 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 	}
 	else {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		if (changes_on_merging_registers(&origin->regs, regs) || changes_on_merging_stacks(&origin->stack, stack) || changes_on_merging_gvwvmap(&origin->var_values, var_values)) {
-			merge_registers(&origin->regs, regs);
-			merge_stacks(&origin->stack, stack);
-			if ((error_code = merge_gvwvmap(&origin->var_values, var_values))) {
+		struct Registers *origin_regs = get_cborigin_registers(origin);
+		struct Stack *origin_stack = get_cborigin_stack(origin);
+		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
+		if (changes_on_merging_registers(origin_regs, regs) || changes_on_merging_stacks(origin_stack, stack) || changes_on_merging_gvwvmap(origin_var_values, var_values)) {
+			merge_registers(origin_regs, regs);
+			merge_stacks(origin_stack, stack);
+			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
 				return error_code;
 			}
 			invalidate_cblock_check(block);

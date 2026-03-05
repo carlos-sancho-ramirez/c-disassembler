@@ -15,6 +15,13 @@ DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
  */
 int index_of_cblock_in_list(const struct CodeBlockList *list, const struct CodeBlock *block);
 
+/**
+ * Return the sorted index of the block containing the origin JMP or CALL instruction, or -1 if none of the blocks in the list contains it.
+ *
+ * This method assumes that the given origin has type JUMP, and so, its instruction can be retrieved.
+ */
+int index_of_cblock_containing_origin_instruction(const struct CodeBlockList *list, const struct CodeBlockOrigin *origin);
+
 #ifdef DEBUG
 void print_cblist(const struct CodeBlockList *list);
 #endif /* DEBUG */
