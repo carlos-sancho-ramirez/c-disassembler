@@ -37,6 +37,12 @@ unsigned int get_cblock_relative_cs(const struct CodeBlock *block);
 unsigned int get_cblock_ip(const struct CodeBlock *block);
 const char *get_cblock_start(const struct CodeBlock *block);
 const char *get_cblock_end(const struct CodeBlock *block);
+
+/**
+ * Set the new end for this block.
+ * The new end must be always greater than the current start.
+ * Note that it is not allowed to have the end matching the start once the block has been evaluated at least once.
+ */
 void set_cblock_end(struct CodeBlock *block, const char *end);
 
 /**
@@ -57,6 +63,7 @@ int is_position_inside_cblock(const struct CodeBlock *block, const char *positio
 
 /**
  * Set the block end with the result of adding the given size to the current block start.
+ * New size cannot be 0, as no empty blocks are allowed once the block has been evaluated at least one.
  */
 void set_cblock_size(struct CodeBlock *block, unsigned int size);
 

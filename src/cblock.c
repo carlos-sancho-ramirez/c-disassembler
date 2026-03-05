@@ -35,6 +35,7 @@ unsigned int get_cblock_size(const struct CodeBlock *block) {
 }
 
 void set_cblock_end(struct CodeBlock *block, const char *end) {
+	assert(end > block->start);
 	block->end = end;
 }
 
@@ -47,6 +48,7 @@ int is_position_inside_cblock(const struct CodeBlock *block, const char *positio
 }
 
 void set_cblock_size(struct CodeBlock *block, unsigned int size) {
+	assert(size > 0);
 	block->end = block->start + size;
 }
 
