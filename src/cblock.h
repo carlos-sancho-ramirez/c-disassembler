@@ -81,13 +81,6 @@ void set_cblock_size(struct CodeBlock *block, unsigned int size);
 
 int cblock_requires_evaluation(struct CodeBlock *block);
 
-/**
- * Return false if the block include a call return origin, and the registers are not yet set.
- *
- * If this is returning false, most probably there is another code block that must be evaluated before this one,
- * and that block will fulfill the missing registers.
- */
-int cblock_ready_to_be_evaluated(const struct CodeBlock *block);
 void mark_cblock_as_being_evaluated(struct CodeBlock *block);
 void mark_cblock_as_evaluated(struct CodeBlock *block);
 void invalidate_cblock_check(struct CodeBlock *block);

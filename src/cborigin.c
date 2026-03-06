@@ -4,17 +4,6 @@
 #define CBORIGIN_TYPE_MASK 7
 
 /**
- * Only in case type is either CONTINUE or CALL RETURN
- *
- * If set, it means that the registers and variables in this origin has been
- * set up as the result of evaluating the block where the previous instruction
- * is calling, and then, this block can now be evaluated.
- *
- * If clear, it means that the block where the call is
- */
-#define CBORIGIN_FLAG_READY_TO_BE_EVALUATED 8
-
-/**
  * Mask for the amount of bytes that you have to substract to the start of this
  * block to find the call instruction.
  */
@@ -110,16 +99,8 @@ struct GlobalVariableWordValueMap *get_cborigin_var_values(struct CodeBlockOrigi
 	return &origin->var_values;
 }
 
-int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin) {
-	return origin->flags & CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
-}
-
 int get_cborigin_behind_count(const struct CodeBlockOrigin *origin) {
 	return (origin->flags & CBORIGIN_BEHIND_COUNT_MASK) >> CBORIGIN_BEHIND_COUNT_SHIFT;
-}
-
-void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin) {
-	origin->flags |= CBORIGIN_FLAG_READY_TO_BE_EVALUATED;
 }
 
 #ifdef DEBUG
@@ -134,22 +115,10 @@ void print_cborigin(const struct CodeBlockOrigin *origin) {
 		fprintf(stderr, "INT");
 	}
 	else if (origin_type == CBORIGIN_TYPE_CONTINUE) {
-		fprintf(stderr, "CONT(");
-		if (is_cborigin_ready_to_be_evaluated(origin)) {
-			fprintf(stderr, "V)");
-		}
-		else {
-			fprintf(stderr, "x)");
-		}
+		fprintf(stderr, "CONT");
 	}
 	else if (origin_type == CBORIGIN_TYPE_CALL_RETURN) {
-		fprintf(stderr, "CR(%d,", get_cborigin_behind_count(origin));
-		if (is_cborigin_ready_to_be_evaluated(origin)) {
-			fprintf(stderr, "V)");
-		}
-		else {
-			fprintf(stderr, "x)");
-		}
+		fprintf(stderr, "CR(%d)", get_cborigin_behind_count(origin));
 	}
 	else if (origin_type == CBORIGIN_TYPE_JUMP) {
 		fprintf(stderr, "JMP");

@@ -167,21 +167,12 @@ struct Stack *get_cborigin_stack(struct CodeBlockOrigin *origin);
 struct GlobalVariableWordValueMap *get_cborigin_var_values(struct CodeBlockOrigin *origin);
 
 /**
- * Checks if the cborigin is ready to be evaluated.
- *
- * This method is only defined if the origin type is CALL RETURN.
- */
-int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin);
-
-/**
  * Return the number of bytes that must be substrated to the start of this
  * block in order to find the call instruction that originated this origin.
  *
  * This method is only defined if the origin type is CALL RETURN.
  */
 int get_cborigin_behind_count(const struct CodeBlockOrigin *origin);
-
-void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin);
 
 /**
  * Mark a code block origin as never reached.
