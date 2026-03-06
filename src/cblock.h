@@ -37,6 +37,8 @@ unsigned int get_cblock_relative_cs(const struct CodeBlock *block);
 unsigned int get_cblock_ip(const struct CodeBlock *block);
 const char *get_cblock_start(const struct CodeBlock *block);
 const char *get_cblock_end(const struct CodeBlock *block);
+const struct CodeBlockOriginList *get_cblock_origin_list_const(const struct CodeBlock *block);
+struct CodeBlockOriginList *get_cblock_origin_list(struct CodeBlock *block);
 
 /**
  * Set the new end for this block.
@@ -60,6 +62,16 @@ int is_cblock_empty(const struct CodeBlock *block);
  * Whether the given position is equals or greater than the block start position, and lower than the block end.
  */
 int is_position_inside_cblock(const struct CodeBlock *block, const char *position);
+
+/**
+ * Whether the given block has a code block origin of type continue registered in its origin list.
+ */
+int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block);
+
+/**
+ * Whether the given block has a code block origin of type call return with the given behind_count registered in its origin list.
+ */
+int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count);
 
 /**
  * Set the block end with the result of adding the given size to the current block start.

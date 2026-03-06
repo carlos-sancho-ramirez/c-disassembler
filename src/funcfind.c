@@ -139,7 +139,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 	int error_code;
 	int starts_with_push_bp = 0;
 
-	const struct CodeBlockOriginList *origin_list = &block->origin_list;
+	const struct CodeBlockOriginList *origin_list = get_cblock_origin_list_const(block);
 	const unsigned int origin_count = origin_list->origin_count;
 	unsigned int origin_index;
 	for (origin_index = 0; origin_index < origin_count; origin_index++) {
@@ -270,7 +270,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 				if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 					struct CodeBlock *next_block = blocks[block_index + 1];
 					const int instruction_length = (value1 == 0x96)? 4 : 3;
-					if (index_of_cborigin_of_type_call_return(&next_block->origin_list, instruction_length) >= 0) {
+					if (has_cborigin_of_type_call_return_in_cblock(next_block, instruction_length)) {
 						if (get_bitset_value(available_blocks, block_index + 1)) {
 							set_bitset_value(state->included_blocks, block_index + 1, 1);
 						}
@@ -353,7 +353,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 				if (target_block_index >= 0) {
 					if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
-						if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
+						if (has_cborigin_of_type_call_return_in_cblock(next_block, 3)) {
 							if (get_bitset_value(available_blocks, block_index + 1)) {
 								set_bitset_value(state->included_blocks, block_index + 1, 1);
 							}
@@ -427,7 +427,7 @@ static int evaluate_block(struct CodeBlock **blocks, unsigned int block_count, u
 
 	if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 		struct CodeBlock *next_block = blocks[block_index + 1];
-		if (get_cblock_start(next_block) == reader.buffer + reader.buffer_index && index_of_cborigin_of_type_continue(&next_block->origin_list) >= 0) {
+		if (get_cblock_start(next_block) == reader.buffer + reader.buffer_index && has_cborigin_of_type_continue_in_cblock(next_block)) {
 			if (get_bitset_value(available_blocks, block_index + 1)) {
 				set_bitset_value(state->included_blocks, block_index + 1, 1);
 			}
@@ -556,7 +556,7 @@ static int check_block_stack(struct CodeBlock **blocks, unsigned int block_count
 				if (target_func_index >= 0) {
 					if (block_index + 1 < block_count && get_cblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
 						struct CodeBlock *next_block = blocks[block_index + 1];
-						if (index_of_cborigin_of_type_call_return(&next_block->origin_list, 3) >= 0) {
+						if (has_cborigin_of_type_call_return_in_cblock(next_block, 3)) {
 							const struct Function *target_func = func_list->sorted_funcs[target_func_index];
 							if (target_func->return_size & 1) {
 								WARN_PRINT0("Target function has an odd value in its return size.\n");
@@ -684,7 +684,7 @@ int find_functions(struct CodeBlock **blocks, unsigned int block_count, struct F
 		for (block_index = 0; block_index < block_count; block_index++) {
 			if (get_bitset_value(available_blocks, block_index)) {
 				const struct CodeBlock *block = blocks[block_index];
-				const struct CodeBlockOriginList *origin_list = &block->origin_list;
+				const struct CodeBlockOriginList *origin_list = get_cblock_origin_list_const(block);
 				int origin_index;
 				int valid_origins = origin_list->origin_count > 0;
 

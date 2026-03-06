@@ -43,6 +43,7 @@ static int ensure_call_return_origin(
 
 		if (return_block_index < 0) {
 			struct CodeBlock *return_block = prepare_new_cblock(cblock_list);
+			struct CodeBlockOriginList *return_block_origin_list = get_cblock_origin_list(return_block);
 			struct CodeBlockOrigin *return_origin;
 			struct Registers *return_origin_regs;
 			struct Stack *return_origin_stack;
@@ -50,7 +51,7 @@ static int ensure_call_return_origin(
 
 			initialize_cblock(return_block, get_cblock_relative_cs(jmp_block), expected_ip, get_cborigin_instruction(origin) + instruction_length);
 
-			return_origin = prepare_new_cborigin(&return_block->origin_list);
+			return_origin = prepare_new_cborigin(return_block_origin_list);
 			return_origin_regs = get_cborigin_registers(return_origin);
 			return_origin_stack = get_cborigin_stack(return_origin);
 			return_origin_var_values = get_cborigin_var_values(return_origin);
@@ -83,7 +84,7 @@ static int ensure_call_return_origin(
 			}
 
 			set_cborigin_ready_to_be_evaluated(return_origin);
-			if ((error_code = insert_cborigin(&return_block->origin_list, return_origin))) {
+			if ((error_code = insert_cborigin(return_block_origin_list, return_origin))) {
 				return error_code;
 			}
 
@@ -93,9 +94,10 @@ static int ensure_call_return_origin(
 		}
 		else {
 			struct CodeBlock *return_block = cblock_list->sorted_blocks[return_block_index];
-			int call_return_origin_index = index_of_cborigin_of_type_call_return(&return_block->origin_list, instruction_length);
+			struct CodeBlockOriginList *return_block_origin_list = get_cblock_origin_list(return_block);
+			int call_return_origin_index = index_of_cborigin_of_type_call_return(return_block_origin_list, instruction_length);
 			if (call_return_origin_index < 0) {
-				struct CodeBlockOrigin *return_origin = prepare_new_cborigin(&return_block->origin_list);
+				struct CodeBlockOrigin *return_origin = prepare_new_cborigin(return_block_origin_list);
 				struct Registers *return_origin_regs = get_cborigin_registers(return_origin);
 				struct Stack *return_origin_stack = get_cborigin_stack(return_origin);
 				struct GlobalVariableWordValueMap *return_origin_var_values = get_cborigin_var_values(return_origin);
@@ -128,12 +130,12 @@ static int ensure_call_return_origin(
 				}
 
 				set_cborigin_ready_to_be_evaluated(return_origin);
-				if ((error_code = insert_cborigin(&return_block->origin_list, return_origin))) {
+				if ((error_code = insert_cborigin(return_block_origin_list, return_origin))) {
 					return error_code;
 				}
 			}
 			else {
-				struct CodeBlockOrigin *call_return_origin = return_block->origin_list.sorted_origins[call_return_origin_index];
+				struct CodeBlockOrigin *call_return_origin = return_block_origin_list->sorted_origins[call_return_origin_index];
 				struct Registers *call_return_origin_regs = get_cborigin_registers(call_return_origin);
 				struct Stack *call_return_origin_stack = get_cborigin_stack(call_return_origin);
 				struct GlobalVariableWordValueMap *call_return_origin_var_values = get_cborigin_var_values(call_return_origin);
@@ -211,7 +213,7 @@ static int update_call_origins(
 		const struct GlobalVariableWordValueMap *var_values,
 		int is_returning_far,
 		unsigned int depth) {
-	struct CodeBlockOriginList *origin_list = &block->origin_list;
+	struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
 	int index;
 	int error_code;
 
@@ -315,6 +317,7 @@ static int update_call_origins(
 
 static int add_call_return_origin_after_interruption(struct Reader *reader, struct Registers *regs, struct Stack *stack, struct GlobalVariableWordValueMap *var_values, struct CodeBlock *block, struct CodeBlockList *code_block_list) {
 	struct CodeBlock *return_block;
+	struct CodeBlockOriginList *return_block_origin_list;
 	struct CodeBlockOrigin *return_origin;
 	struct GlobalVariableWordValueMap *return_origin_var_values;
 	int index;
@@ -344,8 +347,9 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 		}
 	}
 
-	index = index_of_cborigin_of_type_call_return(&return_block->origin_list, 2);
-	return_origin = return_block->origin_list.sorted_origins[index];
+	return_block_origin_list = get_cblock_origin_list(return_block);
+	index = index_of_cborigin_of_type_call_return(return_block_origin_list, 2);
+	return_origin = return_block_origin_list->sorted_origins[index];
 	copy_registers(get_cborigin_registers(return_origin), regs);
 	return_origin_var_values = get_cborigin_var_values(return_origin);
 	initialize_gvwvmap(return_origin_var_values);
@@ -368,7 +372,7 @@ static int add_jump_type_cborigin_in_block(
 	struct CodeBlockOriginList *origin_list;
 	int index;
 
-	origin_list = &block->origin_list;
+	origin_list = get_cblock_origin_list(block);
 	index = index_of_cborigin_with_instruction(origin_list, origin_instruction);
 	if (index < 0) {
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
@@ -653,7 +657,7 @@ int update_int2140_message_references(
 		}
 	}
 	else if ((ds_defined || is_register_ds_merged(regs)) && (dx_defined || is_register_dx_merged(regs)) && (cx_defined || is_register_cx_merged(regs))) {
-		struct CodeBlockOriginList *origin_list = &block->origin_list;
+		struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
 		const unsigned int origin_count = origin_list->origin_count;
 		int index;
 
@@ -2605,7 +2609,7 @@ static int read_block(
 				struct Stack accumulated_stack;
 				struct GlobalVariableWordValueMap accumulated_map;
 
-				struct CodeBlockOriginList *next_origin_list = &next_block->origin_list;
+				struct CodeBlockOriginList *next_origin_list = get_cblock_origin_list(next_block);
 				int next_origin_index;
 
 				set_cblock_end(block, next_start);
@@ -2714,6 +2718,7 @@ int find_cblocks_and_gvars(
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
+	struct CodeBlockOriginList *origin_list;
 	struct CodeBlockOrigin *origin;
 	struct Registers *origin_regs;
 	struct CodeBlock *first_block = prepare_new_cblock(cblock_list);
@@ -2730,7 +2735,8 @@ int find_cblocks_and_gvars(
 	}
 
 	initialize_cblock(first_block, read_result->relative_cs, read_result->ip, read_result->buffer + (read_result->relative_cs * 16 + read_result->ip));
-	origin = prepare_new_cborigin(&first_block->origin_list);
+	origin_list = get_cblock_origin_list(first_block);
+	origin = prepare_new_cborigin(origin_list);
 	origin_regs = get_cborigin_registers(origin);
 	set_os_type_in_cborigin(origin);
 	set_all_registers_undefined(origin_regs);
@@ -2741,7 +2747,7 @@ int find_cblocks_and_gvars(
 	initialize_stack(get_cborigin_stack(origin));
 	initialize_gvwvmap(get_cborigin_var_values(origin));
 
-	if ((error_code = insert_cborigin(&first_block->origin_list, origin))) {
+	if ((error_code = insert_cborigin(origin_list, origin))) {
 		return error_code;
 	}
 
@@ -2759,6 +2765,7 @@ int find_cblocks_and_gvars(
 			struct CodeBlock *block = get_unsorted_cblock(cblock_list, block_index);
 			if (cblock_requires_evaluation(block)) {
 				if (evaluate_all || cblock_ready_to_be_evaluated(block)) {
+					struct CodeBlockOriginList *block_origin_list = get_cblock_origin_list(block);
 					struct Registers regs;
 					struct Stack stack;
 					unsigned int block_max_size;
@@ -2769,14 +2776,14 @@ int find_cblocks_and_gvars(
 
 					block_max_size = read_result->size - (get_cblock_start(block) - read_result->buffer);
 
-					accumulate_registers_from_cbolist(&regs, &block->origin_list);
+					accumulate_registers_from_cbolist(&regs, block_origin_list);
 					initialize_stack(&stack);
-					if ((error_code = accumulate_stack_from_cbolist(&stack, &block->origin_list))) {
+					if ((error_code = accumulate_stack_from_cbolist(&stack, block_origin_list))) {
 						return error_code;
 					}
 
 					initialize_gvwvmap(&var_values);
-					accumulate_gvwvmap_from_cbolist(&var_values, &block->origin_list);
+					accumulate_gvwvmap_from_cbolist(&var_values, block_origin_list);
 
 					if ((error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, printer_err, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
 						return error_code;

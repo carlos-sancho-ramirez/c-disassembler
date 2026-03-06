@@ -30,6 +30,14 @@ const char *get_cblock_end(const struct CodeBlock *block) {
 	return block->end;
 }
 
+const struct CodeBlockOriginList *get_cblock_origin_list_const(const struct CodeBlock *block) {
+	return &block->origin_list;
+}
+
+struct CodeBlockOriginList *get_cblock_origin_list(struct CodeBlock *block) {
+	return &block->origin_list;
+}
+
 unsigned int get_cblock_size(const struct CodeBlock *block) {
 	return block->end - block->start;
 }
@@ -45,6 +53,14 @@ int is_cblock_empty(const struct CodeBlock *block) {
 
 int is_position_inside_cblock(const struct CodeBlock *block, const char *position) {
 	return block->start <= position && position < block->end;
+}
+
+int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block) {
+	return index_of_cborigin_of_type_continue(&block->origin_list) >= 0;
+}
+
+int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count) {
+	return index_of_cborigin_of_type_call_return(&block->origin_list, behind_count) >= 0;
 }
 
 void set_cblock_size(struct CodeBlock *block, unsigned int size) {

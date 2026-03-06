@@ -412,7 +412,7 @@ int main(int argc, const char *argv[]) {
 	}
 
 	for (i = 0; i < cblock_list.block_count; i++) {
-		struct CodeBlockOriginList *origin_list = &cblock_list.sorted_blocks[i]->origin_list;
+		struct CodeBlockOriginList *origin_list = get_cblock_origin_list(cblock_list.sorted_blocks[i]);
 		int j;
 		for (j = 0; j < origin_list->origin_count; j++) {
 			clear_gvwvmap(get_cborigin_var_values(origin_list->sorted_origins[j]));
