@@ -234,7 +234,7 @@ int index_of_cborigin_of_type_call_return(const struct CodeBlockOriginList *list
 	return -1;
 }
 
-int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct Registers *regs, const struct Stack *stack, unsigned int behind_count) {
+int add_call_return_type_cborigin(struct CodeBlockOriginList *list, unsigned int behind_count, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
 	assert(behind_count >= 2 && behind_count <= 4);
 	if (index_of_cborigin_of_type_call_return(list, behind_count) < 0) {
 		int error_code;
@@ -243,14 +243,10 @@ int add_call_return_type_cborigin(struct CodeBlockOriginList *list, const struct
 			return 1;
 		}
 
-		set_call_return_type_in_cborigin(new_origin, behind_count);
-		copy_registers(get_cborigin_registers(new_origin), regs);
-		initialize_stack(get_cborigin_stack(new_origin));
-		if ((error_code = copy_stack(get_cborigin_stack(new_origin), stack))) {
+		if ((error_code = initialize_cborigin_as_call_return(new_origin, behind_count, regs, stack, var_values))) {
 			return error_code;
 		}
 
-		initialize_gvwvmap(get_cborigin_var_values(new_origin));
 		if ((error_code = insert_cborigin(list, new_origin))) {
 			return error_code;
 		}

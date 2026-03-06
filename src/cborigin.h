@@ -96,6 +96,46 @@ struct CodeBlockOrigin {
 };
 
 /**
+ * Initialize the given origin setting its type to os.
+ * This method will assume that all the contents in the given origin struct is rubbish and can be overridden without problem.
+ * This method will set all registers undefined, except for the given CS and DS if ds_defined_like_cs is different from 0.
+ * This method will will initialize its stack and var_values completelly empty.
+ */
+void initialize_cborigin_as_os(struct CodeBlockOrigin *origin, uint16_t relative_cs, int ds_defined_like_cs);
+
+/**
+ * Initialize the given origin setting its type to interruption.
+ * This method will assume that all the contents in the given origin struct is rubbish and can be overridden without problem.
+ * This method will copy the given registers and variable values into the origin, and will reset the contained stack to an empty one.
+ * This method will return 0 if all goes OK.
+ */
+int initialize_cborigin_as_interruption(struct CodeBlockOrigin *origin, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
+
+/**
+ * Initialize the given origin setting its type to continue.
+ * This method will assume that all the contents in the given origin struct is rubbish and can be overridden without problem.
+ * This method will copy the given registers, stack and variable values into the origin.
+ * This method will return 0 if all goes OK.
+ */
+int initialize_cborigin_as_continue(struct CodeBlockOrigin *origin, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values);
+
+/**
+ * Initialize the given origin setting its type to call return.
+ * This method will assume that all the contents in the given origin struct is rubbish and can be overridden without problem.
+ * This method will copy the given registers, stack and variable values into the origin.
+ * This method will return 0 if all goes OK.
+ */
+int initialize_cborigin_as_call_return(struct CodeBlockOrigin *origin, unsigned int behind_count, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values);
+
+/**
+ * Initialize the given origin setting its type to jump, and the given instruction as the one performing the jump.
+ * This method will assume that all the contents in the given origin struct is rubbish and can be overridden without problem.
+ * This method will copy the given registers, stack and variable values into the origin.
+ * This method will return 0 if all goes OK.
+ */
+int initialize_cborigin_as_jump(struct CodeBlockOrigin *origin, const char *instruction, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values);
+
+/**
  * Return the type of code block origin. They can be any of the values represented by CODE_BLOCK_ORIGIN_TYPE_*.
  */
 int get_cborigin_type(const struct CodeBlockOrigin *origin);
@@ -140,41 +180,6 @@ int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin);
  * This method is only defined if the origin type is CALL RETURN.
  */
 int get_cborigin_behind_count(const struct CodeBlockOrigin *origin);
-
-/**
- * Set the OS type to the given code block origin.
- *
- * This will replace any previous set type.
- */
-void set_os_type_in_cborigin(struct CodeBlockOrigin *origin);
-
-/**
- * Set the INTERRUPTION type to the given code block origin.
- *
- * This will replace any previous set type.
- */
-void set_interruption_type_in_cborigin(struct CodeBlockOrigin *origin);
-
-/**
- * Set the CONTINUE type to the given code block origin. Leaving it not ready yet to be evaluated.
- *
- * This will replace any previous set type.
- */
-void set_continue_type_in_cborigin(struct CodeBlockOrigin *origin);
-
-/**
- * Set the CALL RETURN type and the given behind count to the given code block origin.
- *
- * This will replace any previous set type and count.
- */
-void set_call_return_type_in_cborigin(struct CodeBlockOrigin *origin, unsigned int behind_count);
-
-/**
- * Set the given origin as JUMP type and assigns the given instruction as well.
- *
- * This will replace any previous type and instruction set.
- */
-void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instruction);
 
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin);
 

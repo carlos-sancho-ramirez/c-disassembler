@@ -33,6 +33,58 @@ const char *CBORIGIN_TYPE_NAME[] = {
 
 #endif
 
+#include <stdlib.h>
+
+void initialize_cborigin_as_os(struct CodeBlockOrigin *origin, uint16_t relative_cs, int ds_defined_like_cs) {
+	origin->flags = CBORIGIN_TYPE_OS;
+	set_all_registers_undefined(&origin->regs);
+	set_register_cs_relative(&origin->regs, NULL, NULL, relative_cs);
+	if (ds_defined_like_cs) {
+		set_register_ds_relative(&origin->regs, NULL, NULL, relative_cs);
+	}
+	initialize_stack(&origin->stack);
+	initialize_gvwvmap(&origin->var_values);
+}
+
+int initialize_cborigin_as_interruption(struct CodeBlockOrigin *origin, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values) {
+	origin->flags = CBORIGIN_TYPE_INTERRUPTION;
+	copy_registers(&origin->regs, regs);
+	initialize_stack(&origin->stack);
+	initialize_gvwvmap(&origin->var_values);
+	return copy_gvwvmap(&origin->var_values, var_values);
+}
+
+static int initialize_cborigin_structs(struct CodeBlockOrigin *origin, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
+	int error_code;
+	copy_registers(&origin->regs, regs);
+	initialize_stack(&origin->stack);
+	if ((error_code = copy_stack(&origin->stack, stack))) {
+		return error_code;
+	}
+
+	initialize_gvwvmap(&origin->var_values);
+	return copy_gvwvmap(&origin->var_values, var_values);
+}
+
+int initialize_cborigin_as_continue(struct CodeBlockOrigin *origin, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
+	origin->flags = CBORIGIN_TYPE_CONTINUE;
+	return initialize_cborigin_structs(origin, regs, stack, var_values);
+}
+
+int initialize_cborigin_as_call_return(struct CodeBlockOrigin *origin, unsigned int behind_count, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
+	unsigned int shifted = behind_count << CBORIGIN_BEHIND_COUNT_SHIFT;
+	assert((shifted & CBORIGIN_BEHIND_COUNT_MASK) == shifted);
+	origin->flags = CBORIGIN_TYPE_CALL_RETURN | (behind_count << CBORIGIN_BEHIND_COUNT_SHIFT);
+	return initialize_cborigin_structs(origin, regs, stack, var_values);
+}
+
+int initialize_cborigin_as_jump(struct CodeBlockOrigin *origin, const char *instruction, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
+	int error_code;
+	origin->flags = CBORIGIN_TYPE_JUMP;
+	origin->instruction = instruction;
+	return initialize_cborigin_structs(origin, regs, stack, var_values);
+}
+
 int get_cborigin_type(const struct CodeBlockOrigin *origin) {
 	return origin->flags & CBORIGIN_TYPE_MASK;
 }
@@ -64,29 +116,6 @@ int is_cborigin_ready_to_be_evaluated(const struct CodeBlockOrigin *origin) {
 
 int get_cborigin_behind_count(const struct CodeBlockOrigin *origin) {
 	return (origin->flags & CBORIGIN_BEHIND_COUNT_MASK) >> CBORIGIN_BEHIND_COUNT_SHIFT;
-}
-
-void set_os_type_in_cborigin(struct CodeBlockOrigin *origin) {
-	origin->flags = CBORIGIN_TYPE_OS;
-}
-
-void set_interruption_type_in_cborigin(struct CodeBlockOrigin *origin) {
-	origin->flags = CBORIGIN_TYPE_INTERRUPTION;
-}
-
-void set_continue_type_in_cborigin(struct CodeBlockOrigin *origin) {
-	origin->flags = CBORIGIN_TYPE_CONTINUE;
-}
-
-void set_call_return_type_in_cborigin(struct CodeBlockOrigin *origin, unsigned int behind_count) {
-	unsigned int shifted = behind_count << CBORIGIN_BEHIND_COUNT_SHIFT;
-	assert((shifted & CBORIGIN_BEHIND_COUNT_MASK) == shifted);
-	origin->flags = CBORIGIN_TYPE_CALL_RETURN | (behind_count << CBORIGIN_BEHIND_COUNT_SHIFT);
-}
-
-void set_jump_type_in_cborigin(struct CodeBlockOrigin *origin, const char *instruction) {
-	origin->flags = CBORIGIN_TYPE_JUMP;
-	origin->instruction = instruction;
 }
 
 void set_cborigin_ready_to_be_evaluated(struct CodeBlockOrigin *origin) {
