@@ -41,6 +41,7 @@ struct CodeBlockOriginList {
 };
 
 DECLARE_STRUCT_LIST_METHODS(CodeBlockOrigin, cborigin, origin, instruction);
+DECLARE_STRUCT_LIST_INSERT_METHOD(CodeBlockOrigin, cborigin, origin);
 
 /**
  * Searches for a origin whose type is interruption.

@@ -57,6 +57,14 @@ struct struct_name *prepare_new_##struct_name_snake(struct struct_name##List *li
  */ \
 void clear_##struct_name_snake##_list(struct struct_name##List *list)
 
+#define DECLARE_STRUCT_LIST_INSERT_METHOD(struct_name, struct_name_snake, short_item_name) \
+/** \
+ * Inserts the short_item_name returned previously by prepare_new_##struct_name_snake. \
+ * This will increase the short_item_name##_count value by 1 and will update the sorted_#short_item_name##s inserting the \
+ * reference to this short_item_name in its suitable position. \
+ */ \
+int insert_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name)
+
 #define DECLARE_STRUCT_LIST_METHODS(struct_name, struct_name_snake, short_item_name, sorted_property) \
 DECLARE_STRUCT_LIST_INITIALIZE_METHOD(struct_name, struct_name_snake); \
 DECLARE_STRUCT_LIST_GET_UNSORTED_METHOD(struct_name, struct_name_snake); \
@@ -77,14 +85,7 @@ int index_of_##struct_name_snake##_with_##sorted_property(const struct struct_na
  * This will return -1 if there are not short_item_name##s, or all of them has a sorted_property greater than the given position. \
  * This will return the index of the short_item_name within the sorted_##short_item_name##s array. \
  */ \
-int index_of_##struct_name_snake##_containing_position(const struct struct_name##List *list, const char *position); \
-\
-/** \
- * Inserts the short_item_name returned previously by prepare_new_##struct_name_snake. \
- * This will increase the short_item_name##_count value by 1 and will update the sorted_#short_item_name##s inserting the \
- * reference to this short_item_name in its suitable position. \
- */ \
-int insert_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name)
+int index_of_##struct_name_snake##_containing_position(const struct struct_name##List *list, const char *position)
 
 #define DEFINE_STRUCT_LIST_INITIALIZE_METHOD(struct_name, struct_name_snake, short_item_name) \
 void initialize_##struct_name_snake##_list(struct struct_name##List *list) { \

@@ -8,6 +8,24 @@ DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
 
 /**
+ * Inserts a new block into the list.
+ *
+ * For properly memory management, the given block pointer must be the same returned by
+ * prepare_new_block method in its last call.
+ *
+ * This method will check the start and end properties in the given block and will evaluate
+ * if the given block can be inserted without overlapping any existing block in this list.
+ * In case the given block is overlapping any of the blocks already included in the list,
+ * this method will return -1.
+ *
+ * If the given block is valid and not overlapping any of the existing blocks in the list,
+ * this method will insert the block in the list in its suitable position. As result,
+ * the block_count property will be increased by 1, and the sorted_blocks will be updated
+ * accordingly.
+ */
+int insert_cblock(struct CodeBlockList *list, struct CodeBlock *new_block);
+
+/**
  * Return the sorted index of the given block within this list, or -1 if the block is not present.
  *
  * This method will not compare the given block with any potential block found in the list.

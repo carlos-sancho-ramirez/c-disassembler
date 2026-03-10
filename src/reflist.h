@@ -5,5 +5,6 @@
 
 DEFINE_STRUCT_LIST(Reference, reference);
 DECLARE_STRUCT_LIST_METHODS(Reference, ref, reference, instruction);
+DECLARE_STRUCT_LIST_INSERT_METHOD(Reference, ref, reference);
 
 #endif /* _REFERENCE_LIST_H_ */

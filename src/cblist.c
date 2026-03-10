@@ -10,7 +10,40 @@ DEFINE_STRUCT_LIST_GET_UNSORTED_METHOD(CodeBlock, cblock, 64)
 DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(CodeBlock, cblock, block, 8, 64)
 DEFINE_STRUCT_LIST_CLEAR_METHOD(CodeBlock, cblock, block, 64)
 DEFINE_STRUCT_LIST_INDEX_OF_WITH_METHOD(CodeBlock, cblock, block, start)
-DEFINE_STRUCT_LIST_INSERT_METHOD(CodeBlock, cblock, block, start)
+
+int insert_cblock(struct CodeBlockList *list, struct CodeBlock *new_block) {
+	const char *new_block_start = get_cblock_start(new_block);
+	int first = 0;
+	int last = list->block_count;
+	int i;
+	log_cblock_insertion(new_block);
+	while (last > first) {
+		int index = (first + last) / 2;
+		const char *this_start = get_cblock_start(list->sorted_blocks[index]);
+		if (this_start < new_block_start) {
+			first = index + 1;
+		}
+		else if (this_start > new_block_start) {
+			last = index;
+		}
+		else {
+			return -1;
+		}
+	}
+
+	if (last < list->block_count && get_cblock_start(list->sorted_blocks[last]) < get_cblock_end(new_block)) {
+		return -1;
+	}
+
+	for (i = list->block_count; i > last; i--) {
+		list->sorted_blocks[i] = list->sorted_blocks[i - 1];
+	}
+
+	list->sorted_blocks[last] = new_block;
+	list->block_count++;
+
+	return 0;
+}
 
 int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position) {
 	int first = 0;

@@ -6,6 +6,7 @@
 
 DEFINE_STRUCT_LIST(GlobalVariable, variable);
 DECLARE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start);
+DECLARE_STRUCT_LIST_INSERT_METHOD(GlobalVariable, gvar, variable);
 
 #include "register.h"
 #include "sslist.h"
