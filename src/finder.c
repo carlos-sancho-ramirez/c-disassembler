@@ -446,7 +446,7 @@ static int register_jump_target_block(
 		int diff) {
 	int result = index_of_cblock_containing_position(code_block_list, jump_destination);
 	struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-	int potential_container_evaluated_at_least_once = potential_container && !is_cblock_empty(potential_container);
+	int potential_container_evaluated_at_least_once = potential_container && is_cblock_end_known(potential_container);
 
 	if (potential_container && get_cblock_start(potential_container) == jump_destination) {
 		if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
@@ -2114,7 +2114,7 @@ static int read_block_instruction_internal(
 		jump_destination = get_cblock_start(block) + reader->buffer_index + diff;
 		result = index_of_cblock_containing_position(code_block_list, jump_destination);
 		potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
-		potential_container_evaluated_at_least_once = potential_container && !is_cblock_empty(potential_container);
+		potential_container_evaluated_at_least_once = potential_container && is_cblock_end_known(potential_container);
 
 		if (value0 == 0xE8) {
 			push_in_stack(stack, NULL, get_cblock_ip(block) + reader->buffer_index);
@@ -2627,7 +2627,7 @@ static int read_block(
 				set_cblock_end(block, next_start);
 			}
 		}
-	} while (is_cblock_empty(block) || get_cblock_start(block) + reader.buffer_index < get_cblock_end(block));
+	} while (!is_cblock_end_known(block) || reader.buffer_index < get_cblock_size(block));
 
 	return 0;
 }

@@ -1,9 +1,8 @@
 #include "cblock.h"
 #include <assert.h>
 
-#define CODE_BLOCK_FLAG_EVALUATED_AT_LEAST_ONCE 1
-#define CODE_BLOCK_FLAG_VALID_EVALUATION 2
-#define CODE_BLOCK_FLAG_UNDER_EVALUATION 4
+#define CODE_BLOCK_FLAG_VALID_EVALUATION 1
+#define CODE_BLOCK_FLAG_UNDER_EVALUATION 2
 
 void initialize_cblock(struct CodeBlock *block, unsigned int relative_cs, unsigned int ip, const char *start) {
 	block->relative_cs = relative_cs;
@@ -26,6 +25,10 @@ const char *get_cblock_start(const struct CodeBlock *block) {
 	return block->start;
 }
 
+int is_cblock_end_known(const struct CodeBlock *block) {
+	return block->end > block->start;
+}
+
 const char *get_cblock_end(const struct CodeBlock *block) {
 	return block->end;
 }
@@ -45,10 +48,6 @@ unsigned int get_cblock_size(const struct CodeBlock *block) {
 void set_cblock_end(struct CodeBlock *block, const char *end) {
 	assert(end > block->start);
 	block->end = end;
-}
-
-int is_cblock_empty(const struct CodeBlock *block) {
-	return block->start == block->end;
 }
 
 int is_position_inside_cblock(const struct CodeBlock *block, const char *position) {
@@ -77,7 +76,6 @@ void mark_cblock_as_being_evaluated(struct CodeBlock *block) {
 }
 
 void mark_cblock_as_evaluated(struct CodeBlock *block) {
-	block->flags |= CODE_BLOCK_FLAG_EVALUATED_AT_LEAST_ONCE;
 	block->flags &= ~CODE_BLOCK_FLAG_UNDER_EVALUATION;
 }
 

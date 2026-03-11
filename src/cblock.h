@@ -29,13 +29,40 @@ struct CodeBlock {
 
 /**
  * Initialize the CodeBlock structure with the given start.
- * This will intialize the block as empty, so end will match the given start as well.
+ * This will intialize the block with unknown end. End must be adjusted once we know where it is.
  */
 void initialize_cblock(struct CodeBlock *block, unsigned int relative_cs, unsigned int ip, const char *start);
 
 unsigned int get_cblock_relative_cs(const struct CodeBlock *block);
 unsigned int get_cblock_ip(const struct CodeBlock *block);
 const char *get_cblock_start(const struct CodeBlock *block);
+
+/**
+ * Whether the end of the block is known.
+ *
+ * Note that usually we identify a new block starting at certain position,
+ * but we will not know where that block ends until we evaluate that block at least once.
+ * Once traversed and found instructions like jmp or ret, we would be able to determine its possible end.
+ *
+ * This method should be called before calling get_cblock_end and get_cblock_size,
+ * as their result is not determined if this method returns false.
+ *
+ * Note as well that the end can change later if we find other piece of the code jumping to a
+ * position in the middle of our block. That would mean that we will need to split this block
+ * in 2 pieces, and adjust the end of the block to the new start of the second half.
+ * In any case, if the end needs to be adjusted, the new end will be always smaller
+ * than the previous known one.
+ */
+int is_cblock_end_known(const struct CodeBlock *block);
+
+/**
+ * Returns the end of this code block.
+ *
+ * The end is always poiting to the first memory position outside the block, so the given end does not belong to the block.
+ *
+ * Do not call this method without calling is_cblock_end_known first to ensure that the end is already known.
+ * In case is_cblock_end_known returns true, this method will return an end always greater than the current start, as no empty blocks are allowed.
+ */
 const char *get_cblock_end(const struct CodeBlock *block);
 const struct CodeBlockOriginList *get_cblock_origin_list_const(const struct CodeBlock *block);
 struct CodeBlockOriginList *get_cblock_origin_list(struct CodeBlock *block);
@@ -49,14 +76,10 @@ void set_cblock_end(struct CodeBlock *block, const char *end);
 
 /**
  * Returns the difference between its start and end.
- * This method assumes that end is always greater or equals to start.
+ * Do not call this method without calling is_cblock_end_known first to ensure that the end is already known.
+ * In case is_cblock_end_known returns true, this method will return a size greater than zero, as no empty blocks are allowed.
  */
 unsigned int get_cblock_size(const struct CodeBlock *block);
-
-/**
- * Whether the given block has the same position for start and end.
- */
-int is_cblock_empty(const struct CodeBlock *block);
 
 /**
  * Whether the given position is equals or greater than the block start position, and lower than the block end.
