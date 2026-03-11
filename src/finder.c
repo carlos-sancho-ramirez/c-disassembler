@@ -329,12 +329,24 @@ static int add_jump_type_cborigin_in_block(
 		const struct Stack *stack,
 		const struct GlobalVariableWordValueMap *var_values) {
 	int error_code;
-	struct CodeBlockOriginList *origin_list;
-	int index;
+	struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
+	struct CodeBlockOrigin *origin = get_cborigin_with_instruction(origin_list, origin_instruction);
 
-	origin_list = get_cblock_origin_list(block);
-	index = index_of_cborigin_with_instruction(origin_list, origin_instruction);
-	if (index < 0) {
+	if (origin) {
+		struct Registers *origin_regs = get_cborigin_registers(origin);
+		struct Stack *origin_stack = get_cborigin_stack(origin);
+		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
+		if (changes_on_merging_registers(origin_regs, regs) || changes_on_merging_stacks(origin_stack, stack) || changes_on_merging_gvwvmap(origin_var_values, var_values)) {
+			merge_registers(origin_regs, regs);
+			merge_stacks(origin_stack, stack);
+			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
+				return error_code;
+			}
+
+			invalidate_cblock_check(block);
+		}
+	}
+	else {
 		struct CodeBlockOrigin *new_origin = prepare_new_cborigin(origin_list);
 		struct Registers accumulated_regs;
 		struct Stack accumulated_stack;
@@ -411,21 +423,6 @@ static int add_jump_type_cborigin_in_block(
 					}
 				}
 			}
-		}
-	}
-	else {
-		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
-		struct Registers *origin_regs = get_cborigin_registers(origin);
-		struct Stack *origin_stack = get_cborigin_stack(origin);
-		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
-		if (changes_on_merging_registers(origin_regs, regs) || changes_on_merging_stacks(origin_stack, stack) || changes_on_merging_gvwvmap(origin_var_values, var_values)) {
-			merge_registers(origin_regs, regs);
-			merge_stacks(origin_stack, stack);
-			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
-				return error_code;
-			}
-
-			invalidate_cblock_check(block);
 		}
 	}
 

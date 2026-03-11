@@ -44,6 +44,11 @@ DECLARE_STRUCT_LIST_METHODS(CodeBlockOrigin, cborigin, origin, instruction);
 DECLARE_STRUCT_LIST_INSERT_METHOD(CodeBlockOrigin, cborigin, origin);
 
 /**
+ * Returns a pointer to the origin whose instruction matches the given one, or NULL if none matches.
+ */
+struct CodeBlockOrigin *get_cborigin_with_instruction(struct CodeBlockOriginList *list, const char *instruction);
+
+/**
  * Searches for a origin whose type is interruption.
  * This will return the index of the origin within the sorted_origins array. Or -1 if none matches.
  */

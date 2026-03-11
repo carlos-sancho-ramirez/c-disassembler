@@ -49,6 +49,11 @@ int index_of_cborigin_with_instruction(const struct CodeBlockOriginList *list, c
 	return -1;
 }
 
+struct CodeBlockOrigin *get_cborigin_with_instruction(struct CodeBlockOriginList *list, const char *instruction) {
+	int index = index_of_cborigin_with_instruction(list, instruction);
+	return (index < 0)? NULL : list->sorted_origins[index];
+}
+
 DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(CodeBlockOrigin, cborigin, origin, PAGE_ARRAY_GRANULARITY, ORIGINS_PER_PAGE)
 
 static int is_before(struct CodeBlockOrigin *a, struct CodeBlockOrigin *b) {
