@@ -71,6 +71,11 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 	return first - 1;
 }
 
+struct CodeBlock *get_cblock_containing_position(struct CodeBlockList *list, const char *position) {
+	int index = index_of_cblock_containing_position(list, position);
+	return (index < 0)? NULL : list->sorted_blocks[index];
+}
+
 int index_of_cblock_in_list(const struct CodeBlockList *list, const struct CodeBlock *block) {
 	return index_of_cblock_with_start(list, get_cblock_start(block));
 }

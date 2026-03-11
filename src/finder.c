@@ -441,16 +441,14 @@ static int register_jump_target_block(
 		const char *jump_destination,
 		const char *opcode_reference,
 		int diff) {
-	int result = index_of_cblock_containing_position(code_block_list, jump_destination);
-	struct CodeBlock *potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+	struct CodeBlock *potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 	int potential_container_evaluated_at_least_once = potential_container && is_cblock_end_known(potential_container);
 
 	if (potential_container && get_cblock_start(potential_container) == jump_destination) {
-		if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
-			return result;
-		}
+		return add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values);
 	}
 	else {
+		int result;
 		struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 		if (!new_block) {
 			return 1;
@@ -469,12 +467,8 @@ static int register_jump_target_block(
 			invalidate_cblock_check(potential_container);
 		}
 
-		if ((result = insert_cblock(code_block_list, new_block))) {
-			return result;
-		}
+		return insert_cblock(code_block_list, new_block);
 	}
-
-	return 0;
 }
 
 static int register_next_block(
@@ -1964,7 +1958,6 @@ static int read_block_instruction_internal(
 					uint16_t target_relative_cs = get_register_ds(regs);
 					uint16_t target_ip = get_register_dx(regs);
 					const char *jump_destination;
-					int result;
 					struct CodeBlock *potential_container;
 					struct CodeBlock *target_block;
 					const char *instruction;
@@ -1972,12 +1965,12 @@ static int read_block_instruction_internal(
 					addr = (addr * 16 + target_ip) & 0xFFFFF;
 
 					jump_destination = segment_start + addr;
-					result = index_of_cblock_containing_position(code_block_list, jump_destination);
-					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+					potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 					if (potential_container && get_cblock_start(potential_container) == jump_destination) {
 						target_block = potential_container;
 					}
 					else {
+						int result;
 						target_block = prepare_new_cblock(code_block_list);
 						if (!target_block) {
 							return 1;
@@ -2098,7 +2091,6 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0xE8) {
 		const char *jump_destination;
-		int result;
 		struct CodeBlock *potential_container;
 		int potential_container_evaluated_at_least_once;
 		int diff = read_next_word(reader);
@@ -2109,8 +2101,7 @@ static int read_block_instruction_internal(
 		}
 
 		jump_destination = get_cblock_start(block) + reader->buffer_index + diff;
-		result = index_of_cblock_containing_position(code_block_list, jump_destination);
-		potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+		potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 		potential_container_evaluated_at_least_once = potential_container && is_cblock_end_known(potential_container);
 
 		if (value0 == 0xE8) {
@@ -2132,6 +2123,7 @@ static int read_block_instruction_internal(
 			}
 		}
 		else {
+			int result;
 			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 			if (!new_block) {
 				return 1;
@@ -2215,7 +2207,6 @@ static int read_block_instruction_internal(
 				uint16_t target_relative_cs = get_interruption_table_relative_segment(int_table, i);
 				uint16_t target_ip = get_interruption_table_offset(int_table, i);
 				const char *jump_destination;
-				int result;
 				struct CodeBlock *potential_container;
 				struct CodeBlock *target_block;
 				const char *where_offset;
@@ -2223,12 +2214,12 @@ static int read_block_instruction_internal(
 				addr = (addr * 16 + target_ip) & 0xFFFFF;
 
 				jump_destination = segment_start + addr;
-				result = index_of_cblock_containing_position(code_block_list, jump_destination);
-				potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+				potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 				if (potential_container && get_cblock_start(potential_container) == jump_destination) {
 					target_block = potential_container;
 				}
 				else {
+					int result;
 					struct Registers int_regs;
 					if (potential_container) {
 						set_cblock_end(potential_container, jump_destination);
@@ -2356,14 +2347,12 @@ static int read_block_instruction_internal(
 				unsigned int code_relative_target = value;
 				const char *jump_destination;
 				struct CodeBlock *potential_container;
-				int result;
 
 				code_relative_target += ((unsigned int) get_register_cs(regs)) << 4;
 				jump_destination = segment_start + code_relative_target;
 
 				if (jump_destination >= segment_start && jump_destination < segment_start + segment_size) {
-					result = index_of_cblock_containing_position(code_block_list, jump_destination);
-					potential_container = (result < 0)? NULL : code_block_list->sorted_blocks[result];
+					potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 
 					if ((value1 & 0x38) == 0x10) {
 						push_in_stack(stack, NULL, get_cblock_ip(block) + reader->buffer_index);
@@ -2384,6 +2373,7 @@ static int read_block_instruction_internal(
 						}
 					}
 					else {
+						int result;
 						struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
 						if (!new_block) {
 							return 1;

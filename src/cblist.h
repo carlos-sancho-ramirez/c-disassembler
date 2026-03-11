@@ -21,6 +21,11 @@ DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
 int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position);
 
 /**
+ * Returns a pointer to the code block containing the given position, or NULL if none matches.
+ */
+struct CodeBlock *get_cblock_containing_position(struct CodeBlockList *list, const char *position);
+
+/**
  * Inserts a new block into the list.
  *
  * For properly memory management, the given block pointer must be the same returned by
