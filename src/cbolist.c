@@ -49,27 +49,6 @@ int index_of_cborigin_with_instruction(const struct CodeBlockOriginList *list, c
 	return -1;
 }
 
-int index_of_cborigin_containing_position(const struct CodeBlockOriginList *list, const char *position) {
-	int first = 0;
-	int last = list->origin_count;
-	while (last > first) {
-		int index = (first + last) / 2;
-		const struct CodeBlockOrigin *this_origin = list->sorted_origins[index];
-		const int this_origin_type = get_cborigin_type(this_origin);
-		if (this_origin_type < CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && get_cborigin_instruction(this_origin) < position) {
-			first = index + 1;
-		}
-		else if (this_origin_type > CBORIGIN_TYPE_JUMP || this_origin_type == CBORIGIN_TYPE_JUMP && get_cborigin_instruction(this_origin) > position) {
-			last = index;
-		}
-		else {
-			return index;
-		}
-	}
-
-	return (first > 0 && get_cborigin_type(list->sorted_origins[first - 1]) == CBORIGIN_TYPE_JUMP)? first - 1 : -1;
-}
-
 DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(CodeBlockOrigin, cborigin, origin, PAGE_ARRAY_GRANULARITY, ORIGINS_PER_PAGE)
 
 static int is_before(struct CodeBlockOrigin *a, struct CodeBlockOrigin *b) {

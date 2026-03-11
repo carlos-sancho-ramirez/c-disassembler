@@ -6,6 +6,7 @@
 
 DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
+DECLARED_STRUCT_LIST_CONTAINING_POSITION_METHOD(CodeBlock, cblock, block, start);
 
 /**
  * Inserts a new block into the list.
