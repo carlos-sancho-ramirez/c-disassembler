@@ -65,15 +65,6 @@ void clear_##struct_name_snake##_list(struct struct_name##List *list)
  */ \
 int insert_##struct_name_snake(struct struct_name##List *list, struct struct_name *new_##short_item_name)
 
-#define DECLARED_STRUCT_LIST_CONTAINING_POSITION_METHOD(struct_name, struct_name_snake, short_item_name, sorted_property) \
-/** \
- * Searches for a short_item_name whose sorted_property matches the given position. \
- * If none matches, this method will return the short_item_name whose start is closest but before the given position. \
- * This will return -1 if there are not short_item_name##s, or all of them has a sorted_property greater than the given position. \
- * This will return the index of the short_item_name within the sorted_##short_item_name##s array. \
- */ \
-int index_of_##struct_name_snake##_containing_position(const struct struct_name##List *list, const char *position)
-
 #define DECLARE_STRUCT_LIST_METHODS(struct_name, struct_name_snake, short_item_name, sorted_property) \
 DECLARE_STRUCT_LIST_INITIALIZE_METHOD(struct_name, struct_name_snake); \
 DECLARE_STRUCT_LIST_GET_UNSORTED_METHOD(struct_name, struct_name_snake); \

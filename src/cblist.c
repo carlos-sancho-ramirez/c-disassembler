@@ -50,7 +50,8 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 	int last = list->block_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_start = get_cblock_start(list->sorted_blocks[index]);
+		struct CodeBlock *this_block = list->sorted_blocks[index];
+		const char *this_start = get_cblock_start(this_block);
 		if (this_start > position) {
 			last = index;
 		}
@@ -58,8 +59,7 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 			return index;
 		}
 		else {
-			const char *this_end = get_cblock_end(list->sorted_blocks[index]);
-			if (this_end > position) {
+			if (is_cblock_end_known(this_block) && position < get_cblock_end(this_block)) {
 				return index;
 			}
 			else {

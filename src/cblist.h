@@ -6,7 +6,19 @@
 
 DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
-DECLARED_STRUCT_LIST_CONTAINING_POSITION_METHOD(CodeBlock, cblock, block, start);
+
+/**
+ * Searches for a block containing the given position.
+ *
+ * This method will first look for any block whose start matches the given position. If found, the index of that block will be returned.
+ *
+ * If none match, this method will then search for any block whose start is lower than the given
+ * position and its end is greater, returning its index if found. Note that
+ * this will only apply for block whose end is known.
+ *
+ * This will return -1 if there are not blocks in the list, or none of them include the given position.
+ */
+int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position);
 
 /**
  * Inserts a new block into the list.
