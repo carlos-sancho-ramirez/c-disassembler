@@ -22,9 +22,11 @@ const char *get_gvar_start(const struct GlobalVariable *var);
 const char *get_gvar_end(const struct GlobalVariable *var);
 unsigned int get_gvar_size(const struct GlobalVariable *var);
 unsigned int get_gvar_relative_address(const struct GlobalVariable *var);
+unsigned int get_gvar_type(const struct GlobalVariable *var);
 
 void set_gvar_start(struct GlobalVariable *var, const char *start);
 void set_gvar_end(struct GlobalVariable *var, const char *end);
 void set_gvar_relative_address(struct GlobalVariable *var, unsigned int relative_address);
+void set_gvar_type(struct GlobalVariable *var, unsigned int type);
 
 #endif /* _GLOBAL_VARIABLE_H_ */

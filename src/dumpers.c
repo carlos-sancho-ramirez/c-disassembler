@@ -798,7 +798,7 @@ static int valid_char_for_string_literal(char ch) {
 }
 
 static int should_display_string_literal_for_gvar(const struct GlobalVariable *variable) {
-	if (variable->var_type == GVAR_TYPE_BYTE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
+	if (get_gvar_type(variable) == GVAR_TYPE_BYTE_STRING || get_gvar_type(variable) == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 		const char *position;
 		for (position = get_gvar_start(variable); position < get_gvar_end(variable); position++) {
 			if (!valid_char_for_string_literal(*position)) {
@@ -817,7 +817,7 @@ static int valid_char_for_string_with_backquotes(char ch) {
 }
 
 static int should_display_string_with_backquotes_for_gvar(const struct GlobalVariable *variable) {
-	if (variable->var_type == GVAR_TYPE_BYTE_STRING || variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
+	if (get_gvar_type(variable) == GVAR_TYPE_BYTE_STRING || get_gvar_type(variable) == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 		const char *position;
 		for (position = get_gvar_start(variable); position < get_gvar_end(variable); position++) {
 			if (!valid_char_for_string_with_backquotes(*position)) {
@@ -883,13 +883,13 @@ static int dump_variable(
 			print(printer_out, "`\n");
 		}
 	}
-	else if (variable->var_type == GVAR_TYPE_WORD && var_start + 2 == get_gvar_end(variable) ||
-			variable->var_type == GVAR_TYPE_FAR_POINTER && variable_print_length == 2) {
+	else if (get_gvar_type(variable) == GVAR_TYPE_WORD && var_start + 2 == get_gvar_end(variable) ||
+			get_gvar_type(variable) == GVAR_TYPE_FAR_POINTER && variable_print_length == 2) {
 		print(printer_out, "dw ");
 		print_literal_hex_word(printer_out, *((const uint16_t *) var_start));
 		print(printer_out, "\n");
 	}
-	else if (variable->var_type == GVAR_TYPE_FAR_POINTER && var_start + 4 == get_gvar_end(variable)) {
+	else if (get_gvar_type(variable) == GVAR_TYPE_FAR_POINTER && var_start + 4 == get_gvar_end(variable)) {
 		print(printer_out, "dw ");
 		print_literal_hex_word(printer_out, *((const uint16_t *) var_start));
 		print(printer_out, "\ndw ");

@@ -559,7 +559,7 @@ int update_int2140_message_references(
 					set_gvar_start(var, target);
 					set_gvar_relative_address(var, relative_address);
 					set_gvar_end(var, target + length);
-					var->var_type = GVAR_TYPE_BYTE_STRING;
+					set_gvar_type(var, GVAR_TYPE_BYTE_STRING);
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1573,7 +1573,7 @@ static int read_block_instruction_internal(
 				set_gvar_start(var, target);
 				set_gvar_end(var, target + 2);
 				set_gvar_relative_address(var, relative_address);
-				var->var_type = (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE;
+				set_gvar_type(var, (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE);
 
 				insert_gvar(gvar_list, var);
 			}
@@ -1658,9 +1658,9 @@ static int read_block_instruction_internal(
 					const char *value_origin = get_register_si_value_origin(regs);
 
 					set_gvar_start(var, target);
-					var->relative_address = target_relative_address;
+					set_gvar_relative_address(var, target_relative_address);
 					set_gvar_end(var, target);
-					var->var_type = (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING;
+					set_gvar_type(var, (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING);
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1937,7 +1937,7 @@ static int read_block_instruction_internal(
 					set_gvar_start(var, target);
 					set_gvar_end(var, target);
 					set_gvar_relative_address(var, relative_address);
-					var->var_type = GVAR_TYPE_DOLLAR_TERMINATED_STRING;
+					set_gvar_type(var, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
 					insert_gvar(gvar_list, var);
 				}
 				else {
@@ -2704,13 +2704,13 @@ int find_cblocks_and_gvars(
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
 		if (get_gvar_start(variable) == get_gvar_end(variable)) {
-			if (variable->var_type == GVAR_TYPE_BYTE_STRING) {
+			if (get_gvar_type(variable) == GVAR_TYPE_BYTE_STRING) {
 				const char *new_end = (variable_index + 1 < global_variable_list->variable_count)?
 						get_gvar_start(global_variable_list->sorted_variables[variable_index + 1]) :
 						read_result->buffer + read_result->size;
 				set_gvar_end(variable, new_end);
 			}
-			else if (variable->var_type == GVAR_TYPE_WORD_STRING) {
+			else if (get_gvar_type(variable) == GVAR_TYPE_WORD_STRING) {
 				const char *new_end = (variable_index + 1 < global_variable_list->variable_count)?
 						get_gvar_start(global_variable_list->sorted_variables[variable_index + 1]) :
 						read_result->buffer + read_result->size;
@@ -2720,7 +2720,7 @@ int find_cblocks_and_gvars(
 				}
 				set_gvar_end(variable, new_end);
 			}
-			else if (variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
+			else if (get_gvar_type(variable) == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
 				struct CodeBlock *nearest_block = get_cblock_with_start_equals_or_after(cblock_list, get_gvar_start(variable));
 				if (nearest_block && get_cblock_start(nearest_block) == get_gvar_start(variable)) {
 					/* It is weird that the variable is inside a block... not sure what to do in this case */
