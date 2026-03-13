@@ -336,9 +336,17 @@ static int add_jump_type_cborigin_in_block(
 		struct Registers *origin_regs = get_cborigin_registers(origin);
 		struct Stack *origin_stack = get_cborigin_stack(origin);
 		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
-		if (changes_on_merging_registers(origin_regs, regs) || changes_on_merging_stacks(origin_stack, stack) || changes_on_merging_gvwvmap(origin_var_values, var_values)) {
+		if (changes_on_merging_registers(origin_regs, regs)) {
 			merge_registers(origin_regs, regs);
+			invalidate_cblock_check(block);
+		}
+
+		if (changes_on_merging_stacks(origin_stack, stack)) {
 			merge_stacks(origin_stack, stack);
+			invalidate_cblock_check(block);
+		}
+
+		if (changes_on_merging_gvwvmap(origin_var_values, var_values)) {
 			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
 				return error_code;
 			}
