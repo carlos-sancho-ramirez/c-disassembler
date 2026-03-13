@@ -442,7 +442,6 @@ static int register_jump_target_block(
 		const char *opcode_reference,
 		int diff) {
 	struct CodeBlock *potential_container = get_cblock_containing_position(code_block_list, jump_destination);
-	int potential_container_evaluated_at_least_once = potential_container && is_cblock_end_known(potential_container);
 
 	if (potential_container && get_cblock_start(potential_container) == jump_destination) {
 		return add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values);
@@ -459,11 +458,8 @@ static int register_jump_target_block(
 			return result;
 		}
 
-		if (potential_container_evaluated_at_least_once) {
-			if (get_cblock_end(potential_container) > jump_destination) {
-				set_cblock_end(potential_container, jump_destination);
-			}
-
+		if (potential_container) {
+			set_cblock_end(potential_container, jump_destination);
 			invalidate_cblock_check(potential_container);
 		}
 
