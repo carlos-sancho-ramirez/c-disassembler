@@ -8,22 +8,32 @@ DEFINE_STRUCT_LIST(CodeBlock, block);
 DECLARE_STRUCT_LIST_METHODS(CodeBlock, cblock, block, start);
 
 /**
- * Searches for a block containing the given position.
+ * Returns a pointer to the code block containing the given position, or NULL if none matches.
  *
- * This method will first look for any block whose start matches the given position. If found, the index of that block will be returned.
+ * This method will first look for any block whose start matches the given position. If found, a pointer to that block will be returned.
  *
  * If none match, this method will then search for any block whose start is lower than the given
- * position and its end is greater, returning its index if found. Note that
+ * position and its end is greater, returning a pointer to it if found. Note that
  * this will only apply for block whose end is known.
  *
- * This will return -1 if there are not blocks in the list, or none of them include the given position.
- */
-int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position);
-
-/**
- * Returns a pointer to the code block containing the given position, or NULL if none matches.
+ * This method will return NULL if there are not blocks in the list, or none of them include the given position.
  */
 struct CodeBlock *get_cblock_containing_position(struct CodeBlockList *list, const char *position);
+
+/**
+ * Returns a pointer to the code block whose start is equal or just after the given position.
+ *
+ * This will check for any code block whose start matches the given position. If it is found, a
+ * pointer to that matching block will be returned.
+ *
+ * If none of the block in the list has an start matching the given position, this method will
+ * return a pointer to the code block that has a start greater than the given position, but it
+ * is the lowest among all the starts after the given position.
+ *
+ * If none of the blocks have an start greater than the given position, or this list is empty,
+ * NULL will be returned.
+ */
+struct CodeBlock *get_cblock_with_start_equals_or_after(const struct CodeBlockList *list, const char *position);
 
 /**
  * Inserts a new block into the list.

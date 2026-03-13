@@ -45,7 +45,7 @@ int insert_cblock(struct CodeBlockList *list, struct CodeBlock *new_block) {
 	return 0;
 }
 
-int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position) {
+static int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position) {
 	int first = 0;
 	int last = list->block_count;
 	while (last > first) {
@@ -73,6 +73,33 @@ int index_of_cblock_containing_position(const struct CodeBlockList *list, const 
 
 struct CodeBlock *get_cblock_containing_position(struct CodeBlockList *list, const char *position) {
 	int index = index_of_cblock_containing_position(list, position);
+	return (index < 0)? NULL : list->sorted_blocks[index];
+}
+
+static int index_of_cblock_with_start_equals_or_after(const struct CodeBlockList *list, const char *position) {
+	int first = 0;
+	int last = list->block_count;
+
+	while (last > first) {
+		int index = (first + last) / 2;
+		struct CodeBlock *this_block = list->sorted_blocks[index];
+		const char *this_start = get_cblock_start(this_block);
+		if (this_start > position) {
+			last = index;
+		}
+		else if (this_start == position) {
+			return index;
+		}
+		else {
+			first = index + 1;
+		}
+	}
+
+	return (last < list->block_count)? last : -1;
+}
+
+struct CodeBlock *get_cblock_with_start_equals_or_after(const struct CodeBlockList *list, const char *position) {
+	int index = index_of_cblock_with_start_equals_or_after(list, position);
 	return (index < 0)? NULL : list->sorted_blocks[index];
 }
 

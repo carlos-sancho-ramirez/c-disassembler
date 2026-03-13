@@ -2725,14 +2725,15 @@ int find_cblocks_and_gvars(
 				}
 			}
 			else if (variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
-				const int index = index_of_cblock_containing_position(cblock_list, variable->start);
-				if (index < 0 || get_cblock_end(cblock_list->sorted_blocks[index]) <= variable->start) {
-					const char *potential_end = read_result->buffer + read_result->size;
+				struct CodeBlock *nearest_block = get_cblock_with_start_equals_or_after(cblock_list, variable->start);
+				if (nearest_block && get_cblock_start(nearest_block) == variable->start) {
+					/* It is weird that the variable is inside a block... not sure what to do in this case */
+					/* TODO: Find a better solution */
+					variable->end = get_cblock_end(nearest_block);
+				}
+				else {
+					const char *potential_end = nearest_block? get_cblock_end(nearest_block) : read_result->buffer + read_result->size;
 					const char *end;
-
-					if (index + 1 < cblock_list->block_count) {
-						potential_end = get_cblock_start(cblock_list->sorted_blocks[index + 1]);
-					}
 
 					for (end = variable->start; end < potential_end; end++) {
 						if (*end == '$') {
@@ -2742,10 +2743,6 @@ int find_cblocks_and_gvars(
 					}
 
 					variable->end = end;
-				}
-				else {
-					/* TODO: Find a better solution */
-					variable->end = get_cblock_end(cblock_list->sorted_blocks[index]);
 				}
 			}
 		}
