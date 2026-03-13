@@ -94,23 +94,15 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struc
 		struct GlobalVariableWordValueMap accumulated_var_values;
 		if (origin_list->origin_count) {
 			accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
-			initialize_stack(&accumulated_stack);
-			if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list))) {
-				return error_code;
-			}
-
-			initialize_gvwvmap(&accumulated_var_values);
-			if ((error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
+			if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list)) ||
+					(error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
 				return error_code;
 			}
 		}
 
 		new_origin = prepare_new_cborigin(origin_list);
-		if ((error_code = initialize_cborigin_as_interruption(new_origin, regs, var_values))) {
-			return error_code;
-		}
-
-		if ((error_code = insert_cborigin(origin_list, new_origin))) {
+		if ((error_code = initialize_cborigin_as_interruption(new_origin, regs, var_values)) ||
+				(error_code = insert_cborigin(origin_list, new_origin))) {
 			return error_code;
 		}
 
@@ -154,10 +146,10 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 
 		if (origin_list->origin_count) {
 			accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
-			initialize_stack(&accumulated_stack);
-			accumulate_stack_from_cbolist(&accumulated_stack, origin_list);
-			initialize_gvwvmap(&accumulated_var_values);
-			accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list);
+			if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list)) ||
+					(error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
+				return error_code;
+			}
 		}
 
 		if ((error_code = insert_cborigin(origin_list, new_origin))) {

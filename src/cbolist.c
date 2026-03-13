@@ -118,6 +118,7 @@ void accumulate_registers_from_cbolist(struct Registers *regs, const struct Code
 }
 
 int accumulate_stack_from_cbolist(struct Stack *stack, const struct CodeBlockOriginList *list) {
+	initialize_stack(stack);
 	if (list->origin_count) {
 		int error_code;
 		int i;
@@ -134,6 +135,7 @@ int accumulate_stack_from_cbolist(struct Stack *stack, const struct CodeBlockOri
 }
 
 int accumulate_gvwvmap_from_cbolist(struct GlobalVariableWordValueMap *map, const struct CodeBlockOriginList *list) {
+	initialize_gvwvmap(map);
 	if (list->origin_count) {
 		int error_code;
 		int i;

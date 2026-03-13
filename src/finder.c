@@ -366,13 +366,8 @@ static int add_jump_type_cborigin_in_block(
 
 		if (origin_list->origin_count) {
 			accumulate_registers_from_cbolist(&accumulated_regs, origin_list);
-			initialize_stack(&accumulated_stack);
-			if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list))) {
-				return error_code;
-			}
-
-			initialize_gvwvmap(&accumulated_var_values);
-			if ((error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
+			if ((error_code = accumulate_stack_from_cbolist(&accumulated_stack, origin_list)) ||
+					(error_code = accumulate_gvwvmap_from_cbolist(&accumulated_var_values, origin_list))) {
 				return error_code;
 			}
 		}
@@ -2678,15 +2673,9 @@ int find_cblocks_and_gvars(
 				block_max_size = read_result->size - (get_cblock_start(block) - read_result->buffer);
 
 				accumulate_registers_from_cbolist(&regs, block_origin_list);
-				initialize_stack(&stack);
-				if ((error_code = accumulate_stack_from_cbolist(&stack, block_origin_list))) {
-					return error_code;
-				}
-
-				initialize_gvwvmap(&var_values);
-				accumulate_gvwvmap_from_cbolist(&var_values, block_origin_list);
-
-				if ((error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, printer_err, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
+				if ((error_code = accumulate_stack_from_cbolist(&stack, block_origin_list)) ||
+						(error_code = accumulate_gvwvmap_from_cbolist(&var_values, block_origin_list)) ||
+						(error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, printer_err, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
 					return error_code;
 				}
 
