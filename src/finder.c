@@ -557,7 +557,7 @@ int update_int2140_message_references(
 				if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
 					var = prepare_new_gvar(gvar_list);
 					set_gvar_start(var, target);
-					var->relative_address = relative_address;
+					set_gvar_relative_address(var, relative_address);
 					set_gvar_end(var, target + length);
 					var->var_type = GVAR_TYPE_BYTE_STRING;
 
@@ -1572,7 +1572,7 @@ static int read_block_instruction_internal(
 				var = prepare_new_gvar(gvar_list);
 				set_gvar_start(var, target);
 				set_gvar_end(var, target + 2);
-				var->relative_address = relative_address;
+				set_gvar_relative_address(var, relative_address);
 				var->var_type = (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE;
 
 				insert_gvar(gvar_list, var);
@@ -1936,7 +1936,7 @@ static int read_block_instruction_internal(
 					var = prepare_new_gvar(gvar_list);
 					set_gvar_start(var, target);
 					set_gvar_end(var, target);
-					var->relative_address = relative_address;
+					set_gvar_relative_address(var, relative_address);
 					var->var_type = GVAR_TYPE_DOLLAR_TERMINATED_STRING;
 					insert_gvar(gvar_list, var);
 				}

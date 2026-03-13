@@ -3,7 +3,7 @@
 #include "printd.h"
 
 static void log_gvar_insertion(struct GlobalVariable *gvar) {
-	DEBUG_PRINT3("  Registering new global variable from +%x (%d bytes). Type %d.\n", gvar->relative_address, get_gvar_size(gvar), gvar->var_type);
+	DEBUG_PRINT3("  Registering new global variable from +%x (%d bytes). Type %d.\n", get_gvar_relative_address(gvar), get_gvar_size(gvar), gvar->var_type);
 }
 
 DEFINE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start, 8, 256)
@@ -39,7 +39,7 @@ int add_gvar_ref(
 		else {
 			var = prepare_new_gvar(gvar_list);
 			set_gvar_start(var, target);
-			var->relative_address = relative_address;
+			set_gvar_relative_address(var, relative_address);
 			if (value0 & 1) {
 				set_gvar_end(var, target + 2);
 				var->var_type = GVAR_TYPE_WORD;
@@ -140,7 +140,7 @@ int add_far_pointer_gvar_ref(
 		else {
 			var = prepare_new_gvar(gvar_list);
 			set_gvar_start(var, target);
-			var->relative_address = relative_address;
+			set_gvar_relative_address(var, relative_address);
 			set_gvar_end(var, target + 4);
 			var->var_type = GVAR_TYPE_FAR_POINTER;
 

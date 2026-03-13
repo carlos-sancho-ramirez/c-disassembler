@@ -12,10 +12,18 @@ unsigned int get_gvar_size(const struct GlobalVariable *var) {
 	return var->end - var->start;
 }
 
+unsigned int get_gvar_relative_address(const struct GlobalVariable *var) {
+	return var->relative_address;
+}
+
 void set_gvar_start(struct GlobalVariable *var, const char *start) {
 	var->start = start;
 }
 
 void set_gvar_end(struct GlobalVariable *var, const char *end) {
 	var->end = end;
+}
+
+void set_gvar_relative_address(struct GlobalVariable *var, unsigned int relative_address) {
+	var->relative_address = relative_address;
 }

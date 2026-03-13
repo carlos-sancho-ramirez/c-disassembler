@@ -68,7 +68,7 @@ static void dump_address(
 			const int addr = read_next_word(reader);
 			struct GlobalVariable *var;
 			if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
-				const unsigned int reference_address = var->relative_address;
+				const unsigned int reference_address = get_gvar_relative_address(var);
 				print_variable_label(printer, reference_address);
 
 				if (addr < reference_address + buffer_origin) {
@@ -357,7 +357,7 @@ static int dump_instruction(
 				}
 
 				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
-					const unsigned int reference_address = var->relative_address;
+					const unsigned int reference_address = get_gvar_relative_address(var);
 					print_variable_label(printer_out, reference_address);
 
 					if (addr_value < reference_address + buffer_origin) {
@@ -385,7 +385,7 @@ static int dump_instruction(
 				}
 
 				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
-					const unsigned int reference_address = var->relative_address;
+					const unsigned int reference_address = get_gvar_relative_address(var);
 					print_variable_label(printer_out, reference_address);
 
 					if (addr_value < reference_address + buffer_origin) {
@@ -478,7 +478,7 @@ static int dump_instruction(
 				}
 
 				if (reference && (var = get_gvar_from_ref_target(reference)) && !is_ref_in_instruction_address(reference)) {
-					unsigned int ref_var_value = var->relative_address;
+					unsigned int ref_var_value = get_gvar_relative_address(var);
 					if (relocation_segment_present) {
 						print(printer_out, "+");
 					}
@@ -838,7 +838,7 @@ static int dump_variable(
 		struct FilePrinter *printer_err) {
 	const char *var_start = get_gvar_start(variable);
 	print(printer_out, "\n");
-	print_variable_label(printer_out, variable->relative_address);
+	print_variable_label(printer_out, get_gvar_relative_address(variable));
 	print(printer_out, ":\n");
 
 	if (should_display_string_literal_for_gvar(variable)) {
