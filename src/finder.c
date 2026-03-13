@@ -389,8 +389,11 @@ static int add_jump_type_cborigin_in_block(
 				const char *return_destination = segment_start + return_relative_address;
 
 				if (return_destination >= segment_start && return_destination < segment_start + segment_size) {
-					const int return_block_index = index_of_cblock_containing_position(code_block_list, return_destination);
-					if (return_block_index < 0 || get_cblock_end(code_block_list->sorted_blocks[return_block_index]) <= return_destination) {
+					struct CodeBlock *potential_block = get_cblock_containing_position(code_block_list, return_destination);
+					if (potential_block && get_cblock_start(potential_block) == return_destination) {
+						/* TODO: Update the origin of the potential block accordingly */
+					}
+					else {
 						struct Registers return_regs;
 						struct Stack return_stack;
 						struct CodeBlock *return_block = prepare_new_cblock(code_block_list);
@@ -420,9 +423,12 @@ static int add_jump_type_cborigin_in_block(
 							return error_code;
 						}
 
-						if ((error_code = insert_cblock(code_block_list, return_block))) {
-							return error_code;
+						if (potential_block) {
+							set_cblock_end(potential_block, return_destination);
+							invalidate_cblock_check(potential_block);
 						}
+
+						return insert_cblock(code_block_list, return_block);
 					}
 				}
 			}
