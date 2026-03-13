@@ -1049,7 +1049,6 @@ static int read_block_instruction_internal(
 		int potential_container_evaluated_at_least_once;
 		DEBUG_PRINT0("\n");
 
-		set_cblock_size(block, reader->buffer_index);
 		if (jump_destination >= next_destination) {
 			set_cblock_end(block, next_destination);
 			if ((result = register_next_block(reader, regs, stack, var_values, block, code_block_list))) {
