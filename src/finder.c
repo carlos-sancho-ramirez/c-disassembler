@@ -556,9 +556,9 @@ int update_int2140_message_references(
 
 				if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
 					var = prepare_new_gvar(gvar_list);
-					var->start = target;
+					set_gvar_start(var, target);
 					var->relative_address = relative_address;
-					var->end = target + length;
+					set_gvar_end(var, target + length);
 					var->var_type = GVAR_TYPE_BYTE_STRING;
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
@@ -1570,8 +1570,8 @@ static int read_block_instruction_internal(
 			struct GlobalVariable *var;
 			if (var_index < 0) {
 				var = prepare_new_gvar(gvar_list);
-				var->start = target;
-				var->end = target + 2;
+				set_gvar_start(var, target);
+				set_gvar_end(var, target + 2);
 				var->relative_address = relative_address;
 				var->var_type = (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE;
 
@@ -1657,9 +1657,9 @@ static int read_block_instruction_internal(
 					struct GlobalVariable *var = prepare_new_gvar(gvar_list);
 					const char *value_origin = get_register_si_value_origin(regs);
 
-					var->start = target;
+					set_gvar_start(var, target);
 					var->relative_address = target_relative_address;
-					var->end = target;
+					set_gvar_end(var, target);
 					var->var_type = (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING;
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
@@ -1934,8 +1934,8 @@ static int read_block_instruction_internal(
 				int index = index_of_gvar_with_start(gvar_list, target);
 				if (index < 0) {
 					var = prepare_new_gvar(gvar_list);
-					var->start = target;
-					var->end = target;
+					set_gvar_start(var, target);
+					set_gvar_end(var, target);
 					var->relative_address = relative_address;
 					var->var_type = GVAR_TYPE_DOLLAR_TERMINATED_STRING;
 					insert_gvar(gvar_list, var);
@@ -2703,46 +2703,42 @@ int find_cblocks_and_gvars(
 
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
-		if (variable->start == variable->end) {
+		if (get_gvar_start(variable) == get_gvar_end(variable)) {
 			if (variable->var_type == GVAR_TYPE_BYTE_STRING) {
-				if (variable_index + 1 < global_variable_list->variable_count) {
-					variable->end = global_variable_list->sorted_variables[variable_index + 1]->start;
-				}
-				else {
-					variable->end = read_result->buffer + read_result->size;
-				}
+				const char *new_end = (variable_index + 1 < global_variable_list->variable_count)?
+						get_gvar_start(global_variable_list->sorted_variables[variable_index + 1]) :
+						read_result->buffer + read_result->size;
+				set_gvar_end(variable, new_end);
 			}
 			else if (variable->var_type == GVAR_TYPE_WORD_STRING) {
-				if (variable_index + 1 < global_variable_list->variable_count) {
-					variable->end = global_variable_list->sorted_variables[variable_index + 1]->start;
-				}
-				else {
-					variable->end = read_result->buffer + read_result->size;
-				}
+				const char *new_end = (variable_index + 1 < global_variable_list->variable_count)?
+						get_gvar_start(global_variable_list->sorted_variables[variable_index + 1]) :
+						read_result->buffer + read_result->size;
 
-				if ((variable->end - variable->start) & 1) {
-					variable->end--;
+				if ((new_end - get_gvar_start(variable)) & 1) {
+					new_end--;
 				}
+				set_gvar_end(variable, new_end);
 			}
 			else if (variable->var_type == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
-				struct CodeBlock *nearest_block = get_cblock_with_start_equals_or_after(cblock_list, variable->start);
-				if (nearest_block && get_cblock_start(nearest_block) == variable->start) {
+				struct CodeBlock *nearest_block = get_cblock_with_start_equals_or_after(cblock_list, get_gvar_start(variable));
+				if (nearest_block && get_cblock_start(nearest_block) == get_gvar_start(variable)) {
 					/* It is weird that the variable is inside a block... not sure what to do in this case */
 					/* TODO: Find a better solution */
-					variable->end = get_cblock_end(nearest_block);
+					set_gvar_end(variable, get_cblock_end(nearest_block));
 				}
 				else {
 					const char *potential_end = nearest_block? get_cblock_end(nearest_block) : read_result->buffer + read_result->size;
 					const char *end;
 
-					for (end = variable->start; end < potential_end; end++) {
+					for (end = get_gvar_start(variable); end < potential_end; end++) {
 						if (*end == '$') {
 							end++;
 							break;
 						}
 					}
 
-					variable->end = end;
+					set_gvar_end(variable, end);
 				}
 			}
 		}

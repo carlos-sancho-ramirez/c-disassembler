@@ -3,7 +3,7 @@
 #include "printd.h"
 
 static void log_gvar_insertion(struct GlobalVariable *gvar) {
-	DEBUG_PRINT3("  Registering new global variable from +%x (%d bytes). Type %d.\n", gvar->relative_address, (int) (gvar->end - gvar->start), gvar->var_type);
+	DEBUG_PRINT3("  Registering new global variable from +%x (%d bytes). Type %d.\n", gvar->relative_address, get_gvar_size(gvar), gvar->var_type);
 }
 
 DEFINE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start, 8, 256)
@@ -38,14 +38,14 @@ int add_gvar_ref(
 		}
 		else {
 			var = prepare_new_gvar(gvar_list);
-			var->start = target;
+			set_gvar_start(var, target);
 			var->relative_address = relative_address;
 			if (value0 & 1) {
-				var->end = target + 2;
+				set_gvar_end(var, target + 2);
 				var->var_type = GVAR_TYPE_WORD;
 			}
 			else {
-				var->end = target + 1;
+				set_gvar_end(var, target + 1);
 				var->var_type = GVAR_TYPE_BYTE;
 			}
 
@@ -133,15 +133,15 @@ int add_far_pointer_gvar_ref(
 		if (index >= 0) {
 			var = gvar_list->sorted_variables[index];
 			if (var->var_type == GVAR_TYPE_WORD) {
-				var->end += 2;
+				set_gvar_end(var, get_gvar_end(var) + 2);
 				var->var_type = GVAR_TYPE_FAR_POINTER;
 			}
 		}
 		else {
 			var = prepare_new_gvar(gvar_list);
-			var->start = target;
+			set_gvar_start(var, target);
 			var->relative_address = relative_address;
-			var->end = target + 4;
+			set_gvar_end(var, target + 4);
 			var->var_type = GVAR_TYPE_FAR_POINTER;
 
 			if ((error_code = insert_gvar(gvar_list, var))) {
