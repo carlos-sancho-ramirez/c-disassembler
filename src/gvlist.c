@@ -38,15 +38,11 @@ int add_gvar_ref(
 		}
 		else {
 			var = prepare_new_gvar(gvar_list);
-			set_gvar_start(var, target);
-			set_gvar_relative_address(var, relative_address);
 			if (value0 & 1) {
-				set_gvar_end(var, target + 2);
-				set_gvar_type(var, GVAR_TYPE_WORD);
+				initialize_gvar(var, target, 2, relative_address, GVAR_TYPE_WORD);
 			}
 			else {
-				set_gvar_end(var, target + 1);
-				set_gvar_type(var, GVAR_TYPE_BYTE);
+				initialize_gvar(var, target, 1, relative_address, GVAR_TYPE_BYTE);
 			}
 
 			if ((error_code = insert_gvar(gvar_list, var))) {
@@ -133,16 +129,12 @@ int add_far_pointer_gvar_ref(
 		if (index >= 0) {
 			var = gvar_list->sorted_variables[index];
 			if (get_gvar_type(var) == GVAR_TYPE_WORD) {
-				set_gvar_end(var, get_gvar_end(var) + 2);
-				set_gvar_type(var, GVAR_TYPE_FAR_POINTER);
+				set_gvar_length_and_type(var, 4, GVAR_TYPE_FAR_POINTER);
 			}
 		}
 		else {
 			var = prepare_new_gvar(gvar_list);
-			set_gvar_start(var, target);
-			set_gvar_relative_address(var, relative_address);
-			set_gvar_end(var, target + 4);
-			set_gvar_type(var, GVAR_TYPE_FAR_POINTER);
+			initialize_gvar(var, target, 4, relative_address, GVAR_TYPE_FAR_POINTER);
 
 			if ((error_code = insert_gvar(gvar_list, var))) {
 				return error_code;

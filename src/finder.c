@@ -556,10 +556,7 @@ int update_int2140_message_references(
 
 				if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
 					var = prepare_new_gvar(gvar_list);
-					set_gvar_start(var, target);
-					set_gvar_relative_address(var, relative_address);
-					set_gvar_end(var, target + length);
-					set_gvar_type(var, GVAR_TYPE_BYTE_STRING);
+					initialize_gvar(var, target, length, relative_address, GVAR_TYPE_BYTE_STRING);
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1570,12 +1567,11 @@ static int read_block_instruction_internal(
 			struct GlobalVariable *var;
 			if (var_index < 0) {
 				var = prepare_new_gvar(gvar_list);
-				set_gvar_start(var, target);
-				set_gvar_end(var, target + 2);
-				set_gvar_relative_address(var, relative_address);
-				set_gvar_type(var, (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE);
+				initialize_gvar(var, target, 2, relative_address, (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE);
 
-				insert_gvar(gvar_list, var);
+				if ((error_code = insert_gvar(gvar_list, var))) {
+					return error_code;
+				}
 			}
 			else {
 				var = gvar_list->sorted_variables[var_index];
@@ -1656,11 +1652,7 @@ static int read_block_instruction_internal(
 				if (index < 0) {
 					struct GlobalVariable *var = prepare_new_gvar(gvar_list);
 					const char *value_origin = get_register_si_value_origin(regs);
-
-					set_gvar_start(var, target);
-					set_gvar_relative_address(var, target_relative_address);
-					set_gvar_end(var, target);
-					set_gvar_type(var, (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING);
+					initialize_gvar(var, target, 0, target_relative_address, (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING);
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1934,11 +1926,10 @@ static int read_block_instruction_internal(
 				int index = index_of_gvar_with_start(gvar_list, target);
 				if (index < 0) {
 					var = prepare_new_gvar(gvar_list);
-					set_gvar_start(var, target);
-					set_gvar_end(var, target);
-					set_gvar_relative_address(var, relative_address);
-					set_gvar_type(var, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
-					insert_gvar(gvar_list, var);
+					initialize_gvar(var, target, 0, relative_address, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
+					if ((error_code = insert_gvar(gvar_list, var))) {
+						return error_code;
+					}
 				}
 				else {
 					var = gvar_list->sorted_variables[index];
