@@ -81,9 +81,7 @@ int add_gvar_ref(
 		index = index_of_ref_with_instruction(reference_list, opcode_reference);
 		if (index < 0) {
 			var_ref = prepare_new_ref(reference_list);
-			var_ref->instruction = opcode_reference;
-			set_gvar_ref_from_instruction_address(var_ref, var);
-
+			initialize_ref_as_gvar_instruction_address(var_ref, var, opcode_reference);
 			if ((error_code = insert_ref(reference_list, var_ref))) {
 				return error_code;
 			}
@@ -139,8 +137,7 @@ int add_far_pointer_gvar_ref(
 		index = index_of_ref_with_instruction(ref_list, opcode_reference);
 		if (index < 0) {
 			var_ref = prepare_new_ref(ref_list);
-			var_ref->instruction = opcode_reference;
-			set_gvar_ref_from_instruction_address(var_ref, var);
+			initialize_ref_as_gvar_instruction_address(var_ref, var, opcode_reference);
 			if ((error_code = insert_ref(ref_list, var_ref))) {
 				return error_code;
 			}

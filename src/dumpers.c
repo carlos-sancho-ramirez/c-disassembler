@@ -1110,12 +1110,12 @@ int dump(
 					reader.buffer_index = position - block_start;
 					reader.buffer_size = get_cblock_end(block) - block_start;
 
-					while(gvar_ref_count > 0 && gvar_refs[0]->instruction < position) {
+					while(gvar_ref_count > 0 && get_ref_instruction(gvar_refs[0]) < position) {
 						gvar_refs++;
 						gvar_ref_count--;
 					}
 
-					if (gvar_ref_count > 0 && gvar_refs[0]->instruction == position) {
+					if (gvar_ref_count > 0 && get_ref_instruction(gvar_refs[0]) == position) {
 						reference = gvar_refs[0];
 
 						gvar_refs++;

@@ -572,8 +572,7 @@ int update_int2140_message_references(
 					struct Reference *new_ref = prepare_new_ref(ref_list);
 					DEBUG_INDENTED_PRINT1(depth, "DX value origin at %x. Registering reference.\n", (int) (dx_value_origin - segment_start));
 
-					new_ref->instruction = dx_value_origin;
-					set_gvar_ref_from_instruction_immediate_value(new_ref, var);
+					initialize_ref_as_gvar_instruction_immediate_value(new_ref, var, dx_value_origin);
 					if ((error_code = insert_ref(ref_list, new_ref))) {
 						return error_code;
 					}
@@ -1580,8 +1579,7 @@ static int read_block_instruction_internal(
 
 			if (index_of_ref_with_instruction(ref_list, opcode_reference) < 0) {
 				struct Reference *new_ref = prepare_new_ref(ref_list);
-				new_ref->instruction = opcode_reference;
-				set_gvar_ref_from_instruction_address(new_ref, var);
+				initialize_ref_as_gvar_instruction_address(new_ref, var, opcode_reference);
 				if (value0 & 2) {
 					set_gvar_ref_write_access(new_ref);
 				}
@@ -1662,8 +1660,7 @@ static int read_block_instruction_internal(
 					if (value_origin >= segment_start && value_origin < segment_start + segment_size &&
 							(*value_origin & 0xF8) == 0xB8 && index_of_ref_with_instruction(ref_list, value_origin) < 0) {
 						struct Reference *new_ref = prepare_new_ref(ref_list);
-						new_ref->instruction = value_origin;
-						set_gvar_ref_from_instruction_immediate_value(new_ref, var);
+						initialize_ref_as_gvar_instruction_immediate_value(new_ref, var, value_origin);
 						insert_ref(ref_list, new_ref);
 					}
 				}
@@ -1947,8 +1944,7 @@ static int read_block_instruction_internal(
 				instruction = get_register_dx_value_origin(regs);
 				if (instruction && (((unsigned int) *instruction) & 0xFF) == 0xBA && index_of_ref_with_instruction(ref_list, instruction) < 0) {
 					struct Reference *new_ref = prepare_new_ref(ref_list);
-					new_ref->instruction = instruction;
-					set_gvar_ref_from_instruction_immediate_value(new_ref, var);
+					initialize_ref_as_gvar_instruction_immediate_value(new_ref, var, instruction);
 					insert_ref(ref_list, new_ref);
 				}
 
@@ -1997,8 +1993,7 @@ static int read_block_instruction_internal(
 					instruction = get_register_dx_value_origin(regs);
 					if (instruction && (((unsigned int) *instruction) & 0xFF) == 0xBA && index_of_ref_with_instruction(ref_list, instruction) < 0) {
 						struct Reference *new_ref = prepare_new_ref(ref_list);
-						new_ref->instruction = instruction;
-						set_cblock_ref_from_instruction_immediate_value(new_ref, target_block);
+						initialize_ref_as_cblock_instruction_immediate_value(new_ref, target_block, instruction);
 						insert_ref(ref_list, new_ref);
 					}
 				}
@@ -2249,8 +2244,7 @@ static int read_block_instruction_internal(
 				if (where_offset && (((unsigned int) *where_offset) & 0xF8) == 0xB8) {
 					if (index_of_ref_with_instruction(ref_list, where_offset) < 0) {
 						struct Reference *new_ref = prepare_new_ref(ref_list);
-						new_ref->instruction = where_offset;
-						set_cblock_ref_from_instruction_immediate_value(new_ref, target_block);
+						initialize_ref_as_cblock_instruction_immediate_value(new_ref, target_block, where_offset);
 						insert_ref(ref_list, new_ref);
 					}
 				}
@@ -2393,8 +2387,7 @@ static int read_block_instruction_internal(
 
 						if (value_origin && index_of_ref_with_instruction(ref_list, value_origin) < 0) {
 							struct Reference *new_ref = prepare_new_ref(ref_list);
-							new_ref->instruction = value_origin;
-							set_cblock_ref_from_instruction_immediate_value(new_ref, new_block);
+							initialize_ref_as_cblock_instruction_immediate_value(new_ref, new_block, value_origin);
 							if ((error_code = insert_ref(ref_list, new_ref))) {
 								return error_code;
 							}
