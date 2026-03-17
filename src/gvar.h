@@ -35,6 +35,18 @@ struct GlobalVariable {
  */
 void initialize_gvar(struct GlobalVariable *var, const char *start, unsigned int relative_address, unsigned int type);
 
+/**
+ * Whether the length of this variable is known.
+ *
+ * This should be called before calling get_gvar_length or get_gvar_start, especially in arrays,
+ * where we may not know its length yet. If the type is not an array, then it is OK retrieving the
+ * end or length without calling this method first.
+ *
+ * This method can be used as well to know if the end is known as, assuming the same start, knowing
+ * its length means knowing its end as well.
+ */
+int is_gvar_length_known(const struct GlobalVariable *var);
+
 const char *get_gvar_start(const struct GlobalVariable *var);
 const char *get_gvar_end(const struct GlobalVariable *var);
 unsigned int get_gvar_size(const struct GlobalVariable *var);

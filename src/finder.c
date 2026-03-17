@@ -2702,7 +2702,7 @@ int find_cblocks_and_gvars(
 
 	for (variable_index = 0; variable_index < global_variable_list->variable_count; variable_index++) {
 		struct GlobalVariable *variable = global_variable_list->sorted_variables[variable_index];
-		if (get_gvar_start(variable) == get_gvar_end(variable)) {
+		if (!is_gvar_length_known(variable)) {
 			if (get_gvar_type(variable) == GVAR_TYPE_BYTE_STRING) {
 				const char *new_end = (variable_index + 1 < global_variable_list->variable_count)?
 						get_gvar_start(global_variable_list->sorted_variables[variable_index + 1]) :

@@ -12,6 +12,10 @@ const char *get_gvar_start(const struct GlobalVariable *var) {
 	return var->start;
 }
 
+int is_gvar_length_known(const struct GlobalVariable *var) {
+	return !(var->var_type & GVAR_TYPE_ARRAY) || var->start != var->end;
+}
+
 const char *get_gvar_end(const struct GlobalVariable *var) {
 	return (var->var_type & GVAR_TYPE_ARRAY)? var->end : var->start + get_gvar_size(var);
 }

@@ -883,13 +883,13 @@ static int dump_variable(
 			print(printer_out, "`\n");
 		}
 	}
-	else if (get_gvar_type(variable) == GVAR_TYPE_WORD && var_start + 2 == get_gvar_end(variable) ||
+	else if (get_gvar_type(variable) == GVAR_TYPE_WORD ||
 			get_gvar_type(variable) == GVAR_TYPE_FAR_POINTER && variable_print_length == 2) {
 		print(printer_out, "dw ");
 		print_literal_hex_word(printer_out, *((const uint16_t *) var_start));
 		print(printer_out, "\n");
 	}
-	else if (get_gvar_type(variable) == GVAR_TYPE_FAR_POINTER && var_start + 4 == get_gvar_end(variable)) {
+	else if (get_gvar_type(variable) == GVAR_TYPE_FAR_POINTER) {
 		print(printer_out, "dw ");
 		print_literal_hex_word(printer_out, *((const uint16_t *) var_start));
 		print(printer_out, "\ndw ");
