@@ -1935,7 +1935,7 @@ static int read_block_instruction_internal(
 				else {
 					var = gvar_list->sorted_variables[index];
 					if (get_gvar_type(var) == GVAR_TYPE_BYTE) {
-						set_gvar_as_array_with_unknown_length(var, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
+						set_gvar_type(var, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
 					}
 					else if (!(get_gvar_type(var) & GVAR_TYPE_ARRAY)) {
 						WARN_PRINT2("Trying to define new variable at 0x%X with type dollar-terminated-string, but there is already a variable of type %d defined in the same position.", relative_address, get_gvar_type(var));

@@ -52,13 +52,7 @@ void set_gvar_length(struct GlobalVariable *var, unsigned int length) {
 	var->end = var->start + length;
 }
 
-void set_gvar_length_and_type(struct GlobalVariable *var, unsigned int length, unsigned int type) {
-	var->end = var->start + length;
-	var->var_type = type;
-}
-
-void set_gvar_as_array_with_unknown_length(struct GlobalVariable *var, unsigned int type) {
-	assert(type & GVAR_TYPE_ARRAY);
-	var->var_type = type;
+void set_gvar_type(struct GlobalVariable *var, unsigned int type) {
 	var->end = var->start;
+	var->var_type = type;
 }

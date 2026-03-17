@@ -41,9 +41,15 @@ unsigned int get_gvar_size(const struct GlobalVariable *var);
 unsigned int get_gvar_relative_address(const struct GlobalVariable *var);
 unsigned int get_gvar_type(const struct GlobalVariable *var);
 
+/**
+ * Changes the current variable to to the given one.
+ *
+ * This method will also update its corresponding size. In case the given type is an array, the
+ * size will become unknown. Clients of this method should call set_gvar_end or set_gvar_length
+ * whenever its size is known.
+ */
+void set_gvar_type(struct GlobalVariable *var, unsigned int type);
 void set_gvar_end(struct GlobalVariable *var, const char *end);
 void set_gvar_length(struct GlobalVariable *var, unsigned int length);
-void set_gvar_length_and_type(struct GlobalVariable *var, unsigned int length, unsigned int type);
-void set_gvar_as_array_with_unknown_length(struct GlobalVariable *var, unsigned int type);
 
 #endif /* _GLOBAL_VARIABLE_H_ */

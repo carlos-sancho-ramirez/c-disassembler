@@ -124,7 +124,7 @@ int add_far_pointer_gvar_ref(
 		if (index >= 0) {
 			var = gvar_list->sorted_variables[index];
 			if (get_gvar_type(var) == GVAR_TYPE_WORD) {
-				set_gvar_length_and_type(var, 4, GVAR_TYPE_FAR_POINTER);
+				set_gvar_type(var, GVAR_TYPE_FAR_POINTER);
 			}
 		}
 		else {
