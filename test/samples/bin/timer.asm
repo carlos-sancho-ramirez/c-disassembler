@@ -63,5 +63,4 @@ var0169:
 dw 0x0000
 
 var016B:
-db 0x78
-db 0x24
+db 'x$'

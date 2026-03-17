@@ -556,7 +556,8 @@ int update_int2140_message_references(
 
 				if ((index = index_of_gvar_with_start(gvar_list, target)) < 0) {
 					var = prepare_new_gvar(gvar_list);
-					initialize_gvar(var, target, length, relative_address, GVAR_TYPE_BYTE_STRING);
+					initialize_gvar(var, target, relative_address, GVAR_TYPE_BYTE_STRING);
+					set_gvar_length(var, length);
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1567,7 +1568,7 @@ static int read_block_instruction_internal(
 			struct GlobalVariable *var;
 			if (var_index < 0) {
 				var = prepare_new_gvar(gvar_list);
-				initialize_gvar(var, target, 2, relative_address, (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE);
+				initialize_gvar(var, target, relative_address, (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE);
 
 				if ((error_code = insert_gvar(gvar_list, var))) {
 					return error_code;
@@ -1652,7 +1653,7 @@ static int read_block_instruction_internal(
 				if (index < 0) {
 					struct GlobalVariable *var = prepare_new_gvar(gvar_list);
 					const char *value_origin = get_register_si_value_origin(regs);
-					initialize_gvar(var, target, 0, target_relative_address, (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING);
+					initialize_gvar(var, target, target_relative_address, (value0 & 1)? GVAR_TYPE_WORD_STRING : GVAR_TYPE_BYTE_STRING);
 
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
@@ -1926,13 +1927,20 @@ static int read_block_instruction_internal(
 				int index = index_of_gvar_with_start(gvar_list, target);
 				if (index < 0) {
 					var = prepare_new_gvar(gvar_list);
-					initialize_gvar(var, target, 0, relative_address, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
+					initialize_gvar(var, target, relative_address, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
 					if ((error_code = insert_gvar(gvar_list, var))) {
 						return error_code;
 					}
 				}
 				else {
 					var = gvar_list->sorted_variables[index];
+					if (get_gvar_type(var) == GVAR_TYPE_BYTE) {
+						set_gvar_as_array_with_unknown_length(var, GVAR_TYPE_DOLLAR_TERMINATED_STRING);
+					}
+					else if (!(get_gvar_type(var) & GVAR_TYPE_ARRAY)) {
+						WARN_PRINT2("Trying to define new variable at 0x%X with type dollar-terminated-string, but there is already a variable of type %d defined in the same position.", relative_address, get_gvar_type(var));
+						return 1;
+					}
 				}
 				/* What should we do if the variable is present, but its type does not match? Not sure. */
 

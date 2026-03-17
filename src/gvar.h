@@ -13,16 +13,27 @@
 
 struct GlobalVariable {
 	const char *start;
+
+	/**
+	 * Pointer to the first position just after the end of this variable.
+	 * This is only relevant for array types. As the size is known already for all other types.
+	 * This value will match the value at start if the end is still unknown, which is common in arrays.
+	 */
 	const char *end;
 	unsigned int relative_address;
 	unsigned int var_type;
 };
 
 /**
- * Initialize the GlobalVariable structure with the given start, end, relative address and type.
+ * Initialize the GlobalVariable structure with the given start, relative address and type.
+ *
+ * In case of providing an array type, this method will initialize the variable with unknown length.
+ * Whenever its end/length is known, set_gvar_end or set_gvar_length should be called to define it.
+ * If the type is not an array, the length is already known according to its type.
+ *
  * This will overwrite any value in the given struct.
  */
-void initialize_gvar(struct GlobalVariable *var, const char *start, unsigned int length, unsigned int relative_address, unsigned int type);
+void initialize_gvar(struct GlobalVariable *var, const char *start, unsigned int relative_address, unsigned int type);
 
 const char *get_gvar_start(const struct GlobalVariable *var);
 const char *get_gvar_end(const struct GlobalVariable *var);
@@ -31,6 +42,8 @@ unsigned int get_gvar_relative_address(const struct GlobalVariable *var);
 unsigned int get_gvar_type(const struct GlobalVariable *var);
 
 void set_gvar_end(struct GlobalVariable *var, const char *end);
+void set_gvar_length(struct GlobalVariable *var, unsigned int length);
 void set_gvar_length_and_type(struct GlobalVariable *var, unsigned int length, unsigned int type);
+void set_gvar_as_array_with_unknown_length(struct GlobalVariable *var, unsigned int type);
 
 #endif /* _GLOBAL_VARIABLE_H_ */

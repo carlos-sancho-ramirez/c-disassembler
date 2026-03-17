@@ -38,12 +38,7 @@ int add_gvar_ref(
 		}
 		else {
 			var = prepare_new_gvar(gvar_list);
-			if (value0 & 1) {
-				initialize_gvar(var, target, 2, relative_address, GVAR_TYPE_WORD);
-			}
-			else {
-				initialize_gvar(var, target, 1, relative_address, GVAR_TYPE_BYTE);
-			}
+			initialize_gvar(var, target, relative_address, (value0 & 1)? GVAR_TYPE_WORD : GVAR_TYPE_BYTE);
 
 			if ((error_code = insert_gvar(gvar_list, var))) {
 				return error_code;
@@ -134,7 +129,7 @@ int add_far_pointer_gvar_ref(
 		}
 		else {
 			var = prepare_new_gvar(gvar_list);
-			initialize_gvar(var, target, 4, relative_address, GVAR_TYPE_FAR_POINTER);
+			initialize_gvar(var, target, relative_address, GVAR_TYPE_FAR_POINTER);
 
 			if ((error_code = insert_gvar(gvar_list, var))) {
 				return error_code;
