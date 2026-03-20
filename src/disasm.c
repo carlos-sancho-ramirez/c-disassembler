@@ -239,6 +239,7 @@ int main(int argc, const char *argv[]) {
 	struct FilePrinter printer_out;
 	struct FilePrinter printer_err;
 	struct RenameMap renames;
+	struct ProgramContent *pcontent;
 
 	printf("%s", application_name_and_version);
 
@@ -341,14 +342,15 @@ int main(int argc, const char *argv[]) {
 	printer_err.func_list = NULL;
 	printer_err.renames = &renames;
 
-	if ((error_code = find_cblocks_and_gvars(&read_result, &printer_err, &cblock_list, &gvar_list, &segment_start_list, &ref_list))) {
+	pcontent = compose_pcontent(&read_result, &printer_err, &cblock_list, &gvar_list, &segment_start_list, &ref_list);
+	if (!pcontent) {
 		goto end0;
 	}
 
 	DEBUG_PRINT1("Found %d blocks.\n", cblock_list.block_count);
 	initialize_func_list(&func_list);
 
-	if ((error_code = find_functions(cblock_list.sorted_blocks, cblock_list.block_count, &func_list))) {
+	if ((error_code = find_functions(get_pcontent_blocks(pcontent)->sorted_blocks, get_pcontent_blocks(pcontent)->block_count, &func_list))) {
 		goto end;
 	}
 #ifdef DEBUG
@@ -404,6 +406,7 @@ int main(int argc, const char *argv[]) {
 
 	end:
 	clear_func_list(&func_list);
+	free(pcontent);
 
 	end0:
 	if (read_result.relocation_count) {

@@ -2617,7 +2617,7 @@ static int read_block(
 
 #define CBLOCK_EVALUATION_LOOP_LIMIT 20
 
-int find_cblocks_and_gvars(
+struct ProgramContent *compose_pcontent(
 		struct SegmentReadResult *read_result,
 		struct FilePrinter *printer_err,
 		struct CodeBlockList *cblock_list,
@@ -2634,21 +2634,22 @@ int find_cblocks_and_gvars(
 	int variable_index;
 	int evaluation_loop = 1;
 	int evaluation_number = 0;
+	struct ProgramContent *result;
 
 	if (!first_block) {
-		return 1;
+		return NULL;
 	}
 
 	initialize_cblock(first_block, read_result->relative_cs, read_result->ip, read_result->buffer + (read_result->relative_cs * 16 + read_result->ip));
 	origin_list = get_cblock_origin_list(first_block);
 	origin = prepare_new_cborigin(origin_list);
 	initialize_cborigin_as_os(origin, read_result->relative_cs, ds_should_match_cs_at_segment_start(read_result));
-	if ((error_code = insert_cborigin(origin_list, origin))) {
-		return error_code;
+	if (insert_cborigin(origin_list, origin)) {
+		return NULL;
 	}
 
-	if ((error_code = insert_cblock(cblock_list, first_block))) {
-		return error_code;
+	if (insert_cblock(cblock_list, first_block)) {
+		return NULL;
 	}
 
 	evaluate_all = 0;
@@ -2671,10 +2672,10 @@ int find_cblocks_and_gvars(
 				block_max_size = read_result->size - (get_cblock_start(block) - read_result->buffer);
 
 				accumulate_registers_from_cbolist(&regs, block_origin_list);
-				if ((error_code = accumulate_stack_from_cbolist(&stack, block_origin_list)) ||
-						(error_code = accumulate_gvwvmap_from_cbolist(&var_values, block_origin_list)) ||
-						(error_code = read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, printer_err, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list))) {
-					return error_code;
+				if (accumulate_stack_from_cbolist(&stack, block_origin_list) ||
+						accumulate_gvwvmap_from_cbolist(&var_values, block_origin_list) ||
+						read_block(++evaluation_number, evaluation_loop, &regs, &stack, &var_values, read_result->buffer, read_result->size, read_result->sorted_relocations, read_result->relocation_count, printer_err, block, block_max_size, cblock_list, global_variable_list, segment_start_list, reference_list)) {
+					return NULL;
 				}
 
 				clear_stack(&stack);
@@ -2735,5 +2736,6 @@ int find_cblocks_and_gvars(
 			}
 		}
 	}
-	return 0;
+
+	return new_pcontent(cblock_list, global_variable_list, reference_list);
 }

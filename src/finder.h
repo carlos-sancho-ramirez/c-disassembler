@@ -7,8 +7,9 @@
 #include "sslist.h"
 #include "reflist.h"
 #include "printu.h"
+#include "pcontent.h"
 
-int find_cblocks_and_gvars(
+struct ProgramContent *compose_pcontent(
 	struct SegmentReadResult *read_result,
 	struct FilePrinter *printer_err,
 	struct CodeBlockList *code_block_list,
