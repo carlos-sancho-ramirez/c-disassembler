@@ -2634,7 +2634,11 @@ struct ProgramContent *compose_pcontent(
 	int variable_index;
 	int evaluation_loop = 1;
 	int evaluation_number = 0;
+
+	char *result_raw;
 	struct ProgramContent *result;
+	struct CodeBlock *result_blocks;
+	int index;
 
 	if (!first_block) {
 		return NULL;
@@ -2737,5 +2741,18 @@ struct ProgramContent *compose_pcontent(
 		}
 	}
 
-	return new_pcontent(cblock_list, global_variable_list, reference_list);
+	result_raw = malloc(sizeof(struct ProgramContent) + cblock_list->block_count * sizeof(struct CodeBlock));
+	if (!result_raw) {
+		return NULL;
+	}
+
+	result = (struct ProgramContent *) result_raw;
+	result_blocks = (struct CodeBlock *) (result_raw + sizeof(struct ProgramContent));
+
+	for (index = 0; index < cblock_list->block_count; index++) {
+		copy_mcblock_to_cblock(result_blocks + index, cblock_list->sorted_blocks[index]);
+	}
+
+	initialize_pcontent(result, cblock_list->block_count, result_blocks, global_variable_list, reference_list);
+	return result;
 }

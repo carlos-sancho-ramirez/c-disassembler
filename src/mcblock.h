@@ -2,6 +2,7 @@
 #define _MUTABLE_CODE_BLOCK_H_
 
 #include "cbolist.h"
+#include "cblock.h"
 
 /**
  * Structure reflecting a piece of code whose instructions are always executed one after the other, except due to interruptions not explicitly called.
@@ -111,6 +112,8 @@ void invalidate_mcblock_check(struct MutableCodeBlock *block);
 int add_interruption_type_cborigin_in_mcblock(struct MutableCodeBlock *block, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values);
 int add_continue_type_cborigin_in_mcblock(struct MutableCodeBlock *block, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values);
 int add_call_return_type_cborigin_in_mcblock(struct MutableCodeBlock *block, unsigned int behind_count, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values);
+
+void copy_mcblock_to_cblock(struct CodeBlock *cblock, const struct MutableCodeBlock *mcblock);
 
 /**
  * Whether it is valuable to be dumped.

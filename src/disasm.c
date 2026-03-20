@@ -347,10 +347,10 @@ int main(int argc, const char *argv[]) {
 		goto end0;
 	}
 
-	DEBUG_PRINT1("Found %d blocks.\n", cblock_list.block_count);
+	DEBUG_PRINT1("Found %d blocks.\n", get_pcontent_block_count(pcontent));
 	initialize_func_list(&func_list);
 
-	if ((error_code = find_functions(get_pcontent_blocks(pcontent)->sorted_blocks, get_pcontent_blocks(pcontent)->block_count, &func_list))) {
+	if ((error_code = find_functions(get_pcontent_blocks(pcontent), get_pcontent_block_count(pcontent), &func_list))) {
 		goto end;
 	}
 #ifdef DEBUG

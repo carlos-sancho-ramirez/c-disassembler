@@ -182,6 +182,10 @@ int add_call_return_type_cborigin_in_mcblock(struct MutableCodeBlock *block, uns
 	return add_call_return_type_cborigin(&block->origin_list, behind_count, regs, stack, var_values);
 }
 
+void copy_mcblock_to_cblock(struct CodeBlock *cblock, const struct MutableCodeBlock *mcblock) {
+	initialize_cblock(cblock, mcblock->relative_cs, mcblock->ip, mcblock->start, mcblock->end, &mcblock->origin_list);
+}
+
 int should_mcblock_be_dumped(const struct MutableCodeBlock *block) {
 	return block->origin_list.origin_count > 0;
 }

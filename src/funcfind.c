@@ -47,13 +47,13 @@ struct FuncStackState {
 	int *stack_size;
 };
 
-static int find_block_index(struct MutableCodeBlock **blocks, unsigned int block_count, const char *start) {
+static int find_block_index(const struct CodeBlock *blocks, unsigned int block_count, const char *start) {
 	unsigned int first = 0;
 	unsigned int last = block_count;
 
 	while (first < last) {
 		unsigned int index = (first + last) / 2;
-		const char *block_start = get_mcblock_start(blocks[index]);
+		const char *block_start = get_cblock_start(blocks + index);
 		if (start < block_start) {
 			last = index;
 		}
@@ -68,13 +68,13 @@ static int find_block_index(struct MutableCodeBlock **blocks, unsigned int block
 	return -1;
 }
 
-static int find_block_index_containing_instruction(struct MutableCodeBlock **blocks, unsigned int block_count, const char *instruction) {
+static int find_block_index_containing_instruction(const struct CodeBlock *blocks, unsigned int block_count, const char *instruction) {
 	unsigned int first = 0;
 	unsigned int last = block_count;
 
 	while (first < last) {
 		unsigned int index = (first + last) / 2;
-		const char *block_start = get_mcblock_start(blocks[index]);
+		const char *block_start = get_cblock_start(blocks + index);
 		if (instruction < block_start) {
 			last = index;
 		}
@@ -82,7 +82,7 @@ static int find_block_index_containing_instruction(struct MutableCodeBlock **blo
 			return index;
 		}
 		else {
-			if (instruction < get_mcblock_end(blocks[index])) {
+			if (instruction < get_cblock_end(blocks + index)) {
 				return index;
 			}
 			else {
@@ -132,14 +132,14 @@ static int read_addr_diff(struct Reader *reader, int modRm) {
 	}
 }
 
-static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
+static int evaluate_block(const struct CodeBlock *blocks, unsigned int block_count, unsigned int block_index, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
 	const int is_first_block = count_set_bits_in_bitset(state->included_blocks, block_count) == 1;
-	const struct MutableCodeBlock *block = blocks[block_index];
+	const struct CodeBlock *block = blocks + block_index;
 	struct Reader reader;
 	int error_code;
 	int starts_with_push_bp = 0;
 
-	const struct CodeBlockOriginList *origin_list = get_mcblock_origin_list_const(block);
+	const struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
 	const unsigned int origin_count = origin_list->origin_count;
 	unsigned int origin_index;
 	for (origin_index = 0; origin_index < origin_count; origin_index++) {
@@ -192,9 +192,9 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 		}
 	}
 
-	reader.buffer = get_mcblock_start(block);
+	reader.buffer = get_cblock_start(block);
 	reader.buffer_index = 0;
-	reader.buffer_size = get_mcblock_size(block);
+	reader.buffer_size = get_cblock_size(block);
 
 	while (reader.buffer_index < reader.buffer_size) {
 		unsigned int buffer_index = reader.buffer_index;
@@ -231,8 +231,8 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 		else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0 || value0 == 0xEB) {
 			const int value1 = read_next_byte(&reader);
 			const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-			const char *jump_destination = get_mcblock_start(block) + reader.buffer_index + diff;
-			const int target_block_index = find_block_index(blocks, block_count, get_mcblock_start(block) + reader.buffer_index + diff);
+			const char *jump_destination = get_cblock_start(block) + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index + diff);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
@@ -267,10 +267,10 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 			}
 
 			if (value0 == 0xFF && (value1 & 0x38) == 0x10 && bp_relative) {
-				if (block_index + 1 < block_count && get_mcblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
-					struct MutableCodeBlock *next_block = blocks[block_index + 1];
+				if (block_index + 1 < block_count && get_cblock_start(blocks + (block_index + 1)) == reader.buffer + reader.buffer_index) {
+					const struct CodeBlock *next_block = blocks + (block_index + 1);
 					const int instruction_length = (value1 == 0x96)? 4 : 3;
-					if (has_cborigin_of_type_call_return_in_mcblock(next_block, instruction_length)) {
+					if (has_cborigin_of_type_call_return_in_cblock(next_block, instruction_length)) {
 						if (get_bitset_value(available_blocks, block_index + 1)) {
 							set_bitset_value(state->included_blocks, block_index + 1, 1);
 						}
@@ -345,15 +345,15 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 		}
 		else if (value0 == 0xE8) {
 			const int diff = read_next_word(&reader);
-			const uint16_t target_ip = get_mcblock_ip(block) + reader.buffer_index + diff;
-			const char *target = get_mcblock_start(block) + target_ip - get_mcblock_ip(block);
+			const uint16_t target_ip = get_cblock_ip(block) + reader.buffer_index + diff;
+			const char *target = get_cblock_start(block) + target_ip - get_cblock_ip(block);
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
 				const int target_func_index = index_of_func_containing_block_start(func_list, target);
 				if (target_block_index >= 0) {
-					if (block_index + 1 < block_count && get_mcblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
-						struct MutableCodeBlock *next_block = blocks[block_index + 1];
-						if (has_cborigin_of_type_call_return_in_mcblock(next_block, 3)) {
+					if (block_index + 1 < block_count && get_cblock_start(blocks + (block_index + 1)) == reader.buffer + reader.buffer_index) {
+						const struct CodeBlock *next_block = blocks + (block_index + 1);
+						if (has_cborigin_of_type_call_return_in_cblock(next_block, 3)) {
 							if (get_bitset_value(available_blocks, block_index + 1)) {
 								set_bitset_value(state->included_blocks, block_index + 1, 1);
 							}
@@ -373,7 +373,7 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 					}
 				}
 				else {
-					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", get_mcblock_relative_cs(blocks[target_block_index]), get_mcblock_ip(blocks[target_block_index]));
+					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", get_cblock_relative_cs(blocks + target_block_index), get_cblock_ip(blocks + target_block_index));
 					return 1;
 				}
 			}
@@ -384,8 +384,8 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
-			const uint16_t target_ip = get_mcblock_ip(block) + reader.buffer_index + diff;
-			const int target_block_index = find_block_index(blocks, block_count, get_mcblock_start(block) + target_ip - get_mcblock_ip(block));
+			const uint16_t target_ip = get_cblock_ip(block) + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + target_ip - get_cblock_ip(block));
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
@@ -402,7 +402,7 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 		}
 		else if (value0 == 0xCD) {
 			const int value1 = read_next_byte(&reader);
-			const int target_block_index = find_block_index(blocks, block_count, get_mcblock_start(block) + reader.buffer_index);
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index);
 			if (target_block_index >= 0) {
 				if (get_bitset_value(available_blocks, target_block_index)) {
 					set_bitset_value(state->included_blocks, target_block_index, 1);
@@ -425,9 +425,9 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 		reader.buffer_index = next_instruction_index;
 	}
 
-	if (block_index + 1 < block_count && get_mcblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
-		struct MutableCodeBlock *next_block = blocks[block_index + 1];
-		if (get_mcblock_start(next_block) == reader.buffer + reader.buffer_index && has_cborigin_of_type_continue_in_mcblock(next_block)) {
+	if (block_index + 1 < block_count && get_cblock_start(blocks + (block_index + 1)) == reader.buffer + reader.buffer_index) {
+		const struct CodeBlock *next_block = blocks + (block_index + 1);
+		if (get_cblock_start(next_block) == reader.buffer + reader.buffer_index && has_cborigin_of_type_continue_in_cblock(next_block)) {
 			if (get_bitset_value(available_blocks, block_index + 1)) {
 				set_bitset_value(state->included_blocks, block_index + 1, 1);
 			}
@@ -441,7 +441,7 @@ static int evaluate_block(struct MutableCodeBlock **blocks, unsigned int block_c
 	return 0;
 }
 
-static int find_all_blocks_in_function(struct MutableCodeBlock **blocks, unsigned int block_count, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
+static int find_all_blocks_in_function(const struct CodeBlock *blocks, unsigned int block_count, packed_data_t *available_blocks, struct FuncState *state, const struct FunctionList *func_list) {
 	packed_data_t *evaluated_blocks = allocate_bitset(block_count);
 	int block_index;
 
@@ -467,16 +467,16 @@ static int find_all_blocks_in_function(struct MutableCodeBlock **blocks, unsigne
 	return 0;
 }
 
-static int check_block_stack(struct MutableCodeBlock **blocks, unsigned int block_count, unsigned int block_index, unsigned int included_block_index, unsigned int included_blocks_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map, const struct FunctionList *func_list) {
-	const struct MutableCodeBlock *block = blocks[block_index];
+static int check_block_stack(const struct CodeBlock *blocks, unsigned int block_count, unsigned int block_index, unsigned int included_block_index, unsigned int included_blocks_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map, const struct FunctionList *func_list) {
+	const struct CodeBlock *block = blocks + block_index;
 	struct Reader reader;
 	int error_code;
 	unsigned int stack_word_count = stack_state->stack_size[included_block_index];
 
 	assert(stack_word_count >= 0);
-	reader.buffer = get_mcblock_start(block);
+	reader.buffer = get_cblock_start(block);
 	reader.buffer_index = 0;
-	reader.buffer_size = get_mcblock_size(block);
+	reader.buffer_size = get_cblock_size(block);
 
 	while (reader.buffer_index < reader.buffer_size) {
 		unsigned int buffer_index = reader.buffer_index;
@@ -516,8 +516,8 @@ static int check_block_stack(struct MutableCodeBlock **blocks, unsigned int bloc
 		else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0 || value0 == 0xEB) {
 			const int value1 = read_next_byte(&reader);
 			const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-			const char *jump_destination = get_mcblock_start(block) + reader.buffer_index + diff;
-			const int target_block_index = find_block_index(blocks, block_count, get_mcblock_start(block) + reader.buffer_index + diff);
+			const char *jump_destination = get_cblock_start(block) + reader.buffer_index + diff;
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index + diff);
 			const int target_included_block_index = find_included_block_index(target_block_index, block_map, included_blocks_count);
 
 			if (target_included_block_index >= 0) {
@@ -549,14 +549,14 @@ static int check_block_stack(struct MutableCodeBlock **blocks, unsigned int bloc
 		}
 		else if (value0 == 0xE8) {
 			const int diff = read_next_word(&reader);
-			const char *target = get_mcblock_start(block) + reader.buffer_index + diff;
+			const char *target = get_cblock_start(block) + reader.buffer_index + diff;
 			const int target_block_index = find_block_index(blocks, block_count, target);
 			if (target_block_index >= 0) {
 				const int target_func_index = index_of_func_containing_block_start(func_list, target);
 				if (target_func_index >= 0) {
-					if (block_index + 1 < block_count && get_mcblock_start(blocks[block_index + 1]) == reader.buffer + reader.buffer_index) {
-						struct MutableCodeBlock *next_block = blocks[block_index + 1];
-						if (has_cborigin_of_type_call_return_in_mcblock(next_block, 3)) {
+					if (block_index + 1 < block_count && get_cblock_start(blocks + (block_index + 1)) == reader.buffer + reader.buffer_index) {
+						const struct CodeBlock *next_block = blocks + (block_index + 1);
+						if (has_cborigin_of_type_call_return_in_cblock(next_block, 3)) {
 							const struct Function *target_func = func_list->sorted_funcs[target_func_index];
 							if (target_func->return_size & 1) {
 								WARN_PRINT0("Target function has an odd value in its return size.\n");
@@ -589,7 +589,7 @@ static int check_block_stack(struct MutableCodeBlock **blocks, unsigned int bloc
 					}
 				}
 				else {
-					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", get_mcblock_relative_cs(blocks[target_block_index]), get_mcblock_ip(blocks[target_block_index]));
+					WARN_PRINT2("Trying to call to +%x:%x, but it is not yet considered a valid function.\n", get_cblock_relative_cs(blocks + target_block_index), get_cblock_ip(blocks + target_block_index));
 					return 1;
 				}
 			}
@@ -600,7 +600,7 @@ static int check_block_stack(struct MutableCodeBlock **blocks, unsigned int bloc
 		}
 		else if (value0 == 0xE9) {
 			const int diff = read_next_word(&reader);
-			const int target_block_index = find_block_index(blocks, block_count, get_mcblock_start(block) + reader.buffer_index + diff);
+			const int target_block_index = find_block_index(blocks, block_count, get_cblock_start(block) + reader.buffer_index + diff);
 			const int target_included_block_index = find_included_block_index(target_block_index, block_map, included_blocks_count);
 
 			if (target_included_block_index >= 0) {
@@ -639,7 +639,7 @@ static int check_block_stack(struct MutableCodeBlock **blocks, unsigned int bloc
 	return 0;
 }
 
-static int check_stack_in_all_blocks(struct MutableCodeBlock **blocks, unsigned int block_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map, const struct FunctionList *func_list) {
+static int check_stack_in_all_blocks(const struct CodeBlock *blocks, unsigned int block_count, const struct FuncState *state, struct FuncStackState *stack_state, const int *block_map, const struct FunctionList *func_list) {
 	const packed_data_t *included_blocks = state->included_blocks;
 	const unsigned int included_blocks_count = count_set_bits_in_bitset(included_blocks, block_count);
 	packed_data_t *evaluated_included_blocks = allocate_bitset(included_blocks_count);
@@ -664,7 +664,7 @@ static int check_stack_in_all_blocks(struct MutableCodeBlock **blocks, unsigned 
 	return 0;
 }
 
-int find_functions(struct MutableCodeBlock **blocks, unsigned int block_count, struct FunctionList *func_list) {
+int find_functions(const struct CodeBlock *blocks, unsigned int block_count, struct FunctionList *func_list) {
 	packed_data_t *available_blocks = allocate_bitset(block_count);
 	int block_index;
 	int new_function_added;
@@ -683,8 +683,8 @@ int find_functions(struct MutableCodeBlock **blocks, unsigned int block_count, s
 
 		for (block_index = 0; block_index < block_count; block_index++) {
 			if (get_bitset_value(available_blocks, block_index)) {
-				const struct MutableCodeBlock *block = blocks[block_index];
-				const struct CodeBlockOriginList *origin_list = get_mcblock_origin_list_const(block);
+				const struct CodeBlock *block = blocks + block_index;
+				const struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
 				int origin_index;
 				int valid_origins = origin_list->origin_count > 0;
 
@@ -723,7 +723,7 @@ int find_functions(struct MutableCodeBlock **blocks, unsigned int block_count, s
 					state.starting_blocks = allocate_bitset(block_count);
 					set_bitset_value(state.starting_blocks, block_index, 1);
 
-					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", get_mcblock_relative_cs(block), get_mcblock_ip(block));
+					DEBUG_PRINT2(" Finding all blocks in function starting at +%x:%x\n", get_cblock_relative_cs(block), get_cblock_ip(block));
 					if (!find_all_blocks_in_function(blocks, block_count, available_blocks, &state, func_list) && (state.flags & STATE_FLAG_RET_TYPE_MASK) != STATE_FLAG_RET_TYPE_UNKNOWN) {
 						struct FuncStackState stack_state;
 						const unsigned int included_blocks_count = count_set_bits_in_bitset(state.included_blocks, block_count);
@@ -802,7 +802,7 @@ int find_functions(struct MutableCodeBlock **blocks, unsigned int block_count, s
 
 							new_func->return_size = state.return_size;
 							new_func->block_count = count_set_bits_in_bitset(state.included_blocks, block_count);
-							new_func->blocks = malloc(sizeof(struct MutableCodeBlock *) * new_func->block_count);
+							new_func->blocks = malloc(sizeof(struct CodeBlock) * new_func->block_count);
 							if (!new_func->blocks) {
 								free_func_content(new_func);
 								free(stack_state.stack_size);
@@ -811,7 +811,7 @@ int find_functions(struct MutableCodeBlock **blocks, unsigned int block_count, s
 								return 1;
 							}
 
-							new_func_included_block_start = get_included_block_start(new_func);
+							new_func_included_block_start = get_func_included_block_start(new_func);
 							for (all_block_index = 0; all_block_index < block_count; all_block_index++) {
 								if (get_bitset_value(state.included_blocks, all_block_index)) {
 									new_func->blocks[new_blocks_index] = blocks[all_block_index];

@@ -1,25 +1,22 @@
 #include "pcontent.h"
 
-static void initialize_pcontent(
+void initialize_pcontent(
 		struct ProgramContent *pcontent,
-		const struct MutableCodeBlockList *blocks,
+		unsigned int block_count,
+		const struct CodeBlock *blocks,
 		const struct GlobalVariableList *vars,
 		const struct ReferenceList *refs) {
+	pcontent->block_count = block_count;
 	pcontent->blocks = blocks;
 	pcontent->vars = vars;
 	pcontent->refs = refs;
 }
 
-struct ProgramContent *new_pcontent(
-		const struct MutableCodeBlockList *blocks,
-		const struct GlobalVariableList *vars,
-		const struct ReferenceList *refs) {
-	struct ProgramContent *pcontent = malloc(sizeof(struct ProgramContent));
-	initialize_pcontent(pcontent, blocks, vars, refs);
-	return pcontent;
+unsigned int get_pcontent_block_count(const struct ProgramContent *pcontent) {
+	return pcontent->block_count;
 }
 
-const struct MutableCodeBlockList *get_pcontent_blocks(const struct ProgramContent *pcontent) {
+const struct CodeBlock *get_pcontent_blocks(const struct ProgramContent *pcontent) {
 	return pcontent->blocks;
 }
 

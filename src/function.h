@@ -1,7 +1,7 @@
 #ifndef _FUNCTION_H_
 #define _FUNCTION_H_
 
-#include "mcblist.h"
+#include "cblock.h"
 
 #define FUNC_RET_TYPE_NEAR 1
 #define FUNC_RET_TYPE_FAR 2
@@ -65,10 +65,10 @@ struct Function {
 	packed_data_t *included_block_start;
 
 	/**
-	 * Array of block pointers for all blocks composing this function.
+	 * Array for all blocks composing this function.
 	 * Blocks are sorted by its start position.
 	 */
-	struct MutableCodeBlock **blocks;
+	struct CodeBlock *blocks;
 };
 
 int initialize_func(struct Function *func, unsigned int block_count);
@@ -78,10 +78,10 @@ int get_function_return_type(const struct Function *func);
 int function_uses_bp(const struct Function *func);
 int function_owns_bp(const struct Function *func);
 
-packed_data_t *get_included_block_start(struct Function *func);
+packed_data_t *get_func_included_block_start(struct Function *func);
 
-unsigned int get_starting_block_count(const struct Function *func);
-const struct MutableCodeBlock *get_starting_block(const struct Function *func, unsigned int index);
+unsigned int get_func_starting_block_count(const struct Function *func);
+const struct CodeBlock *get_func_starting_block(const struct Function *func, unsigned int index);
 
 void set_function_return_type(struct Function *func, int return_type);
 void set_function_uses_bp(struct Function *func, unsigned int min_known_word_argument_count);
