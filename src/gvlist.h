@@ -10,7 +10,7 @@ DECLARE_STRUCT_LIST_INSERT_METHOD(GlobalVariable, gvar, variable);
 
 #include "register.h"
 #include "sslist.h"
-#include "reflist.h"
+#include "mreflist.h"
 
 /**
  * Inserts a new global variable reference.
@@ -20,10 +20,10 @@ DECLARE_STRUCT_LIST_INSERT_METHOD(GlobalVariable, gvar, variable);
  *
  * Note that, in case write_access is 0, write_value, write_value_defined and write_value_defined_relative will be ignored.
  */
-int add_gvar_ref(
+int add_gvar_mref(
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list,
+		struct MutableReferenceList *reference_list,
 		struct Registers *regs,
 		struct GlobalVariableWordValueMap *var_values,
 		int segment_index,
@@ -37,9 +37,9 @@ int add_gvar_ref(
 		const int write_value_defined_relative,
 		uint16_t write_value);
 
-int add_far_pointer_gvar_ref(
+int add_far_pointer_gvar_mref(
 		struct GlobalVariableList *global_variable_list,
-		struct ReferenceList *reference_list,
+		struct MutableReferenceList *reference_list,
 		struct Registers *regs,
 		int segment_index,
 		int result_address,

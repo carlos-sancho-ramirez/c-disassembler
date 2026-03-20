@@ -8,10 +8,10 @@ static void log_gvar_insertion(struct GlobalVariable *gvar) {
 
 DEFINE_STRUCT_LIST_METHODS(GlobalVariable, gvar, variable, start, 8, 256)
 
-int add_gvar_ref(
+int add_gvar_mref(
 		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list,
+		struct MutableReferenceList *reference_list,
 		struct Registers *regs,
 		struct GlobalVariableWordValueMap *var_values,
 		int segment_index,
@@ -31,7 +31,7 @@ int add_gvar_ref(
 		const char *target = segment_start + relative_address;
 		int index = index_of_gvar_with_start(gvar_list, target);
 		struct GlobalVariable *var;
-		struct Reference *var_ref;
+		struct MutableReference *var_ref;
 
 		if (index >= 0) {
 			var = gvar_list->sorted_variables[index];
@@ -81,7 +81,7 @@ int add_gvar_ref(
 		index = index_of_ref_with_instruction(reference_list, opcode_reference);
 		if (index < 0) {
 			var_ref = prepare_new_ref(reference_list);
-			initialize_ref_as_gvar_instruction_address(var_ref, var, opcode_reference);
+			initialize_mref_as_gvar_instruction_address(var_ref, var, opcode_reference);
 			if ((error_code = insert_ref(reference_list, var_ref))) {
 				return error_code;
 			}
@@ -91,20 +91,20 @@ int add_gvar_ref(
 		}
 
 		if (read_access) {
-			set_gvar_ref_read_access(var_ref);
+			set_gvar_mref_read_access(var_ref);
 		}
 
 		if (write_access) {
-			set_gvar_ref_write_access(var_ref);
+			set_gvar_mref_write_access(var_ref);
 		}
 	}
 
 	return 0;
 }
 
-int add_far_pointer_gvar_ref(
+int add_far_pointer_gvar_mref(
 		struct GlobalVariableList *gvar_list,
-		struct ReferenceList *ref_list,
+		struct MutableReferenceList *ref_list,
 		struct Registers *regs,
 		int segment_index,
 		int result_address,
@@ -117,7 +117,7 @@ int add_far_pointer_gvar_ref(
 		const char *target = segment_start + relative_address;
 		int index = index_of_gvar_with_start(gvar_list, target);
 		struct GlobalVariable *var;
-		struct Reference *var_ref;
+		struct MutableReference *var_ref;
 
 		if (index >= 0) {
 			var = gvar_list->sorted_variables[index];
@@ -137,7 +137,7 @@ int add_far_pointer_gvar_ref(
 		index = index_of_ref_with_instruction(ref_list, opcode_reference);
 		if (index < 0) {
 			var_ref = prepare_new_ref(ref_list);
-			initialize_ref_as_gvar_instruction_address(var_ref, var, opcode_reference);
+			initialize_mref_as_gvar_instruction_address(var_ref, var, opcode_reference);
 			if ((error_code = insert_ref(ref_list, var_ref))) {
 				return error_code;
 			}
@@ -147,7 +147,7 @@ int add_far_pointer_gvar_ref(
 		}
 
 		if (read_access) {
-			set_gvar_ref_read_access(var_ref);
+			set_gvar_mref_read_access(var_ref);
 		}
 	}
 

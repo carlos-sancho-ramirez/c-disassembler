@@ -5,7 +5,7 @@
 #include "mcblist.h"
 #include "gvlist.h"
 #include "sslist.h"
-#include "reflist.h"
+#include "mreflist.h"
 #include "printu.h"
 #include "pcontent.h"
 
@@ -15,6 +15,6 @@ struct ProgramContent *compose_pcontent(
 	struct MutableCodeBlockList *code_block_list,
 	struct GlobalVariableList *global_variable_list,
 	struct SegmentStartList *segment_start_list,
-	struct ReferenceList *reference_list);
+	struct MutableReferenceList *reference_list);
 
 #endif /* _FINDER_H_ */

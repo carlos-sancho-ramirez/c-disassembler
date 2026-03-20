@@ -3,7 +3,7 @@
 
 #include "mcblock.h"
 #include "gvar.h"
-#include "ref.h"
+#include "mref.h"
 #include "funclist.h"
 #include "printu.h"
 
@@ -16,7 +16,7 @@ int dump(
 	unsigned int global_variable_count,
 	const char **segment_starts,
 	unsigned int segment_start_count,
-	struct Reference **global_variable_references,
+	struct MutableReference **global_variable_references,
 	unsigned int global_variable_reference_count,
 	const char **sorted_relocations,
 	unsigned int relocation_count,

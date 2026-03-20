@@ -52,7 +52,7 @@ static void dump_address(
 		const char *buffer,
 		unsigned int buffer_origin,
 		struct Reader *reader,
-		struct Reference *reference,
+		struct MutableReference *reference,
 		struct FilePrinter *printer,
 		int value1,
 		const char *segment,
@@ -67,7 +67,7 @@ static void dump_address(
 		if ((value1 & 0xC7) == 0x06) {
 			const int addr = read_next_word(reader);
 			struct GlobalVariable *var;
-			if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
+			if (reference && (var = get_gvar_from_mref_target(reference)) && is_mref_in_instruction_address(reference)) {
 				const unsigned int reference_address = get_gvar_relative_address(var);
 				print_variable_label(printer, reference_address);
 
@@ -104,7 +104,7 @@ static void dump_address_register_combination(
 		const char *buffer,
 		unsigned int buffer_origin,
 		struct Reader *reader,
-		struct Reference *reference,
+		struct MutableReference *reference,
 		struct FilePrinter *printer,
 		int value0,
 		int value1,
@@ -128,7 +128,7 @@ static int dump_instruction(
 		unsigned int buffer_origin,
 		struct Reader *reader,
 		const struct MutableCodeBlock *block,
-		struct Reference *reference,
+		struct MutableReference *reference,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		struct FunctionList *func_list,
@@ -356,7 +356,7 @@ static int dump_instruction(
 					print(printer_out, ":");
 				}
 
-				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
+				if (reference && (var = get_gvar_from_mref_target(reference)) && is_mref_in_instruction_address(reference)) {
 					const unsigned int reference_address = get_gvar_relative_address(var);
 					print_variable_label(printer_out, reference_address);
 
@@ -384,7 +384,7 @@ static int dump_instruction(
 					print(printer_out, ":");
 				}
 
-				if (reference && (var = get_gvar_from_ref_target(reference)) && is_ref_in_instruction_address(reference)) {
+				if (reference && (var = get_gvar_from_mref_target(reference)) && is_mref_in_instruction_address(reference)) {
 					const unsigned int reference_address = get_gvar_relative_address(var);
 					print_variable_label(printer_out, reference_address);
 
@@ -477,7 +477,7 @@ static int dump_instruction(
 					print(printer_out, RELOCATION_VALUE);
 				}
 
-				if (reference && (var = get_gvar_from_ref_target(reference)) && !is_ref_in_instruction_address(reference)) {
+				if (reference && (var = get_gvar_from_mref_target(reference)) && !is_mref_in_instruction_address(reference)) {
 					unsigned int ref_var_value = get_gvar_relative_address(var);
 					if (relocation_segment_present) {
 						print(printer_out, "+");
@@ -485,7 +485,7 @@ static int dump_instruction(
 
 					print_variable_label(printer_out, ref_var_value);
 				}
-				else if (reference && (ref_block = get_cblock_from_ref_target(reference))) {
+				else if (reference && (ref_block = get_mcblock_from_mref_target(reference))) {
 					if (relocation_segment_present) {
 						print(printer_out, "+");
 					}
@@ -971,7 +971,7 @@ int dump(
 		unsigned int global_variable_count,
 		const char **segment_starts,
 		unsigned int segment_start_count,
-		struct Reference **gvar_refs,
+		struct MutableReference **gvar_refs,
 		unsigned int gvar_ref_count,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
@@ -1103,19 +1103,19 @@ int dump(
 					}
 				}
 				else {
-					struct Reference *reference = NULL;
+					struct MutableReference *reference = NULL;
 					const char *block_start = get_mcblock_start(block);
 
 					reader.buffer = block_start;
 					reader.buffer_index = position - block_start;
 					reader.buffer_size = get_mcblock_end(block) - block_start;
 
-					while(gvar_ref_count > 0 && get_ref_instruction(gvar_refs[0]) < position) {
+					while(gvar_ref_count > 0 && get_mref_instruction(gvar_refs[0]) < position) {
 						gvar_refs++;
 						gvar_ref_count--;
 					}
 
-					if (gvar_ref_count > 0 && get_ref_instruction(gvar_refs[0]) == position) {
+					if (gvar_ref_count > 0 && get_mref_instruction(gvar_refs[0]) == position) {
 						reference = gvar_refs[0];
 
 						gvar_refs++;

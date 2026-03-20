@@ -5,7 +5,7 @@ void initialize_pcontent(
 		unsigned int block_count,
 		const struct CodeBlock *blocks,
 		const struct GlobalVariableList *vars,
-		const struct ReferenceList *refs) {
+		const struct MutableReferenceList *refs) {
 	pcontent->block_count = block_count;
 	pcontent->blocks = blocks;
 	pcontent->vars = vars;
@@ -24,6 +24,6 @@ const struct GlobalVariableList *get_pcontent_vars(const struct ProgramContent *
 	return pcontent->vars;
 }
 
-const struct ReferenceList *get_pcontent_refs(const struct ProgramContent *pcontent) {
+const struct MutableReferenceList *get_pcontent_refs(const struct ProgramContent *pcontent) {
 	return pcontent->refs;
 }

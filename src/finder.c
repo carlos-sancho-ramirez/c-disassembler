@@ -510,7 +510,7 @@ int update_int2140_message_references(
 		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *ref_list,
+		struct MutableReferenceList *ref_list,
 		struct CheckedBlocks *checked_blocks,
 		const int cx_defined,
 		const int cx_relative,
@@ -569,10 +569,10 @@ int update_int2140_message_references(
 				}
 
 				if (dx_value_origin && index_of_ref_with_instruction(ref_list, dx_value_origin) < 0) {
-					struct Reference *new_ref = prepare_new_ref(ref_list);
+					struct MutableReference *new_ref = prepare_new_ref(ref_list);
 					DEBUG_INDENTED_PRINT1(depth, "DX value origin at %x. Registering reference.\n", (int) (dx_value_origin - segment_start));
 
-					initialize_ref_as_gvar_instruction_immediate_value(new_ref, var, dx_value_origin);
+					initialize_mref_as_gvar_instruction_immediate_value(new_ref, var, dx_value_origin);
 					if ((error_code = insert_ref(ref_list, new_ref))) {
 						return error_code;
 					}
@@ -865,7 +865,7 @@ static int read_block_instruction_internal(
 		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *ref_list,
+		struct MutableReferenceList *ref_list,
 		int segment_index,
 		const char *opcode_reference,
 		int *next_instruction_potentially_reached) {
@@ -883,7 +883,7 @@ static int read_block_instruction_internal(
 						segment_index = SEGMENT_INDEX_DS;
 					}
 
-					if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+					if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 						return error_code;
 					}
 				}
@@ -1092,7 +1092,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+			if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 				return error_code;
 			}
 		}
@@ -1149,7 +1149,7 @@ static int read_block_instruction_internal(
 				segment_index = SEGMENT_INDEX_DS;
 			}
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+			if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 				return error_code;
 			}
 		}
@@ -1184,7 +1184,7 @@ static int read_block_instruction_internal(
 			const int write_value = get_word_register(regs, (value1 >> 3) & 7);
 			const int seg_index = (segment_index == SEGMENT_INDEX_UNDEFINED)? SEGMENT_INDEX_DS : segment_index;
 
-			if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, seg_index, addr, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
+			if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, seg_index, addr, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
 				return error_code;
 			}
 		}
@@ -1339,7 +1339,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, 1, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
+				if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, 1, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
 					return error_code;
 				}
 
@@ -1480,7 +1480,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 1, top_defined, top_defined_relative, stack_top))) {
+				if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, result_address, segment_start, value0, opcode_reference, 0, 1, top_defined, top_defined_relative, stack_top))) {
 					return error_code;
 				}
 			}
@@ -1578,13 +1578,13 @@ static int read_block_instruction_internal(
 			}
 
 			if (index_of_ref_with_instruction(ref_list, opcode_reference) < 0) {
-				struct Reference *new_ref = prepare_new_ref(ref_list);
-				initialize_ref_as_gvar_instruction_address(new_ref, var, opcode_reference);
+				struct MutableReference *new_ref = prepare_new_ref(ref_list);
+				initialize_mref_as_gvar_instruction_address(new_ref, var, opcode_reference);
 				if (value0 & 2) {
-					set_gvar_ref_write_access(new_ref);
+					set_gvar_mref_write_access(new_ref);
 				}
 				else {
-					set_gvar_ref_read_access(new_ref);
+					set_gvar_mref_read_access(new_ref);
 				}
 
 				insert_ref(ref_list, new_ref);
@@ -1659,8 +1659,8 @@ static int read_block_instruction_internal(
 
 					if (value_origin >= segment_start && value_origin < segment_start + segment_size &&
 							(*value_origin & 0xF8) == 0xB8 && index_of_ref_with_instruction(ref_list, value_origin) < 0) {
-						struct Reference *new_ref = prepare_new_ref(ref_list);
-						initialize_ref_as_gvar_instruction_immediate_value(new_ref, var, value_origin);
+						struct MutableReference *new_ref = prepare_new_ref(ref_list);
+						initialize_mref_as_gvar_instruction_immediate_value(new_ref, var, value_origin);
 						insert_ref(ref_list, new_ref);
 					}
 				}
@@ -1737,7 +1737,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_far_pointer_gvar_ref(gvar_list, ref_list, regs, segment_index, result_address, segment_start, opcode_reference, 1))) {
+				if ((error_code = add_far_pointer_gvar_mref(gvar_list, ref_list, regs, segment_index, result_address, segment_start, opcode_reference, 1))) {
 					return error_code;
 				}
 			}
@@ -1829,7 +1829,7 @@ static int read_block_instruction_internal(
 					segment_index = SEGMENT_INDEX_DS;
 				}
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, diff_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
+				if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, segment_index, diff_address, segment_start, value0, opcode_reference, 0, 0, 0, 0, 0))) {
 					return error_code;
 				}
 
@@ -1943,8 +1943,8 @@ static int read_block_instruction_internal(
 
 				instruction = get_register_dx_value_origin(regs);
 				if (instruction && (((unsigned int) *instruction) & 0xFF) == 0xBA && index_of_ref_with_instruction(ref_list, instruction) < 0) {
-					struct Reference *new_ref = prepare_new_ref(ref_list);
-					initialize_ref_as_gvar_instruction_immediate_value(new_ref, var, instruction);
+					struct MutableReference *new_ref = prepare_new_ref(ref_list);
+					initialize_mref_as_gvar_instruction_immediate_value(new_ref, var, instruction);
 					insert_ref(ref_list, new_ref);
 				}
 
@@ -1992,8 +1992,8 @@ static int read_block_instruction_internal(
 
 					instruction = get_register_dx_value_origin(regs);
 					if (instruction && (((unsigned int) *instruction) & 0xFF) == 0xBA && index_of_ref_with_instruction(ref_list, instruction) < 0) {
-						struct Reference *new_ref = prepare_new_ref(ref_list);
-						initialize_ref_as_cblock_instruction_immediate_value(new_ref, target_block, instruction);
+						struct MutableReference *new_ref = prepare_new_ref(ref_list);
+						initialize_mref_as_cblock_instruction_immediate_value(new_ref, target_block, instruction);
 						insert_ref(ref_list, new_ref);
 					}
 				}
@@ -2243,8 +2243,8 @@ static int read_block_instruction_internal(
 				where_offset = where_interruption_offset_defined_in_table(int_table, i);
 				if (where_offset && (((unsigned int) *where_offset) & 0xF8) == 0xB8) {
 					if (index_of_ref_with_instruction(ref_list, where_offset) < 0) {
-						struct Reference *new_ref = prepare_new_ref(ref_list);
-						initialize_ref_as_cblock_instruction_immediate_value(new_ref, target_block, where_offset);
+						struct MutableReference *new_ref = prepare_new_ref(ref_list);
+						initialize_mref_as_cblock_instruction_immediate_value(new_ref, target_block, where_offset);
 						insert_ref(ref_list, new_ref);
 					}
 				}
@@ -2335,7 +2335,7 @@ static int read_block_instruction_internal(
 				const int write_value = ((value & 0x30) == 0)? value + 1 : value - 1;
 				const int seg_index = (segment_index == SEGMENT_INDEX_UNDEFINED)? SEGMENT_INDEX_DS : segment_index;
 
-				if ((error_code = add_gvar_ref(gvar_list, segment_start_list, ref_list, regs, var_values, seg_index, addr, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
+				if ((error_code = add_gvar_mref(gvar_list, segment_start_list, ref_list, regs, var_values, seg_index, addr, segment_start, value0, opcode_reference, read_access, write_access, write_value_defined, write_value_defined_relative, write_value))) {
 					return error_code;
 				}
 			}
@@ -2386,8 +2386,8 @@ static int read_block_instruction_internal(
 						}
 
 						if (value_origin && index_of_ref_with_instruction(ref_list, value_origin) < 0) {
-							struct Reference *new_ref = prepare_new_ref(ref_list);
-							initialize_ref_as_cblock_instruction_immediate_value(new_ref, new_block, value_origin);
+							struct MutableReference *new_ref = prepare_new_ref(ref_list);
+							initialize_mref_as_cblock_instruction_immediate_value(new_ref, new_block, value_origin);
 							if ((error_code = insert_ref(ref_list, new_ref))) {
 								return error_code;
 							}
@@ -2476,7 +2476,7 @@ static int read_block_instruction(
 		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list,
+		struct MutableReferenceList *reference_list,
 		int *next_instruction_potentially_reached) {
 	const char *instruction = reader->buffer + reader->buffer_index;
 	int result;
@@ -2508,7 +2508,7 @@ static int read_block(
 		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list) {
+		struct MutableReferenceList *reference_list) {
 	struct Reader reader;
 	struct InterruptionTable int_table;
 	int error_code;
@@ -2623,7 +2623,7 @@ struct ProgramContent *compose_pcontent(
 		struct MutableCodeBlockList *cblock_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
-		struct ReferenceList *reference_list) {
+		struct MutableReferenceList *reference_list) {
 	struct CodeBlockOriginList *origin_list;
 	struct CodeBlockOrigin *origin;
 	struct Registers *origin_regs;

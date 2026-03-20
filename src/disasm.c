@@ -6,7 +6,7 @@
 #include "finder.h"
 #include "dumpers.h"
 #include "printu.h"
-#include "reflist.h"
+#include "mreflist.h"
 #include "register.h"
 #include "renames.h"
 #include "stack.h"
@@ -234,7 +234,7 @@ int main(int argc, const char *argv[]) {
 	struct MutableCodeBlockList cblock_list;
 	struct GlobalVariableList gvar_list;
 	struct SegmentStartList segment_start_list;
-	struct ReferenceList ref_list;
+	struct MutableReferenceList ref_list;
 	struct FunctionList func_list;
 	struct FilePrinter printer_out;
 	struct FilePrinter printer_err;
