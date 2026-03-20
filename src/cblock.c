@@ -43,3 +43,23 @@ int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block) {
 int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count) {
 	return index_of_cborigin_of_type_call_return(block->origin_list, behind_count) >= 0;
 }
+
+int index_of_block_with_start(const struct CodeBlock *blocks, unsigned int block_count, const char *start) {
+	int first = 0;
+	int last = block_count;
+	while (last > first) {
+		int index = (first + last) / 2;
+		const char *this_start = blocks[index].start;
+		if (this_start < start) {
+			first = index + 1;
+		}
+		else if (this_start > start) {
+			last = index;
+		}
+		else {
+			return index;
+		}
+	}
+
+	return -1;
+}

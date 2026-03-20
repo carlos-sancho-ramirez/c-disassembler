@@ -24,6 +24,7 @@ struct MutableReference {
 
 #include "gvar.h"
 #include "mcblock.h"
+#include "ref.h"
 
 /**
  * Initialize the given reference as global variable reference located in an instruction immediate value.
@@ -79,5 +80,7 @@ void set_gvar_mref_read_access(struct MutableReference *ref);
  * This will not remove any read access set before. Note that some instructions reads and writes at the same time, like 'add' or 'xchg'.
  */
 void set_gvar_mref_write_access(struct MutableReference *ref);
+
+int copy_mref_to_ref(struct Reference *target, const struct MutableReference *source, const struct CodeBlock *blocks, unsigned int block_count);
 
 #endif /* _MUTABLE_REFERENCE_H_ */

@@ -60,3 +60,21 @@ void set_gvar_mref_read_access(struct MutableReference *ref) {
 void set_gvar_mref_write_access(struct MutableReference *ref) {
 	ref->flags |= REF_FLAG_ACCESS_WRITE;
 }
+
+int copy_mref_to_ref(struct Reference *target, const struct MutableReference *source, const struct CodeBlock *blocks, unsigned int block_count) {
+	if ((source->flags & REF_FLAG_TARGET_TYPE_MASK) == REF_FLAG_TARGET_IS_CBLOCK) {
+		struct MutableCodeBlock *mcblock = (struct MutableCodeBlock *) source->target;
+		unsigned int index = index_of_block_with_start(blocks, block_count, mcblock->start);
+		if (index >= 0) {
+			initialize_ref(target, blocks + index, source->flags, source->instruction);
+			return 0;
+		}
+		else {
+			return 1;
+		}
+	}
+	else {
+		initialize_ref(target, source->target, source->flags, source->instruction);
+		return 0;
+	}
+}

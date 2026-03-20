@@ -34,4 +34,6 @@ const struct CodeBlockOriginList *get_cblock_origin_list(const struct CodeBlock 
 int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block);
 int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count);
 
+int index_of_block_with_start(const struct CodeBlock *blocks, unsigned int block_count, const char *start);
+
 #endif /* _CODE_BLOCK_H_ */

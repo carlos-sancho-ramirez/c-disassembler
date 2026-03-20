@@ -1,7 +1,7 @@
 .PHONY: clean check testDebug testRelease
 
-headers = src/cblock.h src/cbolist.h src/cborigin.h src/counter.h src/dumpers.h src/finder.h src/funcfind.h src/funclist.h src/function.h src/gvar.h src/gvlist.h src/gvwvmap.h src/itable.h src/mcblist.h src/mcblock.h src/mref.h src/mreflist.h src/packed.h src/pcontent.h src/printd.h src/printu.h src/reader.h src/register.h src/relocu.h src/renames.h src/slmacros.h src/srresult.h src/sslist.h src/stack.h src/version.h
-sources = src/cblock.c src/cbolist.c src/cborigin.c src/counter.c src/disasm.c src/dumpers.c src/finder.c src/funcfind.c src/funclist.c src/function.c src/gvar.c src/gvlist.c src/gvwvmap.c src/itable.c src/mcblist.c src/mcblock.c src/mref.c src/mreflist.c src/packed.c src/pcontent.c src/printu.c src/reader.c src/register.c src/relocu.c src/renames.c src/srresult.c src/sslist.c src/stack.c
+headers = src/cblock.h src/cbolist.h src/cborigin.h src/counter.h src/dumpers.h src/finder.h src/funcfind.h src/funclist.h src/function.h src/gvar.h src/gvlist.h src/gvwvmap.h src/itable.h src/mcblist.h src/mcblock.h src/mref.h src/mreflist.h src/packed.h src/pcontent.h src/printd.h src/printu.h src/reader.h src/ref.h src/register.h src/relocu.h src/renames.h src/slmacros.h src/srresult.h src/sslist.h src/stack.h src/version.h
+sources = src/cblock.c src/cbolist.c src/cborigin.c src/counter.c src/disasm.c src/dumpers.c src/finder.c src/funcfind.c src/funclist.c src/function.c src/gvar.c src/gvlist.c src/gvwvmap.c src/itable.c src/mcblist.c src/mcblock.c src/mref.c src/mreflist.c src/packed.c src/pcontent.c src/printu.c src/reader.c src/ref.c src/register.c src/relocu.c src/renames.c src/srresult.c src/sslist.c src/stack.c
 sourcesDebug = build/debug/src/version.c
 sourcesRelease = build/release/src/version.c
 
