@@ -1,10 +1,10 @@
-#include "cblock.h"
+#include "mcblock.h"
 #include <assert.h>
 
 #define CODE_BLOCK_FLAG_VALID_EVALUATION 1
 #define CODE_BLOCK_FLAG_UNDER_EVALUATION 2
 
-void initialize_cblock(struct CodeBlock *block, unsigned int relative_cs, unsigned int ip, const char *start) {
+void initialize_mcblock(struct MutableCodeBlock *block, unsigned int relative_cs, unsigned int ip, const char *start) {
 	block->relative_cs = relative_cs;
 	block->ip = ip;
 	block->start = start;
@@ -13,77 +13,77 @@ void initialize_cblock(struct CodeBlock *block, unsigned int relative_cs, unsign
 	initialize_cborigin_list(&block->origin_list);
 }
 
-unsigned int get_cblock_relative_cs(const struct CodeBlock *block) {
+unsigned int get_mcblock_relative_cs(const struct MutableCodeBlock *block) {
 	return block->relative_cs;
 }
 
-unsigned int get_cblock_ip(const struct CodeBlock *block) {
+unsigned int get_mcblock_ip(const struct MutableCodeBlock *block) {
 	return block->ip;
 }
 
-const char *get_cblock_start(const struct CodeBlock *block) {
+const char *get_mcblock_start(const struct MutableCodeBlock *block) {
 	return block->start;
 }
 
-int is_cblock_end_known(const struct CodeBlock *block) {
+int is_mcblock_end_known(const struct MutableCodeBlock *block) {
 	return block->end > block->start;
 }
 
-const char *get_cblock_end(const struct CodeBlock *block) {
+const char *get_mcblock_end(const struct MutableCodeBlock *block) {
 	return block->end;
 }
 
-const struct CodeBlockOriginList *get_cblock_origin_list_const(const struct CodeBlock *block) {
+const struct CodeBlockOriginList *get_mcblock_origin_list_const(const struct MutableCodeBlock *block) {
 	return &block->origin_list;
 }
 
-struct CodeBlockOriginList *get_cblock_origin_list(struct CodeBlock *block) {
+struct CodeBlockOriginList *get_mcblock_origin_list(struct MutableCodeBlock *block) {
 	return &block->origin_list;
 }
 
-unsigned int get_cblock_size(const struct CodeBlock *block) {
+unsigned int get_mcblock_size(const struct MutableCodeBlock *block) {
 	return block->end - block->start;
 }
 
-void set_cblock_end(struct CodeBlock *block, const char *end) {
+void set_mcblock_end(struct MutableCodeBlock *block, const char *end) {
 	assert(end > block->start);
 	block->end = end;
 }
 
-int is_position_inside_cblock(const struct CodeBlock *block, const char *position) {
+int is_position_inside_mcblock(const struct MutableCodeBlock *block, const char *position) {
 	return block->start <= position && position < block->end;
 }
 
-int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block) {
+int has_cborigin_of_type_continue_in_mcblock(const struct MutableCodeBlock *block) {
 	return index_of_cborigin_of_type_continue(&block->origin_list) >= 0;
 }
 
-int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count) {
+int has_cborigin_of_type_call_return_in_mcblock(const struct MutableCodeBlock *block, unsigned int behind_count) {
 	return index_of_cborigin_of_type_call_return(&block->origin_list, behind_count) >= 0;
 }
 
-void set_cblock_size(struct CodeBlock *block, unsigned int size) {
+void set_mcblock_size(struct MutableCodeBlock *block, unsigned int size) {
 	assert(size > 0);
 	block->end = block->start + size;
 }
 
-int cblock_requires_evaluation(struct CodeBlock *block) {
+int mcblock_requires_evaluation(struct MutableCodeBlock *block) {
 	return !(block->flags & CODE_BLOCK_FLAG_VALID_EVALUATION);
 }
 
-void mark_cblock_as_being_evaluated(struct CodeBlock *block) {
+void mark_mcblock_as_being_evaluated(struct MutableCodeBlock *block) {
 	block->flags |= CODE_BLOCK_FLAG_UNDER_EVALUATION | CODE_BLOCK_FLAG_VALID_EVALUATION;
 }
 
-void mark_cblock_as_evaluated(struct CodeBlock *block) {
+void mark_mcblock_as_evaluated(struct MutableCodeBlock *block) {
 	block->flags &= ~CODE_BLOCK_FLAG_UNDER_EVALUATION;
 }
 
-void invalidate_cblock_check(struct CodeBlock *block) {
+void invalidate_mcblock_check(struct MutableCodeBlock *block) {
 	block->flags &= ~CODE_BLOCK_FLAG_VALID_EVALUATION;
 }
 
-int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values) {
+int add_interruption_type_cborigin_in_mcblock(struct MutableCodeBlock *block, const struct Registers *regs, const struct GlobalVariableWordValueMap *var_values) {
 	struct CodeBlockOriginList *origin_list = &block->origin_list;
 	int error_code;
 	int index = index_of_cborigin_with_type_interruption(origin_list);
@@ -107,7 +107,7 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struc
 		}
 
 		if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_gvwvmap(&accumulated_var_values, var_values))) {
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 	}
 	else {
@@ -120,14 +120,14 @@ int add_interruption_type_cborigin_in_block(struct CodeBlock *block, const struc
 				return error_code;
 			}
 
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 	}
 
 	return 0;
 }
 
-int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
+int add_continue_type_cborigin_in_mcblock(struct MutableCodeBlock *block, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
 	int error_code;
 	struct CodeBlockOriginList *origin_list;
 	int index;
@@ -157,7 +157,7 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 		}
 
 		if (origin_list->origin_count > 1 && (changes_on_merging_registers(&accumulated_regs, regs) || changes_on_merging_stacks(&accumulated_stack, stack) || changes_on_merging_gvwvmap(&accumulated_var_values, var_values))) {
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 	}
 	else {
@@ -171,22 +171,22 @@ int add_continue_type_cborigin_in_block(struct CodeBlock *block, const struct Re
 			if ((error_code = merge_gvwvmap(origin_var_values, var_values))) {
 				return error_code;
 			}
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 	}
 
 	return 0;
 }
 
-int add_call_return_type_cborigin_in_block(struct CodeBlock *block, unsigned int behind_count, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
+int add_call_return_type_cborigin_in_mcblock(struct MutableCodeBlock *block, unsigned int behind_count, const struct Registers *regs, const struct Stack *stack, const struct GlobalVariableWordValueMap *var_values) {
 	return add_call_return_type_cborigin(&block->origin_list, behind_count, regs, stack, var_values);
 }
 
-int should_be_dumped(const struct CodeBlock *block) {
+int should_mcblock_be_dumped(const struct MutableCodeBlock *block) {
 	return block->origin_list.origin_count > 0;
 }
 
-int should_dump_label_for_block(const struct CodeBlock *block) {
+int should_dump_label_for_mcblock(const struct MutableCodeBlock *block) {
 	const struct CodeBlockOriginList *origin_list = &block->origin_list;
 	const unsigned int origin_count = origin_list->origin_count;
 	int index;

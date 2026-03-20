@@ -1,7 +1,7 @@
 #ifndef _DUMPERS_H_
 #define _DUMPERS_H_
 
-#include "cblock.h"
+#include "mcblock.h"
 #include "gvar.h"
 #include "ref.h"
 #include "funclist.h"
@@ -10,7 +10,7 @@
 int dump(
 	const char *buffer,
 	unsigned int buffer_origin,
-	struct CodeBlock **sorted_blocks,
+	struct MutableCodeBlock **sorted_blocks,
 	unsigned int code_block_count,
 	struct GlobalVariable **global_variables,
 	unsigned int global_variable_count,

@@ -6,7 +6,7 @@
  */
 struct Reference {
 	/**
-	 * This can be an instance of GlobalVariable or and instance of CodeBlock, depending on the target_type flag.
+	 * This can be an instance of GlobalVariable or and instance of MutableCodeBlock, depending on the target_type flag.
 	 */
 	void *target;
 
@@ -23,7 +23,7 @@ struct Reference {
 };
 
 #include "gvar.h"
-#include "cblock.h"
+#include "mcblock.h"
 
 /**
  * Initialize the given reference as global variable reference located in an instruction immediate value.
@@ -44,7 +44,7 @@ void initialize_ref_as_gvar_instruction_address(struct Reference *ref, struct Gl
  *
  * This method will override any previous value in the given struct.
  */
-void initialize_ref_as_cblock_instruction_immediate_value(struct Reference *ref, struct CodeBlock *block, const char *instruction);
+void initialize_ref_as_cblock_instruction_immediate_value(struct Reference *ref, struct MutableCodeBlock *block, const char *instruction);
 
 /**
  * Returns the instruction where this reference is located.
@@ -57,9 +57,9 @@ const char *get_ref_instruction(struct Reference *ref);
 struct GlobalVariable *get_gvar_from_ref_target(const struct Reference *ref);
 
 /**
- * Returns the target of the given reference already casted as a CodeBlock, or NULL if the target is not a CodeBlock.
+ * Returns the target of the given reference already casted as a MutableCodeBlock, or NULL if the target is not a MutableCodeBlock.
  */
-struct CodeBlock *get_cblock_from_ref_target(const struct Reference *ref);
+struct MutableCodeBlock *get_cblock_from_ref_target(const struct Reference *ref);
 
 /**
  * Whether this reference is located in the instruction address.

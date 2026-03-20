@@ -65,7 +65,7 @@ unsigned int get_starting_block_count(const struct Function *func) {
 	return count_set_bits_in_bitset(bitset, func->block_count);
 }
 
-const struct CodeBlock *get_starting_block(const struct Function *func, unsigned int index) {
+const struct MutableCodeBlock *get_starting_block(const struct Function *func, unsigned int index) {
 	const unsigned int block_count = func->block_count;
 	const packed_data_t *bitset = get_const_included_block_start(func);
 	int included_block_index;

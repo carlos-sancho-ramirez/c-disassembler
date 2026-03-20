@@ -127,7 +127,7 @@ static int dump_instruction(
 		const char *buffer,
 		unsigned int buffer_origin,
 		struct Reader *reader,
-		const struct CodeBlock *block,
+		const struct MutableCodeBlock *block,
 		struct Reference *reference,
 		const char **sorted_relocations,
 		unsigned int relocation_count,
@@ -209,11 +209,11 @@ static int dump_instruction(
 		}
 		else if ((value0 & 0xF0) == 0x70) {
 			const int value1 = read_next_byte(reader);
-			const int target_ip = get_cblock_ip(block) + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+			const int target_ip = get_mcblock_ip(block) + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
 
 			print(printer_out, JUMP_INSTRUCTIONS[value0 & 0x0F]);
 			print(printer_out, " ");
-			print_code_label(printer_out, target_ip, get_cblock_relative_cs(block));
+			print_code_label(printer_out, target_ip, get_mcblock_relative_cs(block));
 			print(printer_out, "\n");
 			return 0;
 		}
@@ -467,7 +467,7 @@ static int dump_instruction(
 				int offset_value;
 				int relocation_segment_present = 0;
 				struct GlobalVariable *var;
-				struct CodeBlock *ref_block;
+				struct MutableCodeBlock *ref_block;
 
 				print(printer_out, WORD_REGISTERS[value0 & 0x07]);
 				print(printer_out, ",");
@@ -490,7 +490,7 @@ static int dump_instruction(
 						print(printer_out, "+");
 					}
 
-					print_code_label(printer_out, get_cblock_ip(ref_block), get_cblock_relative_cs(ref_block));
+					print_code_label(printer_out, get_mcblock_ip(ref_block), get_mcblock_relative_cs(ref_block));
 				}
 				else {
 					if (relocation_segment_present) {
@@ -626,17 +626,17 @@ static int dump_instruction(
 		}
 		else if ((value0 & 0xFC) == 0xE0) {
 			const int value1 = read_next_byte(reader);
-			const int target_ip = get_cblock_ip(block) + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+			const int target_ip = get_mcblock_ip(block) + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
 
 			print(printer_out, LOOP_INSTRUCTIONS[value0 & 0x0F]);
 			print(printer_out, " ");
-			print_code_label(printer_out, target_ip, get_cblock_relative_cs(block));
+			print_code_label(printer_out, target_ip, get_mcblock_relative_cs(block));
 			print(printer_out, "\n");
 			return 0;
 		}
 		else if ((value0 & 0xFE) == 0xE8) {
 			const int diff = read_next_word(reader);
-			const uint16_t target_ip = get_cblock_ip(block) + reader->buffer_index + diff;
+			const uint16_t target_ip = get_mcblock_ip(block) + reader->buffer_index + diff;
 
 			if (value0 & 1) {
 				print(printer_out, "jmp ");
@@ -645,7 +645,7 @@ static int dump_instruction(
 				print(printer_out, "call ");
 			}
 
-			print_code_label(printer_out, target_ip, get_cblock_relative_cs(block));
+			print_code_label(printer_out, target_ip, get_mcblock_relative_cs(block));
 			print(printer_out, "\n");
 			return 0;
 		}
@@ -659,11 +659,11 @@ static int dump_instruction(
 		}
 		else if (value0 == 0xEB) {
 			const int value1 = read_next_byte(reader);
-			const int target_ip = get_cblock_ip(block) + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
+			const int target_ip = get_mcblock_ip(block) + reader->buffer_index + ((value1 >= 0x80)? value1 - 256 : value1);
 			int index;
 
 			print(printer_out, "jmp ");
-			print_code_label(printer_out, target_ip, get_cblock_relative_cs(block));
+			print_code_label(printer_out, target_ip, get_mcblock_relative_cs(block));
 			print(printer_out, "\n");
 			return 0;
 		}
@@ -908,16 +908,16 @@ static int dump_variable(
 	return 0;
 }
 
-static const char *determine_position(const char *segment_start, struct CodeBlock *block, struct GlobalVariable *variable) {
+static const char *determine_position(const char *segment_start, struct MutableCodeBlock *block, struct GlobalVariable *variable) {
 	if (segment_start) {
 		if (block && variable) {
-			const char *block_start = get_cblock_start(block);
+			const char *block_start = get_mcblock_start(block);
 			const char *var_start = get_gvar_start(variable);
 			return (segment_start < block_start && segment_start < var_start)? segment_start :
 					(block_start < var_start)? block_start : var_start;
 		}
 		else if (block) {
-			const char *block_start = get_cblock_start(block);
+			const char *block_start = get_mcblock_start(block);
 			return (segment_start < block_start)? segment_start : block_start;
 		}
 		else if (variable) {
@@ -930,12 +930,12 @@ static const char *determine_position(const char *segment_start, struct CodeBloc
 	}
 	else {
 		if (block && variable) {
-			const char *block_start = get_cblock_start(block);
+			const char *block_start = get_mcblock_start(block);
 			const char *var_start = get_gvar_start(variable);
 			return (block_start < var_start)? block_start : var_start;
 		}
 		else if (block) {
-			return get_cblock_start(block);
+			return get_mcblock_start(block);
 		}
 		else if (variable) {
 			const char *var_start = get_gvar_start(variable);
@@ -965,7 +965,7 @@ if (position > last_end) { \
 int dump(
 		const char *buffer,
 		unsigned int buffer_origin,
-		struct CodeBlock **sorted_blocks,
+		struct MutableCodeBlock **sorted_blocks,
 		unsigned int code_block_count,
 		struct GlobalVariable **sorted_variables,
 		unsigned int global_variable_count,
@@ -985,7 +985,7 @@ int dump(
 	int code_block_index = 0;
 	int global_variable_index = 0;
 	const char *segment_start;
-	struct CodeBlock *block;
+	struct MutableCodeBlock *block;
 	const char *position;
 	struct GlobalVariable *variable;
 	int unknown_opcode_found_in_block = 0;
@@ -996,7 +996,7 @@ int dump(
 
 	segment_start = segment_start_count? segment_starts[0] : NULL;
 	block = code_block_count? sorted_blocks[code_block_index] : NULL;
-	while (block && !should_be_dumped(block)) {
+	while (block && !should_mcblock_be_dumped(block)) {
 		block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 	}
 
@@ -1024,14 +1024,14 @@ int dump(
 			segment_start = segment_starts[segment_start_index];
 		}
 
-		position_in_block = block && is_position_inside_cblock(block, position);
+		position_in_block = block && is_position_inside_mcblock(block, position);
 		position_in_variable = variable && get_gvar_start(variable) <= position && position < get_gvar_end(variable);
 
 		if (!position_in_block && !position_in_variable) {
 			DEBUG_PRINT1("; Gap at %x\n", (int) (position - buffer));
 			position = determine_position(segment_start, block, variable);
 		}
-		else if (position_in_variable && !position_in_block && (!block || get_cblock_start(block) >= get_gvar_end(variable))) {
+		else if (position_in_variable && !position_in_block && (!block || get_mcblock_start(block) >= get_gvar_end(variable))) {
 			struct GlobalVariable *next_variable = ((global_variable_index + 1) < global_variable_count)? sorted_variables[global_variable_index + 1] : NULL;
 			unsigned int variable_print_length = ((next_variable && get_gvar_start(next_variable) < get_gvar_end(variable))? get_gvar_start(next_variable) : get_gvar_end(variable)) - get_gvar_start(variable);
 			if ((error_code = dump_variable(variable, variable_print_length, printer_out, printer_err))) {
@@ -1046,29 +1046,29 @@ int dump(
 			DEBUG_DUMP_GAP()
 		}
 		else if (position_in_block && !position_in_variable) {
-			if (get_cblock_start(block) == position && should_dump_label_for_block(block)) {
+			if (get_mcblock_start(block) == position && should_dump_label_for_mcblock(block)) {
 				print(printer_out, "\n");
-				print_code_label(printer_out, get_cblock_ip(block), get_cblock_relative_cs(block));
+				print_code_label(printer_out, get_mcblock_ip(block), get_mcblock_relative_cs(block));
 				print(printer_out, ":\n");
 			}
 
 			if (unknown_opcode_found_in_block) {
-				const char *block_start = get_cblock_start(block);
+				const char *block_start = get_mcblock_start(block);
 				reader.buffer = block_start;
 				reader.buffer_index = position - block_start;
-				reader.buffer_size = get_cblock_end(block) - block_start;
+				reader.buffer_size = get_mcblock_end(block) - block_start;
 
 				print(printer_out, "db ");
 				print_literal_hex_byte(printer_out, read_next_byte(&reader));
 				print(printer_out, "\n");
 
 				position++;
-				if (position >= get_cblock_end(block)) {
+				if (position >= get_mcblock_end(block)) {
 					unknown_opcode_found_in_block = 0;
-					DEBUG_ASSIGN_LAST_END(get_cblock_end(block))
+					DEBUG_ASSIGN_LAST_END(get_mcblock_end(block))
 
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
-					while (block && !should_be_dumped(block)) {
+					while (block && !should_mcblock_be_dumped(block)) {
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					}
 					position = determine_position(segment_start, block, variable);
@@ -1079,7 +1079,7 @@ int dump(
 				const char *next_position;
 				reader.buffer = position;
 				reader.buffer_index = 0;
-				reader.buffer_size = get_cblock_end(block) - position;
+				reader.buffer_size = get_mcblock_end(block) - position;
 				error_code = read_for_instruction_length(&reader);
 				next_position = position + reader.buffer_index;
 
@@ -1091,11 +1091,11 @@ int dump(
 					print(printer_out, (error_code == READ_ERROR_UNKNOWN_OPCODE)? " ; Unknown opcode\n" : "\n");
 
 					position++;
-					if (position >= get_cblock_end(block)) {
+					if (position >= get_mcblock_end(block)) {
 						unknown_opcode_found_in_block = 0;
-						DEBUG_ASSIGN_LAST_END(get_cblock_end(block))
+						DEBUG_ASSIGN_LAST_END(get_mcblock_end(block))
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
-						while (block && !should_be_dumped(block)) {
+						while (block && !should_mcblock_be_dumped(block)) {
 							block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 						}
 						position = determine_position(segment_start, block, variable);
@@ -1104,11 +1104,11 @@ int dump(
 				}
 				else {
 					struct Reference *reference = NULL;
-					const char *block_start = get_cblock_start(block);
+					const char *block_start = get_mcblock_start(block);
 
 					reader.buffer = block_start;
 					reader.buffer_index = position - block_start;
-					reader.buffer_size = get_cblock_end(block) - block_start;
+					reader.buffer_size = get_mcblock_end(block) - block_start;
 
 					while(gvar_ref_count > 0 && get_ref_instruction(gvar_refs[0]) < position) {
 						gvar_refs++;
@@ -1124,11 +1124,11 @@ int dump(
 
 					unknown_opcode_found_in_block = dump_instruction(buffer, buffer_origin, &reader, block, reference, sorted_relocations, relocation_count, func_list, printer_out, printer_err);
 					position = next_position;
-					if (position >= get_cblock_end(block)) {
+					if (position >= get_mcblock_end(block)) {
 						unknown_opcode_found_in_block = 0;
-						DEBUG_ASSIGN_LAST_END(get_cblock_end(block))
+						DEBUG_ASSIGN_LAST_END(get_mcblock_end(block))
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
-						while (block && !should_be_dumped(block)) {
+						while (block && !should_mcblock_be_dumped(block)) {
 							block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 						}
 						position = determine_position(segment_start, block, variable);
@@ -1143,9 +1143,9 @@ int dump(
 			const char *current_variable_end;
 			unsigned int current_variable_size;
 
-			if (get_cblock_start(block) == position && should_dump_label_for_block(block)) {
+			if (get_mcblock_start(block) == position && should_dump_label_for_mcblock(block)) {
 				print(printer_out, "\n");
-				print_code_label(printer_out, get_cblock_ip(block), get_cblock_relative_cs(block));
+				print_code_label(printer_out, get_mcblock_ip(block), get_mcblock_relative_cs(block));
 				print(printer_out, ":\n");
 			}
 
@@ -1163,11 +1163,11 @@ int dump(
 			if (unknown_opcode_found_in_block) {
 				position += current_variable_size;
 
-				if (position >= get_cblock_end(block)) {
+				if (position >= get_mcblock_end(block)) {
 					unknown_opcode_found_in_block = 0;
-					DEBUG_ASSIGN_LAST_END(get_cblock_end(block))
+					DEBUG_ASSIGN_LAST_END(get_mcblock_end(block))
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
-					while (block && !should_be_dumped(block)) {
+					while (block && !should_mcblock_be_dumped(block)) {
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					}
 					position = determine_position(segment_start, block, variable);
@@ -1179,7 +1179,7 @@ int dump(
 				do {
 					reader.buffer = next_position;
 					reader.buffer_index = 0;
-					reader.buffer_size = get_cblock_end(block) - next_position;
+					reader.buffer_size = get_mcblock_end(block) - next_position;
 					error_code = read_for_instruction_length(&reader);
 					next_position += reader.buffer_index;
 				}
@@ -1194,11 +1194,11 @@ int dump(
 					print(printer_out, "\n");
 				}
 
-				if (position >= get_cblock_end(block)) {
+				if (position >= get_mcblock_end(block)) {
 					unknown_opcode_found_in_block = 0;
-					DEBUG_ASSIGN_LAST_END(get_cblock_end(block));
+					DEBUG_ASSIGN_LAST_END(get_mcblock_end(block));
 					block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
-					while (block && !should_be_dumped(block)) {
+					while (block && !should_mcblock_be_dumped(block)) {
 						block = (++code_block_index < code_block_count)? sorted_blocks[code_block_index] : NULL;
 					}
 					position = determine_position(segment_start, block, variable);

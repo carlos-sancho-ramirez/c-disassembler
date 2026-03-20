@@ -6,7 +6,7 @@ static void log_func_insertion(struct Function *func) {
 	const unsigned int starting_block_count = get_starting_block_count(func);
 	DEBUG_PRINT1("  Registering new function at +%x:", func->blocks[0]->relative_cs);
 	if (starting_block_count == 1) {
-		const struct CodeBlock *start_block = get_starting_block(func, 0);
+		const struct MutableCodeBlock *start_block = get_starting_block(func, 0);
 		DEBUG_PRINT1("%x\n", start_block->ip);
 	}
 	else {
@@ -58,8 +58,8 @@ int index_of_func_containing_block_start(const struct FunctionList *list, const 
 	while (last > first) {
 		int index = (first + last) / 2;
 		struct Function *this_func = list->sorted_funcs[index];
-		struct CodeBlock *first_block = this_func->blocks[0];
-		const char *first_block_start = get_cblock_start(first_block);
+		struct MutableCodeBlock *first_block = this_func->blocks[0];
+		const char *first_block_start = get_mcblock_start(first_block);
 		if (start < first_block_start) {
 			last = index;
 		}
@@ -67,8 +67,8 @@ int index_of_func_containing_block_start(const struct FunctionList *list, const 
 			return index;
 		}
 		else {
-			struct CodeBlock *last_block = this_func->blocks[this_func->block_count - 1];
-			const char *last_block_start = get_cblock_start(last_block);
+			struct MutableCodeBlock *last_block = this_func->blocks[this_func->block_count - 1];
+			const char *last_block_start = get_mcblock_start(last_block);
 
 			if (start > last_block_start) {
 				first = index + 1;
@@ -81,11 +81,11 @@ int index_of_func_containing_block_start(const struct FunctionList *list, const 
 				int last_block_index = this_func->block_count - 1;
 				while (last_block_index > first_block_index) {
 					const int block_index = (first_block_index + last_block_index) / 2;
-					struct CodeBlock *this_block = this_func->blocks[block_index];
-					if (get_cblock_start(this_block) < start) {
+					struct MutableCodeBlock *this_block = this_func->blocks[block_index];
+					if (get_mcblock_start(this_block) < start) {
 						first_block_index = block_index + 1;
 					}
-					else if (get_cblock_start(this_block) > start) {
+					else if (get_mcblock_start(this_block) > start) {
 						last_block_index = block_index;
 					}
 					else {
@@ -105,11 +105,11 @@ int insert_func(struct FunctionList *list, struct Function *new_func) {
 	int first = 0;
 	int last = list->func_count;
 	int i;
-	const char *new_func_first_block_start = get_cblock_start(new_func->blocks[0]);
+	const char *new_func_first_block_start = get_mcblock_start(new_func->blocks[0]);
 	log_func_insertion(new_func);
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_start = get_cblock_start(list->sorted_funcs[index]->blocks[0]);
+		const char *this_start = get_mcblock_start(list->sorted_funcs[index]->blocks[0]);
 		if (this_start < new_func_first_block_start) {
 			first = index + 1;
 		}

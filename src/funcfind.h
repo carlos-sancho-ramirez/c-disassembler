@@ -4,7 +4,7 @@
 #include "funclist.h"
 
 int find_functions(
-		struct CodeBlock **blocks,
+		struct MutableCodeBlock **blocks,
 		unsigned int block_count,
 		struct FunctionList *func_list);
 

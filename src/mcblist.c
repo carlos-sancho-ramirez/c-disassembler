@@ -1,25 +1,25 @@
-#include "cblist.h"
+#include "mcblist.h"
 #include "printd.h"
 
-static void log_cblock_insertion(struct CodeBlock *block) {
-	DEBUG_PRINT2("  Registering new code block at +%x:%x\n", get_cblock_relative_cs(block), get_cblock_ip(block));
+static void log_cblock_insertion(struct MutableCodeBlock *block) {
+	DEBUG_PRINT2("  Registering new code block at +%x:%x\n", get_mcblock_relative_cs(block), get_mcblock_ip(block));
 }
 
-DEFINE_STRUCT_LIST_INITIALIZE_METHOD(CodeBlock, cblock, block)
-DEFINE_STRUCT_LIST_GET_UNSORTED_METHOD(CodeBlock, cblock, 64)
-DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(CodeBlock, cblock, block, 8, 64)
-DEFINE_STRUCT_LIST_CLEAR_METHOD(CodeBlock, cblock, block, 64)
-DEFINE_STRUCT_LIST_INDEX_OF_WITH_METHOD(CodeBlock, cblock, block, start)
+DEFINE_STRUCT_LIST_INITIALIZE_METHOD(MutableCodeBlock, cblock, block)
+DEFINE_STRUCT_LIST_GET_UNSORTED_METHOD(MutableCodeBlock, cblock, 64)
+DEFINE_STRUCT_LIST_PREPARE_NEW_METHOD(MutableCodeBlock, cblock, block, 8, 64)
+DEFINE_STRUCT_LIST_CLEAR_METHOD(MutableCodeBlock, cblock, block, 64)
+DEFINE_STRUCT_LIST_INDEX_OF_WITH_METHOD(MutableCodeBlock, cblock, block, start)
 
-int insert_cblock(struct CodeBlockList *list, struct CodeBlock *new_block) {
-	const char *new_block_start = get_cblock_start(new_block);
+int insert_cblock(struct MutableCodeBlockList *list, struct MutableCodeBlock *new_block) {
+	const char *new_block_start = get_mcblock_start(new_block);
 	int first = 0;
 	int last = list->block_count;
 	int i;
 	log_cblock_insertion(new_block);
 	while (last > first) {
 		int index = (first + last) / 2;
-		const char *this_start = get_cblock_start(list->sorted_blocks[index]);
+		const char *this_start = get_mcblock_start(list->sorted_blocks[index]);
 		if (this_start < new_block_start) {
 			first = index + 1;
 		}
@@ -31,7 +31,7 @@ int insert_cblock(struct CodeBlockList *list, struct CodeBlock *new_block) {
 		}
 	}
 
-	if (last < list->block_count && get_cblock_start(list->sorted_blocks[last]) < get_cblock_end(new_block)) {
+	if (last < list->block_count && get_mcblock_start(list->sorted_blocks[last]) < get_mcblock_end(new_block)) {
 		return -1;
 	}
 
@@ -45,13 +45,13 @@ int insert_cblock(struct CodeBlockList *list, struct CodeBlock *new_block) {
 	return 0;
 }
 
-static int index_of_cblock_containing_position(const struct CodeBlockList *list, const char *position) {
+static int index_of_cblock_containing_position(const struct MutableCodeBlockList *list, const char *position) {
 	int first = 0;
 	int last = list->block_count;
 	while (last > first) {
 		int index = (first + last) / 2;
-		struct CodeBlock *this_block = list->sorted_blocks[index];
-		const char *this_start = get_cblock_start(this_block);
+		struct MutableCodeBlock *this_block = list->sorted_blocks[index];
+		const char *this_start = get_mcblock_start(this_block);
 		if (this_start > position) {
 			last = index;
 		}
@@ -59,7 +59,7 @@ static int index_of_cblock_containing_position(const struct CodeBlockList *list,
 			return index;
 		}
 		else {
-			if (is_cblock_end_known(this_block) && position < get_cblock_end(this_block)) {
+			if (is_mcblock_end_known(this_block) && position < get_mcblock_end(this_block)) {
 				return index;
 			}
 			else {
@@ -71,19 +71,19 @@ static int index_of_cblock_containing_position(const struct CodeBlockList *list,
 	return first - 1;
 }
 
-struct CodeBlock *get_cblock_containing_position(struct CodeBlockList *list, const char *position) {
+struct MutableCodeBlock *get_cblock_containing_position(struct MutableCodeBlockList *list, const char *position) {
 	int index = index_of_cblock_containing_position(list, position);
 	return (index < 0)? NULL : list->sorted_blocks[index];
 }
 
-static int index_of_cblock_with_start_equals_or_after(const struct CodeBlockList *list, const char *position) {
+static int index_of_cblock_with_start_equals_or_after(const struct MutableCodeBlockList *list, const char *position) {
 	int first = 0;
 	int last = list->block_count;
 
 	while (last > first) {
 		int index = (first + last) / 2;
-		struct CodeBlock *this_block = list->sorted_blocks[index];
-		const char *this_start = get_cblock_start(this_block);
+		struct MutableCodeBlock *this_block = list->sorted_blocks[index];
+		const char *this_start = get_mcblock_start(this_block);
 		if (this_start > position) {
 			last = index;
 		}
@@ -98,16 +98,16 @@ static int index_of_cblock_with_start_equals_or_after(const struct CodeBlockList
 	return (last < list->block_count)? last : -1;
 }
 
-struct CodeBlock *get_cblock_with_start_equals_or_after(const struct CodeBlockList *list, const char *position) {
+struct MutableCodeBlock *get_cblock_with_start_equals_or_after(const struct MutableCodeBlockList *list, const char *position) {
 	int index = index_of_cblock_with_start_equals_or_after(list, position);
 	return (index < 0)? NULL : list->sorted_blocks[index];
 }
 
-int index_of_cblock_in_list(const struct CodeBlockList *list, const struct CodeBlock *block) {
-	return index_of_cblock_with_start(list, get_cblock_start(block));
+int index_of_cblock_in_list(const struct MutableCodeBlockList *list, const struct MutableCodeBlock *block) {
+	return index_of_cblock_with_start(list, get_mcblock_start(block));
 }
 
-int index_of_cblock_containing_origin_instruction(const struct CodeBlockList *list, const struct CodeBlockOrigin *origin) {
+int index_of_cblock_containing_origin_instruction(const struct MutableCodeBlockList *list, const struct CodeBlockOrigin *origin) {
 	return index_of_cblock_containing_position(list, get_cborigin_instruction(origin));
 }
 
@@ -115,11 +115,11 @@ int index_of_cblock_containing_origin_instruction(const struct CodeBlockList *li
 
 #include <stdio.h>
 
-void print_cblist(const struct CodeBlockList *list) {
+void print_cblist(const struct MutableCodeBlockList *list) {
 	int i;
 	fprintf(stderr, "CodeBlockList(");
 	for (i = 0; i < list->block_count; i++) {
-		const struct CodeBlock *block = list->sorted_blocks[i];
+		const struct MutableCodeBlock *block = list->sorted_blocks[i];
 		const struct CodeBlockOriginList *origin_list = &block->origin_list;
 		int origin_index;
 		if (i > 0) {

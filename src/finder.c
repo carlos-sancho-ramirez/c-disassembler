@@ -20,7 +20,7 @@ static void read_block_instruction_address(
 }
 
 static int ensure_call_return_origin(
-		struct CodeBlockList *cblock_list,
+		struct MutableCodeBlockList *cblock_list,
 		struct CodeBlockOrigin *origin,
 		const struct Registers *regs,
 		const struct Stack *stack,
@@ -28,13 +28,13 @@ static int ensure_call_return_origin(
 		int is_returning_far,
 		unsigned int instruction_length) {
 	int jmp_block_index = index_of_cblock_containing_origin_instruction(cblock_list, origin);
-	struct CodeBlock *jmp_block = cblock_list->sorted_blocks[jmp_block_index];
-	const uint16_t expected_ip = get_cblock_ip(jmp_block) + (get_cborigin_instruction(origin) + instruction_length - get_cblock_start(jmp_block));
+	struct MutableCodeBlock *jmp_block = cblock_list->sorted_blocks[jmp_block_index];
+	const uint16_t expected_ip = get_mcblock_ip(jmp_block) + (get_cborigin_instruction(origin) + instruction_length - get_mcblock_start(jmp_block));
 	const int stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(stack) && get_from_top(stack, 0) == expected_ip;
 	struct Stack *origin_stack = get_cborigin_stack(origin);
 	const int origin_stack_top_matches_expected_ip = top_is_defined_absolute_in_stack(origin_stack) && get_from_top(origin_stack, 0) == expected_ip;
-	const int stack_matches_expected_cs = is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == get_cblock_relative_cs(jmp_block);
-	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(origin_stack, 1) && get_from_top(origin_stack, 1) == get_cblock_relative_cs(jmp_block);
+	const int stack_matches_expected_cs = is_defined_relative_in_stack_from_top(stack, 1) && get_from_top(stack, 1) == get_mcblock_relative_cs(jmp_block);
+	const int origin_stack_matches_expected_cs = is_defined_relative_in_stack_from_top(origin_stack, 1) && get_from_top(origin_stack, 1) == get_mcblock_relative_cs(jmp_block);
 
 	if ((stack_top_matches_expected_ip || !top_is_defined_in_stack(stack) && origin_stack_top_matches_expected_ip) &&
 			(!is_returning_far || stack_matches_expected_cs || !is_defined_in_stack_from_top(stack, 1) && origin_stack_matches_expected_cs)) {
@@ -42,14 +42,14 @@ static int ensure_call_return_origin(
 		int error_code;
 
 		if (return_block_index < 0) {
-			struct CodeBlock *return_block = prepare_new_cblock(cblock_list);
-			struct CodeBlockOriginList *return_block_origin_list = get_cblock_origin_list(return_block);
+			struct MutableCodeBlock *return_block = prepare_new_cblock(cblock_list);
+			struct CodeBlockOriginList *return_block_origin_list = get_mcblock_origin_list(return_block);
 			struct CodeBlockOrigin *return_origin;
 			struct Registers *return_origin_regs;
 			struct Stack *return_origin_stack;
 			struct GlobalVariableWordValueMap *return_origin_var_values;
 
-			initialize_cblock(return_block, get_cblock_relative_cs(jmp_block), expected_ip, get_cborigin_instruction(origin) + instruction_length);
+			initialize_mcblock(return_block, get_mcblock_relative_cs(jmp_block), expected_ip, get_cborigin_instruction(origin) + instruction_length);
 
 			return_origin = prepare_new_cborigin(return_block_origin_list);
 			if ((error_code = initialize_cborigin_as_call_return(return_origin, instruction_length, regs, stack, var_values))) {
@@ -84,8 +84,8 @@ static int ensure_call_return_origin(
 			}
 		}
 		else {
-			struct CodeBlock *return_block = cblock_list->sorted_blocks[return_block_index];
-			struct CodeBlockOriginList *return_block_origin_list = get_cblock_origin_list(return_block);
+			struct MutableCodeBlock *return_block = cblock_list->sorted_blocks[return_block_index];
+			struct CodeBlockOriginList *return_block_origin_list = get_mcblock_origin_list(return_block);
 			int call_return_origin_index = index_of_cborigin_of_type_call_return(return_block_origin_list, instruction_length);
 			if (call_return_origin_index < 0) {
 				struct CodeBlockOrigin *return_origin = prepare_new_cborigin(return_block_origin_list);
@@ -152,7 +152,7 @@ static int ensure_call_return_origin(
 						return error_code;
 					}
 
-					invalidate_cblock_check(return_block);
+					invalidate_mcblock_check(return_block);
 				}
 			}
 		}
@@ -164,50 +164,50 @@ static int ensure_call_return_origin(
 #define CHECKED_BLOCK_BLOCKS_PER_PAGE 16
 
 struct CheckedBlocks {
-	struct CodeBlock **blocks;
+	struct MutableCodeBlock **blocks;
 	unsigned int count;
 	unsigned int allocated_pages;
 };
 
 static int update_call_origins(
-		struct CodeBlock *block,
-		struct CodeBlockList *cblock_list,
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *cblock_list,
 		struct CheckedBlocks *checked_blocks,
 		const struct Registers *regs,
 		const struct Stack *stack,
 		const struct GlobalVariableWordValueMap *var_values,
 		int is_returning_far,
 		unsigned int depth) {
-	struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
+	struct CodeBlockOriginList *origin_list = get_mcblock_origin_list(block);
 	int index;
 	int error_code;
 
 	for (index = 0; index < checked_blocks->count; index++) {
 		if (checked_blocks->blocks[index] == block) {
-			DEBUG_INDENTED_PRINT2(depth, "Block at +%x:%x already checked, or not found.\n", get_cblock_relative_cs(block), get_cblock_ip(block));
+			DEBUG_INDENTED_PRINT2(depth, "Block at +%x:%x already checked, or not found.\n", get_mcblock_relative_cs(block), get_mcblock_ip(block));
 			return 0;
 		}
 	}
 
 	if (checked_blocks->count == checked_blocks->allocated_pages * CHECKED_BLOCK_BLOCKS_PER_PAGE) {
-		checked_blocks->blocks = realloc(checked_blocks->blocks, (++checked_blocks->allocated_pages) * CHECKED_BLOCK_BLOCKS_PER_PAGE * sizeof(struct CodeBlock *));
+		checked_blocks->blocks = realloc(checked_blocks->blocks, (++checked_blocks->allocated_pages) * CHECKED_BLOCK_BLOCKS_PER_PAGE * sizeof(struct MutableCodeBlock *));
 		if (!checked_blocks->blocks) {
 			return 1;
 		}
 	}
 	checked_blocks->blocks[checked_blocks->count++] = block;
 
-	DEBUG_INDENTED_PRINT3(depth, "Checking origins of block at +%x:%x. %d origin(s)\n", get_cblock_relative_cs(block), get_cblock_ip(block), origin_list->origin_count);
+	DEBUG_INDENTED_PRINT3(depth, "Checking origins of block at +%x:%x. %d origin(s)\n", get_mcblock_relative_cs(block), get_mcblock_ip(block), origin_list->origin_count);
 	for (index = 0; index < origin_list->origin_count; index++) {
 		struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
 		int origin_type = get_cborigin_type(origin);
 		DEBUG_INDENTED_PRINT2(depth + 1, "Index %d -> origin type is %s", index, DEBUG_CBORIGIN_TYPE_NAME(origin_type));
 		if (origin_type == CBORIGIN_TYPE_CONTINUE || origin_type == CBORIGIN_TYPE_CALL_RETURN) {
-			struct CodeBlock *previous_block;
+			struct MutableCodeBlock *previous_block;
 			int cblock_index = index_of_cblock_in_list(cblock_list, block);
 			DEBUG_PRINT0(".\n");
 
-			if (cblock_index > 0 && get_cblock_end(previous_block = cblock_list->sorted_blocks[cblock_index - 1]) == get_cblock_start(block)) {
+			if (cblock_index > 0 && get_mcblock_end(previous_block = cblock_list->sorted_blocks[cblock_index - 1]) == get_mcblock_start(block)) {
 				unsigned int current_count = checked_blocks->count;
 				if ((error_code = update_call_origins(previous_block, cblock_list, checked_blocks, regs, stack, var_values, is_returning_far, depth + 1))) {
 					return error_code;
@@ -220,7 +220,7 @@ static int update_call_origins(
 			int jumping_block_index = index_of_cblock_containing_origin_instruction(cblock_list, origin);
 #ifdef DEBUG
 			if (jumping_block_index >= 0) {
-				struct CodeBlock *origin_block = cblock_list->sorted_blocks[jumping_block_index];
+				struct MutableCodeBlock *origin_block = cblock_list->sorted_blocks[jumping_block_index];
 				DEBUG_PRINT2(" from +%x:%x.\n", origin_block->relative_cs, origin_block->ip + (int) (origin->instruction - origin_block->start));
 			}
 			else {
@@ -280,19 +280,19 @@ static int update_call_origins(
 	return 0;
 }
 
-static int add_call_return_origin_after_interruption(struct Reader *reader, struct Registers *regs, struct Stack *stack, struct GlobalVariableWordValueMap *var_values, struct CodeBlock *block, struct CodeBlockList *code_block_list) {
-	struct CodeBlock *return_block;
+static int add_call_return_origin_after_interruption(struct Reader *reader, struct Registers *regs, struct Stack *stack, struct GlobalVariableWordValueMap *var_values, struct MutableCodeBlock *block, struct MutableCodeBlockList *code_block_list) {
+	struct MutableCodeBlock *return_block;
 	struct CodeBlockOriginList *return_block_origin_list;
 	struct CodeBlockOrigin *return_origin;
 	struct GlobalVariableWordValueMap *return_origin_var_values;
 	int index;
 	int error_code;
-	set_cblock_size(block, reader->buffer_index);
+	set_mcblock_size(block, reader->buffer_index);
 
-	index = index_of_cblock_with_start(code_block_list, get_cblock_end(block));
+	index = index_of_cblock_with_start(code_block_list, get_mcblock_end(block));
 	if (index >= 0) {
 		return_block = code_block_list->sorted_blocks[index];
-		if ((error_code = add_call_return_type_cborigin_in_block(return_block, 2, regs, stack, var_values))) {
+		if ((error_code = add_call_return_type_cborigin_in_mcblock(return_block, 2, regs, stack, var_values))) {
 			return error_code;
 		}
 	}
@@ -302,8 +302,8 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 			return 1;
 		}
 
-		initialize_cblock(return_block, get_cblock_relative_cs(block), get_cblock_ip(block) + reader->buffer_index, get_cblock_end(block));
-		if ((error_code = add_call_return_type_cborigin_in_block(return_block, 2, regs, stack, var_values))) {
+		initialize_mcblock(return_block, get_mcblock_relative_cs(block), get_mcblock_ip(block) + reader->buffer_index, get_mcblock_end(block));
+		if ((error_code = add_call_return_type_cborigin_in_mcblock(return_block, 2, regs, stack, var_values))) {
 			return error_code;
 		}
 
@@ -312,7 +312,7 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 		}
 	}
 
-	return_block_origin_list = get_cblock_origin_list(return_block);
+	return_block_origin_list = get_mcblock_origin_list(return_block);
 	index = index_of_cborigin_of_type_call_return(return_block_origin_list, 2);
 	return_origin = return_block_origin_list->sorted_origins[index];
 
@@ -322,14 +322,14 @@ static int add_call_return_origin_after_interruption(struct Reader *reader, stru
 static int add_jump_type_cborigin_in_block(
 		const char *segment_start,
 		unsigned int segment_size,
-		struct CodeBlock *block,
-		struct CodeBlockList *code_block_list,
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *code_block_list,
 		const char *origin_instruction,
 		const struct Registers *regs,
 		const struct Stack *stack,
 		const struct GlobalVariableWordValueMap *var_values) {
 	int error_code;
-	struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
+	struct CodeBlockOriginList *origin_list = get_mcblock_origin_list(block);
 	struct CodeBlockOrigin *origin = get_cborigin_with_instruction(origin_list, origin_instruction);
 
 	if (origin) {
@@ -338,12 +338,12 @@ static int add_jump_type_cborigin_in_block(
 		struct GlobalVariableWordValueMap *origin_var_values = get_cborigin_var_values(origin);
 		if (changes_on_merging_registers(origin_regs, regs)) {
 			merge_registers(origin_regs, regs);
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 
 		if (changes_on_merging_stacks(origin_stack, stack)) {
 			merge_stacks(origin_stack, stack);
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 
 		if (changes_on_merging_gvwvmap(origin_var_values, var_values)) {
@@ -351,7 +351,7 @@ static int add_jump_type_cborigin_in_block(
 				return error_code;
 			}
 
-			invalidate_cblock_check(block);
+			invalidate_mcblock_check(block);
 		}
 	}
 	else {
@@ -380,28 +380,28 @@ static int add_jump_type_cborigin_in_block(
 			if (changes_on_merging_registers(&accumulated_regs, regs) ||
 					changes_on_merging_stacks(&accumulated_stack, stack) ||
 					changes_on_merging_gvwvmap(&accumulated_var_values, var_values)) {
-				invalidate_cblock_check(block);
+				invalidate_mcblock_check(block);
 			}
-			else if ((*get_cblock_start(block) & 0xFF) == 0xC3 && top_is_defined_absolute_in_stack(stack) && (*origin_instruction & 0xFF) == 0xFF && (origin_instruction[1] & 0x38) == 0x10) {
+			else if ((*get_mcblock_start(block) & 0xFF) == 0xC3 && top_is_defined_absolute_in_stack(stack) && (*origin_instruction & 0xFF) == 0xFF && (origin_instruction[1] & 0x38) == 0x10) {
 				const uint16_t return_ip = get_from_top(stack, 0);
-				const unsigned int return_cs = get_cblock_relative_cs(block);
+				const unsigned int return_cs = get_mcblock_relative_cs(block);
 				const unsigned int return_relative_address = return_ip + (return_cs << 4);
 				const char *return_destination = segment_start + return_relative_address;
 
 				if (return_destination >= segment_start && return_destination < segment_start + segment_size) {
-					struct CodeBlock *potential_block = get_cblock_containing_position(code_block_list, return_destination);
-					if (potential_block && get_cblock_start(potential_block) == return_destination) {
+					struct MutableCodeBlock *potential_block = get_cblock_containing_position(code_block_list, return_destination);
+					if (potential_block && get_mcblock_start(potential_block) == return_destination) {
 						/* TODO: Update the origin of the potential block accordingly */
 					}
 					else {
 						struct Registers return_regs;
 						struct Stack return_stack;
-						struct CodeBlock *return_block = prepare_new_cblock(code_block_list);
+						struct MutableCodeBlock *return_block = prepare_new_cblock(code_block_list);
 						if (!return_block) {
 							return 1;
 						}
 
-						initialize_cblock(return_block, get_cblock_relative_cs(block), return_ip, return_destination);
+						initialize_mcblock(return_block, get_mcblock_relative_cs(block), return_ip, return_destination);
 						copy_registers(&return_regs, regs);
 						if (is_register_sp_defined_relative(regs)) {
 							set_register_sp_relative(&return_regs, NULL, NULL, get_register_sp(regs) + 2);
@@ -419,13 +419,13 @@ static int add_jump_type_cborigin_in_block(
 						}
 
 						pop_from_stack(&return_stack);
-						if ((error_code = add_call_return_type_cborigin_in_block(return_block, return_destination - origin_instruction, &return_regs, &return_stack, var_values))) {
+						if ((error_code = add_call_return_type_cborigin_in_mcblock(return_block, return_destination - origin_instruction, &return_regs, &return_stack, var_values))) {
 							return error_code;
 						}
 
 						if (potential_block) {
-							set_cblock_end(potential_block, return_destination);
-							invalidate_cblock_check(potential_block);
+							set_mcblock_end(potential_block, return_destination);
+							invalidate_mcblock_check(potential_block);
 						}
 
 						return insert_cblock(code_block_list, return_block);
@@ -445,31 +445,31 @@ static int register_jump_target_block(
 		struct Registers *regs,
 		struct Stack *stack,
 		struct GlobalVariableWordValueMap *var_values,
-		struct CodeBlock *block,
-		struct CodeBlockList *code_block_list,
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *code_block_list,
 		const char *jump_destination,
 		const char *opcode_reference,
 		int diff) {
-	struct CodeBlock *potential_container = get_cblock_containing_position(code_block_list, jump_destination);
+	struct MutableCodeBlock *potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 
-	if (potential_container && get_cblock_start(potential_container) == jump_destination) {
+	if (potential_container && get_mcblock_start(potential_container) == jump_destination) {
 		return add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values);
 	}
 	else {
 		int result;
-		struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
+		struct MutableCodeBlock *new_block = prepare_new_cblock(code_block_list);
 		if (!new_block) {
 			return 1;
 		}
 
-		initialize_cblock(new_block, get_cblock_relative_cs(block), get_cblock_ip(block) + reader->buffer_index + diff, jump_destination);
+		initialize_mcblock(new_block, get_mcblock_relative_cs(block), get_mcblock_ip(block) + reader->buffer_index + diff, jump_destination);
 		if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, new_block, code_block_list, opcode_reference, regs, stack, var_values))) {
 			return result;
 		}
 
 		if (potential_container) {
-			set_cblock_end(potential_container, jump_destination);
-			invalidate_cblock_check(potential_container);
+			set_mcblock_end(potential_container, jump_destination);
+			invalidate_mcblock_check(potential_container);
 		}
 
 		return insert_cblock(code_block_list, new_block);
@@ -481,20 +481,20 @@ static int register_next_block(
 		struct Registers *regs,
 		struct Stack *stack,
 		struct GlobalVariableWordValueMap *var_values,
-		struct CodeBlock *block,
-		struct CodeBlockList *code_block_list) {
-	int result = index_of_cblock_with_start(code_block_list, get_cblock_end(block));
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *code_block_list) {
+	int result = index_of_cblock_with_start(code_block_list, get_mcblock_end(block));
 	if (result >= 0) {
-		return add_continue_type_cborigin_in_block(code_block_list->sorted_blocks[result], regs, stack, var_values);
+		return add_continue_type_cborigin_in_mcblock(code_block_list->sorted_blocks[result], regs, stack, var_values);
 	}
 	else {
-		struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
+		struct MutableCodeBlock *new_block = prepare_new_cblock(code_block_list);
 		if (!new_block) {
 			return 1;
 		}
 
-		initialize_cblock(new_block, get_cblock_relative_cs(block), get_cblock_ip(block) + reader->buffer_index, get_cblock_end(block));
-		if ((result = add_continue_type_cborigin_in_block(new_block, regs, stack, var_values))) {
+		initialize_mcblock(new_block, get_mcblock_relative_cs(block), get_mcblock_ip(block) + reader->buffer_index, get_mcblock_end(block));
+		if ((result = add_continue_type_cborigin_in_mcblock(new_block, regs, stack, var_values))) {
 			return result;
 		}
 
@@ -506,8 +506,8 @@ int update_int2140_message_references(
 		const struct Registers *regs,
 		const char *segment_start,
 		unsigned int segment_size,
-		struct CodeBlock *block,
-		struct CodeBlockList *code_block_list,
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *ref_list,
@@ -526,16 +526,16 @@ int update_int2140_message_references(
 	uint16_t length;
 	int index;
 
-	DEBUG_INDENTED_PRINT2(depth, "Backtracing for message references at block +%x:%x.\n", get_cblock_relative_cs(block), get_cblock_ip(block));
+	DEBUG_INDENTED_PRINT2(depth, "Backtracing for message references at block +%x:%x.\n", get_mcblock_relative_cs(block), get_mcblock_ip(block));
 	for (index = 0; index < checked_blocks->count; index++) {
 		if (checked_blocks->blocks[index] == block) {
-			DEBUG_INDENTED_PRINT2(depth, "Block at +%x:%x already checked, or not found.\n", get_cblock_relative_cs(block), get_cblock_ip(block));
+			DEBUG_INDENTED_PRINT2(depth, "Block at +%x:%x already checked, or not found.\n", get_mcblock_relative_cs(block), get_mcblock_ip(block));
 			return 0;
 		}
 	}
 
 	if (checked_blocks->count == checked_blocks->allocated_pages * CHECKED_BLOCK_BLOCKS_PER_PAGE) {
-		checked_blocks->blocks = realloc(checked_blocks->blocks, (++checked_blocks->allocated_pages) * CHECKED_BLOCK_BLOCKS_PER_PAGE * sizeof(struct CodeBlock *));
+		checked_blocks->blocks = realloc(checked_blocks->blocks, (++checked_blocks->allocated_pages) * CHECKED_BLOCK_BLOCKS_PER_PAGE * sizeof(struct MutableCodeBlock *));
 		if (!checked_blocks->blocks) {
 			return 1;
 		}
@@ -596,7 +596,7 @@ int update_int2140_message_references(
 		}
 	}
 	else if ((ds_defined || is_register_ds_merged(regs)) && (dx_defined || is_register_dx_merged(regs)) && (cx_defined || is_register_cx_merged(regs))) {
-		struct CodeBlockOriginList *origin_list = get_cblock_origin_list(block);
+		struct CodeBlockOriginList *origin_list = get_mcblock_origin_list(block);
 		const unsigned int origin_count = origin_list->origin_count;
 		int index;
 
@@ -613,7 +613,7 @@ int update_int2140_message_references(
 			if (origin_type == CBORIGIN_TYPE_CONTINUE) {
 				const int block_index = index_of_cblock_in_list(code_block_list, block);
 				if (block_index > 0) {
-					struct CodeBlock *previous_block = code_block_list->sorted_blocks[block_index - 1];
+					struct MutableCodeBlock *previous_block = code_block_list->sorted_blocks[block_index - 1];
 					struct Registers *origin_regs = get_cborigin_registers(origin);
 					const int new_ds_defined = ds_defined || is_register_ds_defined(origin_regs);
 					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(origin_regs);
@@ -629,7 +629,7 @@ int update_int2140_message_references(
 					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(origin_regs);
 
 					int error_code;
-					DEBUG_PRINT2(" from block starting at +%x:%x\n", get_cblock_relative_cs(previous_block), get_cblock_ip(previous_block));
+					DEBUG_PRINT2(" from block starting at +%x:%x\n", get_mcblock_relative_cs(previous_block), get_mcblock_ip(previous_block));
 
 					if ((error_code = update_int2140_message_references(origin_regs, segment_start, segment_size, previous_block, code_block_list,
 							gvar_list, segment_start_list, ref_list, checked_blocks,
@@ -644,7 +644,7 @@ int update_int2140_message_references(
 			else if (origin_type == CBORIGIN_TYPE_JUMP) {
 				const int origin_block_index = index_of_cblock_containing_origin_instruction(code_block_list, origin);
 				if (origin_block_index >= 0) {
-					struct CodeBlock *origin_block = code_block_list->sorted_blocks[origin_block_index];
+					struct MutableCodeBlock *origin_block = code_block_list->sorted_blocks[origin_block_index];
 					struct Registers *origin_regs = get_cborigin_registers(origin);
 					const int new_ds_defined = ds_defined || is_register_ds_defined(origin_regs);
 					const int new_ds_relative = ds_defined? ds_relative : is_register_ds_defined_relative(origin_regs);
@@ -660,8 +660,8 @@ int update_int2140_message_references(
 					const uint16_t new_cx_value = cx_defined? ds_value : get_register_cx(origin_regs);
 
 					int error_code;
-					DEBUG_PRINT2(" from +%x:%x", get_cblock_relative_cs(origin_block), get_cblock_ip(origin_block) + (int) (get_cborigin_instruction(origin) - get_cblock_start(origin_block)));
-					DEBUG_PRINT2(" contained in block starting at +%x:%x\n", get_cblock_relative_cs(origin_block), get_cblock_ip(origin_block));
+					DEBUG_PRINT2(" from +%x:%x", get_mcblock_relative_cs(origin_block), get_mcblock_ip(origin_block) + (int) (get_cborigin_instruction(origin) - get_mcblock_start(origin_block)));
+					DEBUG_PRINT2(" contained in block starting at +%x:%x\n", get_mcblock_relative_cs(origin_block), get_mcblock_ip(origin_block));
 
 					if ((error_code = update_int2140_message_references(origin_regs, segment_start, segment_size, origin_block, code_block_list,
 							gvar_list, segment_start_list, ref_list, checked_blocks,
@@ -861,8 +861,8 @@ static int read_block_instruction_internal(
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		struct FilePrinter *printer_err,
-		struct CodeBlock *block,
-		struct CodeBlockList *code_block_list,
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *gvar_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *ref_list,
@@ -1044,15 +1044,15 @@ static int read_block_instruction_internal(
 	else if ((value0 & 0xF0) == 0x70 || (value0 & 0xFC) == 0xE0) {
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-		const char *next_destination = get_cblock_start(block) + reader->buffer_index;
+		const char *next_destination = get_mcblock_start(block) + reader->buffer_index;
 		const char *jump_destination = next_destination + diff;
 		int result;
-		struct CodeBlock *potential_container;
+		struct MutableCodeBlock *potential_container;
 		int potential_container_evaluated_at_least_once;
 		DEBUG_PRINT0("\n");
 
 		if (jump_destination >= next_destination) {
-			set_cblock_end(block, next_destination);
+			set_mcblock_end(block, next_destination);
 			if ((result = register_next_block(reader, regs, stack, var_values, block, code_block_list))) {
 				return result;
 			}
@@ -1062,12 +1062,12 @@ static int read_block_instruction_internal(
 			}
 		}
 		else {
-			if (jump_destination <= get_cblock_start(block)) {
-				set_cblock_end(block, next_destination);
+			if (jump_destination <= get_mcblock_start(block)) {
+				set_mcblock_end(block, next_destination);
 			}
 			else {
-				set_cblock_end(block, jump_destination);
-				invalidate_cblock_check(block);
+				set_mcblock_end(block, jump_destination);
+				invalidate_mcblock_check(block);
 			}
 
 			if ((result = register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff))) {
@@ -1705,7 +1705,7 @@ static int read_block_instruction_internal(
 			read_next_word(reader);
 		}
 		DEBUG_PRINT0("\n  Finding origins of this function.\n");
-		set_cblock_size(block, reader->buffer_index);
+		set_mcblock_size(block, reader->buffer_index);
 
 		checked_blocks.blocks = NULL;
 		checked_blocks.count = 0;
@@ -1880,7 +1880,7 @@ static int read_block_instruction_internal(
 		struct CheckedBlocks checked_blocks;
 		DEBUG_PRINT0("\n");
 
-		set_cblock_size(block, reader->buffer_index);
+		set_mcblock_size(block, reader->buffer_index);
 
 		checked_blocks.blocks = NULL;
 		checked_blocks.count = 0;
@@ -1912,7 +1912,7 @@ static int read_block_instruction_internal(
 			}
 		}
 		else if (interruption_number == 0x20) {
-			set_cblock_size(block, reader->buffer_index);
+			set_mcblock_size(block, reader->buffer_index);
 		}
 		else if (interruption_number == 0x21 && is_register_ah_defined(regs)) {
 			const unsigned int ah_value = get_register_ah(regs);
@@ -1957,15 +1957,15 @@ static int read_block_instruction_internal(
 					uint16_t target_relative_cs = get_register_ds(regs);
 					uint16_t target_ip = get_register_dx(regs);
 					const char *jump_destination;
-					struct CodeBlock *potential_container;
-					struct CodeBlock *target_block;
+					struct MutableCodeBlock *potential_container;
+					struct MutableCodeBlock *target_block;
 					const char *instruction;
 					unsigned int addr = target_relative_cs;
 					addr = (addr * 16 + target_ip) & 0xFFFFF;
 
 					jump_destination = segment_start + addr;
 					potential_container = get_cblock_containing_position(code_block_list, jump_destination);
-					if (potential_container && get_cblock_start(potential_container) == jump_destination) {
+					if (potential_container && get_mcblock_start(potential_container) == jump_destination) {
 						target_block = potential_container;
 					}
 					else {
@@ -1975,8 +1975,8 @@ static int read_block_instruction_internal(
 							return 1;
 						}
 
-						initialize_cblock(target_block, target_relative_cs, target_ip, jump_destination);
-						if ((result = add_interruption_type_cborigin_in_block(target_block, regs, var_values))) {
+						initialize_mcblock(target_block, target_relative_cs, target_ip, jump_destination);
+						if ((result = add_interruption_type_cborigin_in_mcblock(target_block, regs, var_values))) {
 							return result;
 						}
 
@@ -1985,8 +1985,8 @@ static int read_block_instruction_internal(
 						}
 
 						if (potential_container) {
-							set_cblock_end(potential_container, jump_destination);
-							invalidate_cblock_check(potential_container);
+							set_mcblock_end(potential_container, jump_destination);
+							invalidate_mcblock_check(potential_container);
 						}
 					}
 
@@ -2062,7 +2062,7 @@ static int read_block_instruction_internal(
 				}
 			}
 			else if (ah_value == 0x4C) {
-				set_cblock_size(block, reader->buffer_index);
+				set_mcblock_size(block, reader->buffer_index);
 			}
 			else if ((error_code = add_call_return_origin_after_interruption(reader, regs, stack, var_values, block, code_block_list))) {
 				return error_code;
@@ -2089,21 +2089,21 @@ static int read_block_instruction_internal(
 	}
 	else if ((value0 & 0xFE) == 0xE8) {
 		const char *jump_destination;
-		struct CodeBlock *potential_container;
+		struct MutableCodeBlock *potential_container;
 		int potential_container_evaluated_at_least_once;
 		int diff = read_next_word(reader);
 		DEBUG_PRINT0("\n");
 
-		if (get_cblock_ip(block) + reader->buffer_index + diff >= 0x10000) {
+		if (get_mcblock_ip(block) + reader->buffer_index + diff >= 0x10000) {
 			diff -= 0x10000;
 		}
 
-		jump_destination = get_cblock_start(block) + reader->buffer_index + diff;
+		jump_destination = get_mcblock_start(block) + reader->buffer_index + diff;
 		potential_container = get_cblock_containing_position(code_block_list, jump_destination);
-		potential_container_evaluated_at_least_once = potential_container && is_cblock_end_known(potential_container);
+		potential_container_evaluated_at_least_once = potential_container && is_mcblock_end_known(potential_container);
 
 		if (value0 == 0xE8) {
-			push_in_stack(stack, NULL, get_cblock_ip(block) + reader->buffer_index);
+			push_in_stack(stack, NULL, get_mcblock_ip(block) + reader->buffer_index);
 			if (is_register_sp_defined_relative(regs)) {
 				set_register_sp_relative(regs, opcode_reference, opcode_reference, get_register_sp(regs) - 2);
 			}
@@ -2115,19 +2115,19 @@ static int read_block_instruction_internal(
 			}
 		}
 
-		if (potential_container && get_cblock_start(potential_container) == jump_destination) {
+		if (potential_container && get_mcblock_start(potential_container) == jump_destination) {
 			if ((error_code = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
 				return error_code;
 			}
 		}
 		else {
 			int result;
-			struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
+			struct MutableCodeBlock *new_block = prepare_new_cblock(code_block_list);
 			if (!new_block) {
 				return 1;
 			}
 
-			initialize_cblock(new_block, get_cblock_relative_cs(block), get_cblock_ip(block) + reader->buffer_index + diff, jump_destination);
+			initialize_mcblock(new_block, get_mcblock_relative_cs(block), get_mcblock_ip(block) + reader->buffer_index + diff, jump_destination);
 			if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, new_block, code_block_list, opcode_reference, regs, stack, var_values))) {
 				return result;
 			}
@@ -2136,13 +2136,13 @@ static int read_block_instruction_internal(
 				return result;
 			}
 
-			if (potential_container_evaluated_at_least_once && get_cblock_end(potential_container) > jump_destination) {
-				set_cblock_end(potential_container, jump_destination);
-				invalidate_cblock_check(potential_container);
+			if (potential_container_evaluated_at_least_once && get_mcblock_end(potential_container) > jump_destination) {
+				set_mcblock_end(potential_container, jump_destination);
+				invalidate_mcblock_check(potential_container);
 			}
 		}
 
-		set_cblock_size(block, reader->buffer_index);
+		set_mcblock_size(block, reader->buffer_index);
 		*next_instruction_potentially_reached = 0;
 		return 0;
 	}
@@ -2150,17 +2150,17 @@ static int read_block_instruction_internal(
 		read_next_word(reader);
 		read_next_word(reader);
 		DEBUG_PRINT0("\n");
-		set_cblock_size(block, reader->buffer_index);
+		set_mcblock_size(block, reader->buffer_index);
 		*next_instruction_potentially_reached = 0;
 		return 0;
 	}
 	else if (value0 == 0xEB) {
 		const int value1 = read_next_byte(reader);
 		const int diff = (value1 >= 0x80)? value1 - 0x100 : value1;
-		const char *jump_destination = get_cblock_start(block) + reader->buffer_index + diff;
+		const char *jump_destination = get_mcblock_start(block) + reader->buffer_index + diff;
 		DEBUG_PRINT0("\n");
 
-		set_cblock_size(block, reader->buffer_index);
+		set_mcblock_size(block, reader->buffer_index);
 		*next_instruction_potentially_reached = 0;
 		return register_jump_target_block(segment_start, segment_size, reader, regs, stack, var_values, block, code_block_list, jump_destination, opcode_reference, diff);
 	}
@@ -2205,22 +2205,22 @@ static int read_block_instruction_internal(
 				uint16_t target_relative_cs = get_interruption_table_relative_segment(int_table, i);
 				uint16_t target_ip = get_interruption_table_offset(int_table, i);
 				const char *jump_destination;
-				struct CodeBlock *potential_container;
-				struct CodeBlock *target_block;
+				struct MutableCodeBlock *potential_container;
+				struct MutableCodeBlock *target_block;
 				const char *where_offset;
 				unsigned int addr = target_relative_cs;
 				addr = (addr * 16 + target_ip) & 0xFFFFF;
 
 				jump_destination = segment_start + addr;
 				potential_container = get_cblock_containing_position(code_block_list, jump_destination);
-				if (potential_container && get_cblock_start(potential_container) == jump_destination) {
+				if (potential_container && get_mcblock_start(potential_container) == jump_destination) {
 					target_block = potential_container;
 				}
 				else {
 					int result;
 					struct Registers int_regs;
 					if (potential_container) {
-						set_cblock_end(potential_container, jump_destination);
+						set_mcblock_end(potential_container, jump_destination);
 					}
 
 					target_block = prepare_new_cblock(code_block_list);
@@ -2228,10 +2228,10 @@ static int read_block_instruction_internal(
 						return 1;
 					}
 
-					initialize_cblock(target_block, target_relative_cs, target_ip, jump_destination);
+					initialize_mcblock(target_block, target_relative_cs, target_ip, jump_destination);
 					set_all_registers_undefined(&int_regs);
 					set_register_cs_relative(&int_regs, NULL, where_interruption_segment_defined_in_table(int_table, i), target_relative_cs);
-					if ((result = add_interruption_type_cborigin_in_block(target_block, &int_regs, var_values))) {
+					if ((result = add_interruption_type_cborigin_in_mcblock(target_block, &int_regs, var_values))) {
 						return result;
 					}
 
@@ -2343,7 +2343,7 @@ static int read_block_instruction_internal(
 			if (((value1 & 0x38) == 0x10 || (value1 & 0x38) == 0x20) && value_defined && !value_relative) {
 				unsigned int code_relative_target = value;
 				const char *jump_destination;
-				struct CodeBlock *potential_container;
+				struct MutableCodeBlock *potential_container;
 
 				code_relative_target += ((unsigned int) get_register_cs(regs)) << 4;
 				jump_destination = segment_start + code_relative_target;
@@ -2352,7 +2352,7 @@ static int read_block_instruction_internal(
 					potential_container = get_cblock_containing_position(code_block_list, jump_destination);
 
 					if ((value1 & 0x38) == 0x10) {
-						push_in_stack(stack, NULL, get_cblock_ip(block) + reader->buffer_index);
+						push_in_stack(stack, NULL, get_mcblock_ip(block) + reader->buffer_index);
 						if (is_register_sp_defined_relative(regs)) {
 							set_register_sp_relative(regs, opcode_reference, NULL, get_register_sp(regs) - 2);
 						}
@@ -2364,19 +2364,19 @@ static int read_block_instruction_internal(
 						}
 					}
 
-					if (potential_container && get_cblock_start(potential_container) == jump_destination) {
+					if (potential_container && get_mcblock_start(potential_container) == jump_destination) {
 						if ((error_code = add_jump_type_cborigin_in_block(segment_start, segment_size, potential_container, code_block_list, opcode_reference, regs, stack, var_values))) {
 							return error_code;
 						}
 					}
 					else {
 						int result;
-						struct CodeBlock *new_block = prepare_new_cblock(code_block_list);
+						struct MutableCodeBlock *new_block = prepare_new_cblock(code_block_list);
 						if (!new_block) {
 							return 1;
 						}
 
-						initialize_cblock(new_block, get_cblock_relative_cs(block), code_relative_target, jump_destination);
+						initialize_mcblock(new_block, get_mcblock_relative_cs(block), code_relative_target, jump_destination);
 						if ((result = add_jump_type_cborigin_in_block(segment_start, segment_size, new_block, code_block_list, opcode_reference, regs, stack, var_values))) {
 							return result;
 						}
@@ -2394,13 +2394,13 @@ static int read_block_instruction_internal(
 						}
 
 						if (potential_container) {
-							set_cblock_end(potential_container, jump_destination);
-							invalidate_cblock_check(potential_container);
+							set_mcblock_end(potential_container, jump_destination);
+							invalidate_mcblock_check(potential_container);
 						}
 					}
 				}
 				else {
-					DEBUG_PRINT2("  Warning: Jump target is +%x:%x, which is outside the executable segment. Skipping.\n", get_cblock_relative_cs(block), code_relative_target);
+					DEBUG_PRINT2("  Warning: Jump target is +%x:%x, which is outside the executable segment. Skipping.\n", get_mcblock_relative_cs(block), code_relative_target);
 				}
 			}
 			else if ((value1 & 0x38) == 0x30) {
@@ -2434,7 +2434,7 @@ static int read_block_instruction_internal(
 			}
 
 			if ((value1 & 0x30) == 0x10 || (value1 & 0x30) == 0x20) {
-				set_cblock_size(block, reader->buffer_index);
+				set_mcblock_size(block, reader->buffer_index);
 				*next_instruction_potentially_reached = 0;
 			}
 			else {
@@ -2450,13 +2450,13 @@ static int read_block_instruction_internal(
 		DEBUG_PRINT0("\n");
 
 		if (this_block_index + 1 < code_block_list->block_count) {
-			const char *next_start = get_cblock_start(code_block_list->sorted_blocks[this_block_index + 1]);
+			const char *next_start = get_mcblock_start(code_block_list->sorted_blocks[this_block_index + 1]);
 			if (next_start < new_end) {
 				new_end = next_start;
 			}
 		}
 
-		set_cblock_end(block, new_end);
+		set_mcblock_end(block, new_end);
 		return 0;
 	}
 }
@@ -2472,8 +2472,8 @@ static int read_block_instruction(
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		struct FilePrinter *printer_err,
-		struct CodeBlock *block,
-		struct CodeBlockList *code_block_list,
+		struct MutableCodeBlock *block,
+		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list,
@@ -2503,9 +2503,9 @@ static int read_block(
 		const char **sorted_relocations,
 		unsigned int relocation_count,
 		struct FilePrinter *printer_err,
-		struct CodeBlock *block,
+		struct MutableCodeBlock *block,
 		unsigned int block_max_size,
-		struct CodeBlockList *code_block_list,
+		struct MutableCodeBlockList *code_block_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
@@ -2513,14 +2513,14 @@ static int read_block(
 	struct InterruptionTable int_table;
 	int error_code;
 
-	reader.buffer = get_cblock_start(block);
+	reader.buffer = get_mcblock_start(block);
 	reader.buffer_index = 0;
 	reader.buffer_size = block_max_size;
 
 	set_all_interruption_table_undefined(&int_table);
 
 	DEBUG_PRINT2("Evaluation #%d. Iteration %d. ", evaluation_number, evaluation_loop);
-	DEBUG_PRINT2("Reading block at +%x:%x\n", get_cblock_relative_cs(block), get_cblock_ip(block));
+	DEBUG_PRINT2("Reading block at +%x:%x\n", get_mcblock_relative_cs(block), get_mcblock_ip(block));
 	do {
 		int next_instruction_potentially_reached = 0;
 		int index;
@@ -2528,20 +2528,20 @@ static int read_block(
 			return error_code;
 		}
 
-		DEBUG_PRINT_STATE(get_cblock_ip(block) + reader.buffer_index, regs, stack, var_values, segment_start, &int_table);
+		DEBUG_PRINT_STATE(get_mcblock_ip(block) + reader.buffer_index, regs, stack, var_values, segment_start, &int_table);
 		index = index_of_cblock_in_list(code_block_list, block);
 		if (index + 1 < code_block_list->block_count) {
-			struct CodeBlock *next_block = code_block_list->sorted_blocks[index + 1];
-			const char *next_start = get_cblock_start(next_block);
-			if (get_cblock_start(block) + reader.buffer_index == next_start) {
+			struct MutableCodeBlock *next_block = code_block_list->sorted_blocks[index + 1];
+			const char *next_start = get_mcblock_start(next_block);
+			if (get_mcblock_start(block) + reader.buffer_index == next_start) {
 				struct Registers accumulated_regs;
 				struct Stack accumulated_stack;
 				struct GlobalVariableWordValueMap accumulated_map;
 
-				struct CodeBlockOriginList *next_origin_list = get_cblock_origin_list(next_block);
+				struct CodeBlockOriginList *next_origin_list = get_mcblock_origin_list(next_block);
 				int next_origin_index;
 
-				set_cblock_end(block, next_start);
+				set_mcblock_end(block, next_start);
 				if (next_origin_list->origin_count > 0) {
 					struct CodeBlockOrigin *origin = next_origin_list->sorted_origins[0];
 					struct Registers *origin_regs = get_cborigin_registers(origin);
@@ -2584,7 +2584,7 @@ static int read_block(
 							return error_code;
 						}
 
-						invalidate_cblock_check(next_block);
+						invalidate_mcblock_check(next_block);
 					}
 				}
 				else if (next_instruction_potentially_reached) {
@@ -2602,15 +2602,15 @@ static int read_block(
 							changes_on_merging_stacks(&accumulated_stack, stack) ||
 							changes_on_merging_gvwvmap(&accumulated_map, var_values))) {
 
-						invalidate_cblock_check(next_block);
+						invalidate_mcblock_check(next_block);
 					}
 				}
 			}
-			else if (get_cblock_start(block) + reader.buffer_index >= next_start) {
-				set_cblock_end(block, next_start);
+			else if (get_mcblock_start(block) + reader.buffer_index >= next_start) {
+				set_mcblock_end(block, next_start);
 			}
 		}
-	} while (!is_cblock_end_known(block) || reader.buffer_index < get_cblock_size(block));
+	} while (!is_mcblock_end_known(block) || reader.buffer_index < get_mcblock_size(block));
 
 	return 0;
 }
@@ -2620,14 +2620,14 @@ static int read_block(
 struct ProgramContent *compose_pcontent(
 		struct SegmentReadResult *read_result,
 		struct FilePrinter *printer_err,
-		struct CodeBlockList *cblock_list,
+		struct MutableCodeBlockList *cblock_list,
 		struct GlobalVariableList *global_variable_list,
 		struct SegmentStartList *segment_start_list,
 		struct ReferenceList *reference_list) {
 	struct CodeBlockOriginList *origin_list;
 	struct CodeBlockOrigin *origin;
 	struct Registers *origin_regs;
-	struct CodeBlock *first_block = prepare_new_cblock(cblock_list);
+	struct MutableCodeBlock *first_block = prepare_new_cblock(cblock_list);
 	int error_code;
 	int any_evaluated;
 	int evaluate_all;
@@ -2640,8 +2640,8 @@ struct ProgramContent *compose_pcontent(
 		return NULL;
 	}
 
-	initialize_cblock(first_block, read_result->relative_cs, read_result->ip, read_result->buffer + (read_result->relative_cs * 16 + read_result->ip));
-	origin_list = get_cblock_origin_list(first_block);
+	initialize_mcblock(first_block, read_result->relative_cs, read_result->ip, read_result->buffer + (read_result->relative_cs * 16 + read_result->ip));
+	origin_list = get_mcblock_origin_list(first_block);
 	origin = prepare_new_cborigin(origin_list);
 	initialize_cborigin_as_os(origin, read_result->relative_cs, ds_should_match_cs_at_segment_start(read_result));
 	if (insert_cborigin(origin_list, origin)) {
@@ -2658,18 +2658,18 @@ struct ProgramContent *compose_pcontent(
 		any_evaluated = 0;
 
 		for (block_index = 0; block_index < cblock_list->block_count; block_index++) {
-			struct CodeBlock *block = get_unsorted_cblock(cblock_list, block_index);
-			if (cblock_requires_evaluation(block)) {
-				struct CodeBlockOriginList *block_origin_list = get_cblock_origin_list(block);
+			struct MutableCodeBlock *block = get_unsorted_cblock(cblock_list, block_index);
+			if (mcblock_requires_evaluation(block)) {
+				struct CodeBlockOriginList *block_origin_list = get_mcblock_origin_list(block);
 				struct Registers regs;
 				struct Stack stack;
 				unsigned int block_max_size;
 				struct GlobalVariableWordValueMap var_values;
 
 				any_evaluated = 1;
-				mark_cblock_as_being_evaluated(block);
+				mark_mcblock_as_being_evaluated(block);
 
-				block_max_size = read_result->size - (get_cblock_start(block) - read_result->buffer);
+				block_max_size = read_result->size - (get_mcblock_start(block) - read_result->buffer);
 
 				accumulate_registers_from_cbolist(&regs, block_origin_list);
 				if (accumulate_stack_from_cbolist(&stack, block_origin_list) ||
@@ -2680,7 +2680,7 @@ struct ProgramContent *compose_pcontent(
 
 				clear_stack(&stack);
 				clear_gvwvmap(&var_values);
-				mark_cblock_as_evaluated(block);
+				mark_mcblock_as_evaluated(block);
 				DEBUG_CBLIST(cblock_list);
 			}
 		}
@@ -2714,14 +2714,14 @@ struct ProgramContent *compose_pcontent(
 				set_gvar_end(variable, new_end);
 			}
 			else if (get_gvar_type(variable) == GVAR_TYPE_DOLLAR_TERMINATED_STRING) {
-				struct CodeBlock *nearest_block = get_cblock_with_start_equals_or_after(cblock_list, get_gvar_start(variable));
-				if (nearest_block && get_cblock_start(nearest_block) == get_gvar_start(variable)) {
+				struct MutableCodeBlock *nearest_block = get_cblock_with_start_equals_or_after(cblock_list, get_gvar_start(variable));
+				if (nearest_block && get_mcblock_start(nearest_block) == get_gvar_start(variable)) {
 					/* It is weird that the variable is inside a block... not sure what to do in this case */
 					/* TODO: Find a better solution */
-					set_gvar_end(variable, get_cblock_end(nearest_block));
+					set_gvar_end(variable, get_mcblock_end(nearest_block));
 				}
 				else {
-					const char *potential_end = nearest_block? get_cblock_end(nearest_block) : read_result->buffer + read_result->size;
+					const char *potential_end = nearest_block? get_mcblock_end(nearest_block) : read_result->buffer + read_result->size;
 					const char *end;
 
 					for (end = get_gvar_start(variable); end < potential_end; end++) {

@@ -28,7 +28,7 @@ void initialize_ref_as_gvar_instruction_address(struct Reference *ref, struct Gl
 	ref->instruction = instruction;
 }
 
-void initialize_ref_as_cblock_instruction_immediate_value(struct Reference *ref, struct CodeBlock *block, const char *instruction) {
+void initialize_ref_as_cblock_instruction_immediate_value(struct Reference *ref, struct MutableCodeBlock *block, const char *instruction) {
 	assert(block && instruction);
 	ref->flags = REF_FLAG_TARGET_IS_CBLOCK;
 	ref->target = block;
@@ -44,9 +44,9 @@ struct GlobalVariable *get_gvar_from_ref_target(const struct Reference *ref) {
 			(struct GlobalVariable *) ref->target : NULL;
 }
 
-struct CodeBlock *get_cblock_from_ref_target(const struct Reference *ref) {
+struct MutableCodeBlock *get_cblock_from_ref_target(const struct Reference *ref) {
 	return ((ref->flags & REF_FLAG_TARGET_TYPE_MASK) == REF_FLAG_TARGET_IS_CBLOCK)?
-			(struct CodeBlock *) ref->target : NULL;
+			(struct MutableCodeBlock *) ref->target : NULL;
 }
 
 int is_ref_in_instruction_address(const struct Reference *ref) {

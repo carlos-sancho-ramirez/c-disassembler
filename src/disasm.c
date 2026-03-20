@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "cblist.h"
+#include "mcblist.h"
 #include "gvlist.h"
 #include "finder.h"
 #include "dumpers.h"
@@ -231,7 +231,7 @@ int main(int argc, const char *argv[]) {
 	int i;
 	struct SegmentReadResult read_result;
 	int error_code;
-	struct CodeBlockList cblock_list;
+	struct MutableCodeBlockList cblock_list;
 	struct GlobalVariableList gvar_list;
 	struct SegmentStartList segment_start_list;
 	struct ReferenceList ref_list;
@@ -415,7 +415,7 @@ int main(int argc, const char *argv[]) {
 	}
 
 	for (i = 0; i < cblock_list.block_count; i++) {
-		struct CodeBlockOriginList *origin_list = get_cblock_origin_list(cblock_list.sorted_blocks[i]);
+		struct CodeBlockOriginList *origin_list = get_mcblock_origin_list(cblock_list.sorted_blocks[i]);
 		int j;
 		for (j = 0; j < origin_list->origin_count; j++) {
 			clear_gvwvmap(get_cborigin_var_values(origin_list->sorted_origins[j]));

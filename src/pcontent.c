@@ -2,7 +2,7 @@
 
 static void initialize_pcontent(
 		struct ProgramContent *pcontent,
-		const struct CodeBlockList *blocks,
+		const struct MutableCodeBlockList *blocks,
 		const struct GlobalVariableList *vars,
 		const struct ReferenceList *refs) {
 	pcontent->blocks = blocks;
@@ -11,7 +11,7 @@ static void initialize_pcontent(
 }
 
 struct ProgramContent *new_pcontent(
-		const struct CodeBlockList *blocks,
+		const struct MutableCodeBlockList *blocks,
 		const struct GlobalVariableList *vars,
 		const struct ReferenceList *refs) {
 	struct ProgramContent *pcontent = malloc(sizeof(struct ProgramContent));
@@ -19,7 +19,7 @@ struct ProgramContent *new_pcontent(
 	return pcontent;
 }
 
-const struct CodeBlockList *get_pcontent_blocks(const struct ProgramContent *pcontent) {
+const struct MutableCodeBlockList *get_pcontent_blocks(const struct ProgramContent *pcontent) {
 	return pcontent->blocks;
 }
 
