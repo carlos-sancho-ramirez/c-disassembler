@@ -30,9 +30,14 @@ const char *get_cblock_start(const struct CodeBlock *block);
 const char *get_cblock_end(const struct CodeBlock *block);
 unsigned int get_cblock_size(const struct CodeBlock *block);
 const struct CodeBlockOriginList *get_cblock_origin_list(const struct CodeBlock *block);
-
+int is_position_inside_cblock(const struct CodeBlock *block, const char *position);
 int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block);
 int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count);
+
+/* I think this should always return null. */
+/* TODO: Assert that any CodeBlock has at least one origin, and remove this method if all keeps running */
+int should_cblock_be_dumped(const struct CodeBlock *block);
+int should_dump_label_for_cblock(const struct CodeBlock *block);
 
 int index_of_block_with_start(const struct CodeBlock *blocks, unsigned int block_count, const char *start);
 

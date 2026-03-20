@@ -24,4 +24,9 @@ struct Reference {
 
 void initialize_ref(struct Reference *ref, const void *target, unsigned int flags, const char *instruction);
 
+const char *get_ref_instruction(const struct Reference *ref);
+struct GlobalVariable *get_gvar_from_ref_target(const struct Reference *ref);
+struct CodeBlock *get_cblock_from_ref_target(const struct Reference *ref);
+int is_ref_in_instruction_address(const struct Reference *ref);
+
 #endif /* _REFERENCE_H_ */

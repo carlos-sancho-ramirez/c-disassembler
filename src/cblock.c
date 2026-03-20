@@ -36,12 +36,35 @@ const struct CodeBlockOriginList *get_cblock_origin_list(const struct CodeBlock 
 	return block->origin_list;
 }
 
+int is_position_inside_cblock(const struct CodeBlock *block, const char *position) {
+	return block->start <= position && position < block->end;
+}
+
 int has_cborigin_of_type_continue_in_cblock(const struct CodeBlock *block) {
 	return index_of_cborigin_of_type_continue(block->origin_list) >= 0;
 }
 
 int has_cborigin_of_type_call_return_in_cblock(const struct CodeBlock *block, unsigned int behind_count) {
 	return index_of_cborigin_of_type_call_return(block->origin_list, behind_count) >= 0;
+}
+
+int should_cblock_be_dumped(const struct CodeBlock *block) {
+	return block->origin_list->origin_count > 0;
+}
+
+int should_dump_label_for_cblock(const struct CodeBlock *block) {
+	const struct CodeBlockOriginList *origin_list = block->origin_list;
+	const unsigned int origin_count = origin_list->origin_count;
+	int index;
+	for (index = 0; index < origin_count; index++) {
+		const struct CodeBlockOrigin *origin = origin_list->sorted_origins[index];
+		const unsigned int origin_type = get_cborigin_type(origin);
+		if (origin_type != CBORIGIN_TYPE_CONTINUE && origin_type != CBORIGIN_TYPE_CALL_RETURN) {
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 int index_of_block_with_start(const struct CodeBlock *blocks, unsigned int block_count, const char *start) {
